@@ -1,7 +1,7 @@
 """
 TelegramDownloader (Modified for File Sharing Bot)
 Stand-alone downloader wrapper over telegram-uploader with streaming support
-Author: Modified for UxB-File-Sharing Bot
+Author: Modified for File-Sharing Bot
 """
 
 import json
@@ -32,7 +32,7 @@ class DownloadResp:
 # ---------- main class ----------
 class TelegramDownloader:
     """
-    High-level downloader for UxB-File-Sharing Bot:
+    High-level downloader for File-Sharing Bot:
         - JSON in / JSON out
         - parallel & split-file support
         - delete-after-download

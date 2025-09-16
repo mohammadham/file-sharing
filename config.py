@@ -1,6 +1,4 @@
-#(©)CodeXBotz
-#By @Codeflix_Bots
-
+#(©)Mohammadham
 
 
 import os

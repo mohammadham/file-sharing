@@ -1,6 +1,6 @@
 
 """
-Web routes for UxB-File-Sharing Bot
+Web routes for File-Sharing Bot
 Integrated with FastAPI server for file streaming
 """
 

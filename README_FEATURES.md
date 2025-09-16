@@ -1,7 +1,7 @@
-# 🚀 UxB-File-Sharing Bot v2.0 - New Features
+# 🚀 File-Sharing Bot v2.0 - New Features
 
 ## 📋 Overview
-Enhanced version of UxB-File-Sharing Bot with advanced file management, streaming capabilities, and SQLite database support.
+Enhanced version of File-Sharing Bot with advanced file management, streaming capabilities, and SQLite database support.
 
 ## 🆕 New Features Added
 

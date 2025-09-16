@@ -1,6 +1,6 @@
 """
 FastAPI server for file streaming and download endpoints
-Integrated with UxB-File-Sharing Bot
+Integrated with File-Sharing Bot
 """
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import StreamingResponse, FileResponse

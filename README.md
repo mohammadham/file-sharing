@@ -1,4 +1,4 @@
-# 📁 UxB-File-Sharing Bot
+# 📁 File-Sharing Bot
 
 <div align="center" style="border: 2px solid #e94560; border-radius: 10px;">
   <img src="https://yt3.googleusercontent.com/p9g9i5N55WgCn1mFFjl8iut4BOd0O4RRjn7WB_Silj9JmJ42tE-yhdZ0oR_7m-F4kGHT22Br=s176-c-k-c0x00ffffff-no-rj" alt="Bot" width="150" style="border-radius: 10px;">
@@ -53,12 +53,12 @@ For a detailed deployment guide, watch [this tutorial video](https://youtu.be/7j
 
 Click the button below to deploy the bot on Koyeb:
 
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/sahildesai07/UxB-file-sharing&branch=main&name=file-sharing-bot)
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/mohammadham/file-sharing&branch=main&name=file-sharing-bot)
 
 ### Deploy on Your VPS
 
 ```bash
-git clone https://github.com/sahildesai07/UxB-file-sharing
+git clone https://github.com/mohammadham/file-sharing
 cd file-sharing-token-bot
 pip3 install -r requirements.txt
 # <Create config.py appropriately>
@@ -91,7 +91,7 @@ stats - checking your bot uptime
 * `DB_URI ` Your mongo db url [tutorial video](https://youtu.be/qFB0cFqiyOM).
 * `DB_NAME` Your mongo db session name
 * `ADMINS` Optional: A space separated list of user_ids of Admins, they can only create links
-* `START_MSG` Optional: start message of bot, use HTML and <a href='https://github.com/sahildesai07/UxB-file-sharing/blob/main/README.md#start_message'>fillings</a>
+* `START_MSG` Optional: start message of bot, use HTML and <a href='https://github.com/mohammadham/file-sharing/blob/main/README.md#start_message'>fillings</a>
 * `FORCE_SUB_MESSAGE`Optional:Force sub message of bot, use HTML and Fillings
 * `FORCESUB_CHANNEL` Optional: ForceSub Channel ID, leave 0 if you want disable force sub
 * `FORCESUB_CHANNEL2` Optional: ForceSub Channel ID, leave 0 if you want disable force sub
@@ -107,9 +107,9 @@ stats - checking your bot uptime
 
 ### Extra Variables
 
-* `CUSTOM_CAPTION` put your Custom caption text if you want Setup Custom Caption, you can use HTML and <a href='https://github.com/sahildesai07/UxB-file-sharing/blob/main/README.md#custom_caption'>fillings</a> for formatting (only for documents)
+* `CUSTOM_CAPTION` put your Custom caption text if you want Setup Custom Caption, you can use HTML and <a href='https://github.com/mohammadham/file-sharing/blob/main/README.md#custom_caption'>fillings</a> for formatting (only for documents)
 * `DISABLE_CHANNEL_BUTTON` Put True to Disable Channel Share Button, Default if False
-* `BOT_STATS_TEXT` put your custom text for stats command, use HTML and <a href='https://github.com/sahildesai07/UxB-file-sharing/blob/main/README.md#custom_stats'>fillings</a>
+* `BOT_STATS_TEXT` put your custom text for stats command, use HTML and <a href='https://github.com/mohammadham/file-sharing/blob/main/README.md#custom_stats'>fillings</a>
 * `USER_REPLY_TEXT` put your text to show when user sends any message, use HTML
 
 ### Fillings

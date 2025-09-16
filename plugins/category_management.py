@@ -1,5 +1,5 @@
 """
-Category Management Plugin for UxB-File-Sharing Bot
+Category Management Plugin for File-Sharing Bot
 Handles category creation, editing, deletion and navigation
 """
 

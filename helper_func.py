@@ -1,6 +1,4 @@
-#(©)Codexbotz
-#Recoded By @Codeflix_Bots
-
+#(©)mohammadham
 import base64
 import re
 import asyncio

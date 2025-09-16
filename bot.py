@@ -1,4 +1,4 @@
-#(©)Codexbotz @Codeflix_Bots
+#(©)MohammadHam Bots
 
 from aiohttp import web
 from plugins import web_server
@@ -98,7 +98,7 @@ class Bot(Client):
         self.set_parse_mode(ParseMode.HTML)
         self.LOGGER(__name__).info(f"Bot Running..!\n\nCreated by \nhttps://t.me/ultroid_official")
         self.LOGGER(__name__).info(f""" \n\n       
-🚀 UxB-File-Sharing Bot v2.0 🚀
+🚀 File-Sharing Bot v2.0 🚀
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ Bot Status: Running
 📊 Database: {"SQLite" if USE_SQLITE else "MongoDB"}

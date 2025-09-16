@@ -1,7 +1,7 @@
 """
 Telegram + Google Drive Uploader (Modified for File Sharing Bot)
 Stand-alone, JSON-returning, no DB touch
-Author: Modified for UxB-File-Sharing Bot
+Author: Modified for File-Sharing Bot
 """
 import os
 import json
@@ -127,7 +127,7 @@ class _Telegram:
 # ---------- MAIN CLASS ----------
 class TelegramUploader:
     """
-    Telegram uploader for UxB-File-Sharing Bot.
+    Telegram uploader for File-Sharing Bot.
     No database touch, returns JSON-serialisable objects.
     """
 

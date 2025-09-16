@@ -1,5 +1,5 @@
 """
-SQLite Database for UxB-File-Sharing Bot
+SQLite Database for File-Sharing Bot
 Replacement for MongoDB with category management
 """
 import sqlite3

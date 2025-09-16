@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Environment setup script for UxB-File-Sharing Bot
+Environment setup script for File-Sharing Bot
 This script sets up the environment and initializes all components
 """
 
@@ -142,7 +142,7 @@ async def test_api_server():
 
 def main():
     """Main setup function"""
-    print("🚀 UxB-File-Sharing Bot Environment Setup")
+    print("🚀 File-Sharing Bot Environment Setup")
     print("=" * 50)
     
     # Check Python version
