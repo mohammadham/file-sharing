@@ -45,7 +45,7 @@ class Bot(Client):
         else:
             self.LOGGER(__name__).info("📊 Using MongoDB database")
 
-        if FORCESUB_CHANNEL:
+        if FORCESUB_CHANNEL and FORCESUB_CHANNEL != 0:
             try:
                 link = (await self.get_chat(FORCESUB_CHANNEL)).invite_link
                 if not link:
@@ -53,12 +53,10 @@ class Bot(Client):
                     link = (await self.get_chat(FORCESUB_CHANNEL)).invite_link
                 self.invitelink = link
             except Exception as a:
-                self.LOGGER(__name__).warning(a)
-                self.LOGGER(__name__).warning("Bot can't Export Invite link from Force Sub Channel!")
-                self.LOGGER(__name__).warning(f"Please Double check the FORCESUB_CHANNEL value and Make sure Bot is Admin in channel with Invite Users via Link Permission, Current Force Sub Channel Value: {FORCESUB_CHANNEL}")
-                self.LOGGER(__name__).info("\nBot Stopped. Join https://t.me/weebs_support for support")
-                sys.exit()
-        if FORCESUB_CHANNEL2:
+                self.LOGGER(__name__).warning(f"Force Sub Channel 1 not accessible: {a}")
+                self.invitelink = ""
+                
+        if FORCESUB_CHANNEL2 and FORCESUB_CHANNEL2 != 0:
             try:
                 link = (await self.get_chat(FORCESUB_CHANNEL2)).invite_link
                 if not link:
@@ -66,12 +64,10 @@ class Bot(Client):
                     link = (await self.get_chat(FORCESUB_CHANNEL2)).invite_link
                 self.invitelink2 = link
             except Exception as a:
-                self.LOGGER(__name__).warning(a)
-                self.LOGGER(__name__).warning("Bot can't Export Invite link from Force Sub Channel!")
-                self.LOGGER(__name__).warning(f"Please Double check the FORCESUB_CHANNEL2 value and Make sure Bot is Admin in channel with Invite Users via Link Permission, Current Force Sub Channel Value: {FORCESUB_CHANNEL2}")
-                self.LOGGER(__name__).info("\nBot Stopped. Join https://t.me/weebs_support for support")
-                sys.exit()
-        if FORCESUB_CHANNEL3:
+                self.LOGGER(__name__).warning(f"Force Sub Channel 2 not accessible: {a}")
+                self.invitelink2 = ""
+                
+        if FORCESUB_CHANNEL3 and FORCESUB_CHANNEL3 != 0:
             try:
                 link = (await self.get_chat(FORCESUB_CHANNEL3)).invite_link
                 if not link:
@@ -79,11 +75,8 @@ class Bot(Client):
                     link = (await self.get_chat(FORCESUB_CHANNEL3)).invite_link
                 self.invitelink3 = link
             except Exception as a:
-                self.LOGGER(__name__).warning(a)
-                self.LOGGER(__name__).warning("Bot can't Export Invite link from Force Sub Channel!")
-                self.LOGGER(__name__).warning(f"Please Double check the FORCESUB_CHANNEL3 value and Make sure Bot is Admin in channel with Invite Users via Link Permission, Current Force Sub Channel Value: {FORCESUB_CHANNEL3}")
-                self.LOGGER(__name__).info("\nBot Stopped. Join https://t.me/ultroid_official for support")
-                sys.exit()       
+                self.LOGGER(__name__).warning(f"Force Sub Channel 3 not accessible: {a}")
+                self.invitelink3 = ""
         try:
             db_channel = await self.get_chat(CHANNEL_ID)
             self.db_channel = db_channel

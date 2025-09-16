@@ -20,5 +20,10 @@ asyncio
 # --- For-API-Server --------- #
 fastapi
 uvicorn
+python-multipart
 # --- For-File-Integration ---- #
 telegram-uploader
+# --- For-Admin-Panel --------- #
+Jinja2
+python-jose[cryptography]
+passlib[bcrypt]

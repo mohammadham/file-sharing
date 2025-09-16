@@ -1,0 +1,12 @@
+[16-Sep-25 19:35:47 - INFO] - telethon.crypto.aes - cryptg detected, it will be used for encryption
+[16-Sep-25 19:37:16 - INFO] - bot - ✅ SQLite database initialized successfully
+[16-Sep-25 19:37:16 - WARNING] - bot - Telegram says: [400 CHANNEL_INVALID] - The channel parameter is invalid (caused by "channels.GetChannels")
+[16-Sep-25 19:37:16 - WARNING] - bot - Bot can't Export Invite link from Force Sub Channel!
+[16-Sep-25 19:37:16 - WARNING] - bot - Please Double check the FORCESUB_CHANNEL value and Make sure Bot is Admin in channel with Invite Users via Link Permission, Current Force Sub Channel Value: -1002108419450
+[16-Sep-25 19:37:16 - INFO] - bot - 
+Bot Stopped. Join https://t.me/weebs_support for support
+[16-Sep-25 19:39:25 - INFO] - bot - ✅ SQLite database initialized successfully
+[16-Sep-25 19:39:25 - WARNING] - bot - Telegram says: [400 CHANNEL_INVALID] - The channel parameter is invalid (caused by "channels.GetChannels")
+[16-Sep-25 19:39:25 - WARNING] - bot - Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value -1002075726565
+[16-Sep-25 19:39:25 - INFO] - bot - 
+Bot Stopped. Join https://t.me/ultroid_official for support

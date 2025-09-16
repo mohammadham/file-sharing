@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ربات فایل شیرینگ</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-hint-color: #999999;
+            --tg-theme-link-color: #2678b6;
+            --tg-theme-button-color: #2678b6;
+            --tg-theme-button-text-color: #ffffff;
+        }
+        
+        body {
+            font-family: 'Tahoma', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            font-size: 14px;
+        }
+        
+        .container-fluid {
+            padding: 0;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .section {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--tg-theme-text-color);
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+        
+        .file-item:hover {
+            background: #e9ecef;
+        }
+        
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--tg-theme-button-color);
+            color: white;
+            border-radius: 8px;
+            margin-left: 10px;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        
+        .file-size {
+            font-size: 12px;
+            color: var(--tg-theme-hint-color);
+        }
+        
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .category-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .category-card:hover {
+            background: #e9ecef;
+            border-color: var(--tg-theme-button-color);
+        }
+        
+        .category-icon {
+            font-size: 24px;
+            color: var(--tg-theme-button-color);
+            margin-bottom: 8px;
+        }
+        
+        .search-box {
+            position: sticky;
+            top: 0;
+            background: var(--tg-theme-bg-color);
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            z-index: 100;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            background: #f8f9fa;
+            font-size: 14px;
+        }
+        
+        .btn-download {
+            background: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--tg-theme-hint-color);
+        }
+        
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--tg-theme-link-color);
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background: #f8f9fa;
+            font-size: 12px;
+            color: var(--tg-theme-hint-color);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--tg-theme-hint-color);
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <button id="backBtn" class="back-btn" style="display: none;" onclick="goBack()">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+        <h4 id="headerTitle">
+            <i class="fas fa-robot me-2"></i>
+            ربات فایل شیرینگ
+        </h4>
+    </div>
+
+    <!-- Search Box -->
+    <div class="search-box">
+        <input type="text" class="search-input" id="searchInput" placeholder="جستجوی فایل..." 
+               onkeyup="debounceSearch()" autocomplete="off">
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent">
+        <!-- Categories Section -->
+        <div id="categoriesSection" class="section">
+            <div class="section-title">
+                <i class="fas fa-folder me-2"></i>
+                دسته‌بندی‌ها
+            </div>
+            <div id="categoriesGrid" class="category-grid">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    در حال بارگذاری...
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Files Section -->
+        <div id="recentSection" class="section">
+            <div class="section-title">
+                <i class="fas fa-clock me-2"></i>
+                فایل‌های اخیر
+            </div>
+            <div id="recentFiles">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    در حال بارگذاری...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Files List (Hidden by default) -->
+    <div id="filesContent" style="display: none;">
+        <div class="stats-bar" id="statsBar">
+            <span>0 فایل</span>
+            <span>0 MB</span>
+        </div>
+        <div id="filesList"></div>
+    </div>
+
+    <!-- Search Results (Hidden by default) -->
+    <div id="searchContent" style="display: none;">
+        <div class="section">
+            <div class="section-title">
+                <i class="fas fa-search me-2"></i>
+                نتایج جستجو
+            </div>
+            <div id="searchResults"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Telegram Web App initialization
+        let tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // Global variables
+        let currentCategory = null;
+        let currentView = 'main';
+        let searchTimeout;
+        const API_BASE = 'http://localhost:8001/api';
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCategories();
+            loadRecentFiles();
+            
+            // Apply Telegram theme
+            applyTelegramTheme();
+        });
+
+        function applyTelegramTheme() {
+            if (tg.themeParams) {
+                document.documentElement.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#ffffff');
+                document.documentElement.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#000000');
+                document.documentElement.style.setProperty('--tg-theme-hint-color', tg.themeParams.hint_color || '#999999');
+                document.documentElement.style.setProperty('--tg-theme-link-color', tg.themeParams.link_color || '#2678b6');
+                document.documentElement.style.setProperty('--tg-theme-button-color', tg.themeParams.button_color || '#2678b6');
+                document.documentElement.style.setProperty('--tg-theme-button-text-color', tg.themeParams.button_text_color || '#ffffff');
+            }
+        }
+
+        // Load categories
+        async function loadCategories() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/categories`);
+                const categories = await response.json();
+                
+                const grid = document.getElementById('categoriesGrid');
+                grid.innerHTML = '';
+                
+                if (categories.length === 0) {
+                    grid.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>دسته‌بندی یافت نشد</p></div>';
+                    return;
+                }
+                
+                categories.forEach(category => {
+                    const card = document.createElement('div');
+                    card.className = 'category-card';
+                    card.onclick = () => openCategory(category.id, category.name);
+                    card.innerHTML = `
+                        <div class="category-icon">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        <div class="fw-bold">${category.name}</div>
+                        <small class="text-muted">${category.description || ''}</small>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                document.getElementById('categoriesGrid').innerHTML = 
+                    '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>خطا در بارگذاری دسته‌بندی‌ها</p></div>';
+            }
+        }
+
+        // Load recent files
+        async function loadRecentFiles() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/files`);
+                const files = await response.json();
+                
+                const container = document.getElementById('recentFiles');
+                container.innerHTML = '';
+                
+                if (files.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i class="fas fa-file"></i><p>فایلی یافت نشد</p></div>';
+                    return;
+                }
+                
+                // Show only last 5 files
+                files.slice(0, 5).forEach(file => {
+                    const item = createFileItem(file);
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading recent files:', error);
+                document.getElementById('recentFiles').innerHTML = 
+                    '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>خطا در بارگذاری فایل‌ها</p></div>';
+            }
+        }
+
+        // Open category
+        async function openCategory(categoryId, categoryName) {
+            try {
+                currentCategory = categoryId;
+                currentView = 'category';
+                
+                // Update header
+                document.getElementById('headerTitle').innerHTML = `<i class="fas fa-folder me-2"></i>${categoryName}`;
+                document.getElementById('backBtn').style.display = 'inline-block';
+                
+                // Hide main content, show files content
+                document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('filesContent').style.display = 'block';
+                document.getElementById('searchContent').style.display = 'none';
+                
+                // Load category files
+                const response = await fetch(`${API_BASE}/admin/files?category=${categoryId}`);
+                const files = await response.json();
+                
+                displayFiles(files);
+                
+            } catch (error) {
+                console.error('Error opening category:', error);
+                tg.showAlert('خطا در بارگذاری فایل‌ها');
+            }
+        }
+
+        // Display files
+        function displayFiles(files) {
+            const container = document.getElementById('filesList');
+            const statsBar = document.getElementById('statsBar');
+            
+            // Update stats
+            const totalSize = files.reduce((sum, file) => sum + (file.file_size || 0), 0);
+            statsBar.innerHTML = `
+                <span>${files.length} فایل</span>
+                <span>${formatFileSize(totalSize)}</span>
+            `;
+            
+            // Display files
+            container.innerHTML = '';
+            
+            if (files.length === 0) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-file"></i><p>فایلی در این دسته یافت نشد</p></div>';
+                return;
+            }
+            
+            files.forEach(file => {
+                const item = createFileItem(file);
+                container.appendChild(item);
+            });
+        }
+
+        // Create file item element
+        function createFileItem(file) {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            
+            const icon = getFileIcon(file.mime_type);
+            const size = formatFileSize(file.file_size || 0);
+            
+            item.innerHTML = `
+                <div class="file-icon">
+                    <i class="${icon}"></i>
+                </div>
+                <div class="file-info">
+                    <div class="file-name">${file.original_name}</div>
+                    <div class="file-size">${size} • ${formatDate(file.created_at)}</div>
+                </div>
+                <button class="btn-download" onclick="downloadFile('${file.id}')">
+                    <i class="fas fa-download"></i>
+                </button>
+            `;
+            
+            return item;
+        }
+
+        // Download file
+        async function downloadFile(fileId) {
+            try {
+                tg.showAlert('در حال تولید لینک دانلود...');
+                
+                const response = await fetch(`${API_BASE}/admin/files/${fileId}/links`, {
+                    method: 'POST'
+                });
+                const links = await response.json();
+                
+                // Open download link
+                tg.openLink(links.download_link);
+            } catch (error) {
+                console.error('Error downloading file:', error);
+                tg.showAlert('خطا در تولید لینک دانلود');
+            }
+        }
+
+        // Search functionality
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(performSearch, 500);
+        }
+
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            
+            if (query.length < 2) {
+                if (currentView === 'search') {
+                    goBack();
+                }
+                return;
+            }
+            
+            try {
+                currentView = 'search';
+                
+                // Update header
+                document.getElementById('headerTitle').innerHTML = `<i class="fas fa-search me-2"></i>جستجو: ${query}`;
+                document.getElementById('backBtn').style.display = 'inline-block';
+                
+                // Show search content
+                document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('filesContent').style.display = 'none';
+                document.getElementById('searchContent').style.display = 'block';
+                
+                // Perform search (simplified - you'd implement proper search API)
+                const response = await fetch(`${API_BASE}/admin/files?search=${encodeURIComponent(query)}`);
+                const files = await response.json();
+                
+                const container = document.getElementById('searchResults');
+                container.innerHTML = '';
+                
+                if (files.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>نتیجه‌ای یافت نشد</p></div>';
+                    return;
+                }
+                
+                files.forEach(file => {
+                    const item = createFileItem(file);
+                    container.appendChild(item);
+                });
+                
+            } catch (error) {
+                console.error('Error searching:', error);
+                tg.showAlert('خطا در جستجو');
+            }
+        }
+
+        // Navigation
+        function goBack() {
+            document.getElementById('searchInput').value = '';
+            
+            if (currentView === 'search' || currentView === 'category') {
+                // Go back to main view
+                currentView = 'main';
+                currentCategory = null;
+                
+                document.getElementById('headerTitle').innerHTML = '<i class="fas fa-robot me-2"></i>ربات فایل شیرینگ';
+                document.getElementById('backBtn').style.display = 'none';
+                
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('filesContent').style.display = 'none';
+                document.getElementById('searchContent').style.display = 'none';
+            }
+        }
+
+        // Utility functions
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fa-IR');
+        }
+
+        function getFileIcon(mimeType) {
+            if (!mimeType) return 'fas fa-file';
+            
+            if (mimeType.startsWith('image/')) return 'fas fa-image';
+            if (mimeType.startsWith('video/')) return 'fas fa-video';
+            if (mimeType.startsWith('audio/')) return 'fas fa-music';
+            if (mimeType === 'application/pdf') return 'fas fa-file-pdf';
+            if (mimeType.includes('zip') || mimeType.includes('rar')) return 'fas fa-file-archive';
+            if (mimeType.startsWith('text/')) return 'fas fa-file-alt';
+            
+            return 'fas fa-file';
+        }
+
+        // Handle Telegram WebApp events
+        tg.onEvent('backButtonClicked', goBack);
+        
+        // Show back button when not in main view
+        if (currentView !== 'main') {
+            tg.BackButton.show();
+        }
+    </script>
+</body>
+</html>
