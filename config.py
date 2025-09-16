@@ -31,6 +31,13 @@ PORT = os.environ.get("PORT", "8080")
 DB_URI = os.environ.get("DATABASE_URL", "mongodb+srv://Cluster0:Cluster0@cluster0.c07xkuf.mongodb.net/?retryWrites=true&w=majority")
 DB_NAME = os.environ.get("DATABASE_NAME", "Cluster01")
 
+# SQLite Database (New)
+DATABASE_PATH = os.environ.get("DATABASE_PATH", "/app/data/file_sharing_bot.db")
+USE_SQLITE = os.environ.get("USE_SQLITE", "True").lower() == "true"
+
+# Temporary files storage path
+TEMP_PATH = os.environ.get("TEMP_PATH", "/app/temp")
+
 #force sub channel id, if you want enable force sub
 FORCESUB_CHANNEL = int(os.environ.get("FORCESUB_CHANNEL", "-1002108419450"))
 FORCESUB_CHANNEL2 = int(os.environ.get("FORCESUB_CHANNEL2", "-1001982072622"))
