@@ -12,7 +12,7 @@ import os
 import sys
 import pathlib
 PARENT_PATH = pathlib.Path(__file__).parent.resolve()
-if PARENT_PATH not in ["",None] and PARENT_PATH not in sys.path:
+if PARENT_PATH not in ["",None] :
     sys.path.append(PARENT_PATH)
     from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH, DATABASE_PATH
 else:
