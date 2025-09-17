@@ -23,11 +23,12 @@ from database.sqlite_database import (
     get_files_by_category, get_categories, create_category, delete_category,
     full_userbase, del_user, present_user
 )
-from config import TEMP_PATH, CHANNEL_ID, ADMINS
+from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH
 
 # Create temp directory
 TEMP_DIR = Path(TEMP_PATH)
 TEMP_DIR.mkdir(exist_ok=True, parents=True)
+# APP_PATH = os.getenv("APP_PATH", "/app")
 
 app = FastAPI(title="UxB File Sharing API", version="2.0.0")
 
@@ -42,13 +43,13 @@ app.add_middleware(
 
 # Mount static files for admin panel
 try:
-    app.mount("/admin", StaticFiles(directory="/app/web_admin", html=True), name="admin")
+    app.mount("/admin", StaticFiles(directory= APP_PATH + "/web_admin", html=True), name="admin")
 except:
     print("Warning: Could not mount admin static files")
 
 # Mount mini app static files
 try:
-    app.mount("/miniapp", StaticFiles(directory="/app/telegram_miniapp", html=True), name="miniapp")
+    app.mount("/miniapp", StaticFiles(directory= APP_PATH + "/telegram_miniapp", html=True), name="miniapp")
 except:
     print("Warning: Could not mount miniapp static files")
 
@@ -352,7 +353,7 @@ async def upload_url_admin(
 async def get_admin_logs():
     """Get system logs"""
     try:
-        log_file = "/app/codeflixbots.txt"
+        log_file = APP_PATH + "/codeflixbots.txt"
         if os.path.exists(log_file):
             with open(log_file, 'r', encoding='utf-8') as f:
                 # Get last 100 lines

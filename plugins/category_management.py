@@ -5,16 +5,20 @@ Handles category creation, editing, deletion and navigation
 
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+import os
+import uuid
+import asyncio
+import sys
+import pathlib
+PARENT_PATH = pathlib.Path(__file__).parent.resolve()
+sys.path.append(PARENT_PATH)
+from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH, DATABASE_PATH
 from bot import Bot
-from config import ADMINS
+
 from database.database import (
     create_category, get_category, get_categories, update_category, delete_category,
     get_files_by_category, search_files, add_file, create_file_link, get_file
 )
-import os
-import uuid
-import asyncio
-
 @Bot.on_message(filters.private & filters.user(ADMINS) & filters.command('categories'))
 async def show_categories_command(client: Client, message: Message):
     """Show main categories menu"""

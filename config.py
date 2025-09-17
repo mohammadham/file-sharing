@@ -35,7 +35,7 @@ USE_SQLITE = os.environ.get("USE_SQLITE", "True").lower() == "true"
 
 # Temporary files storage path
 TEMP_PATH = os.environ.get("TEMP_PATH", "/app/temp")
-
+APP_PATH = os.environ.get("APP_PATH", "/app")
 #force sub channel id, if you want enable force sub
 FORCESUB_CHANNEL = int(os.environ.get("FORCESUB_CHANNEL", "0"))
 FORCESUB_CHANNEL2 = int(os.environ.get("FORCESUB_CHANNEL2", "0")) 

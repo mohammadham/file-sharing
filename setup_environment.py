@@ -9,13 +9,20 @@ import sys
 import asyncio
 import sqlite3
 from pathlib import Path
-
+import sys
+PARENT_PATH = Path(__file__).parent.resolve()
+if PARENT_PATH not in ["",None] and PARENT_PATH not in sys.path:
+    sys.path.append(PARENT_PATH)
+    from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH, DATABASE_PATH
+else:
+    #DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/file_sharing_bot.db")
+    APP_PATH = os.getenv("APP_PATH", "/app")
 def create_directories():
     """Create necessary directories"""
     directories = [
-        "/app/data",
-        "/app/temp",
-        "/app/logs"
+        APP_PATH + "/data",
+        APP_PATH + "/temp",
+        APP_PATH + "/logs"
     ]
     
     for directory in directories:
@@ -87,8 +94,8 @@ def setup_environment_variables():
     
     optional_vars = {
         "USE_SQLITE": "True",
-        "DATABASE_PATH": "/app/data/file_sharing_bot.db",
-        "TEMP_PATH": "/app/temp",
+        "DATABASE_PATH": APP_PATH + "/data/file_sharing_bot.db",
+        "TEMP_PATH": APP_PATH + "/temp",
         "PORT": "8080"
     }
     

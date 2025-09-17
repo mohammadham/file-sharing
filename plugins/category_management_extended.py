@@ -5,20 +5,28 @@ Additional functions for editing, deleting, searching and uploading
 
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from bot import Bot
-from config import ADMINS
-from database.database import (
-    create_category, get_category, get_categories, update_category, delete_category,
-    get_files_by_category, search_files, add_file, create_file_link, get_file
-)
-from telegram_uploader_integration import TelegramUploader
 import os
 import uuid
 import asyncio
 import json
-
+import sys
+import pathlib
+PARENT_PATH = pathlib.Path(__file__).parent.resolve()
+if PARENT_PATH not in ["",None] and PARENT_PATH not in sys.path:
+    sys.path.append(PARENT_PATH)
+    from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH, TG_CONFIG_FILE
+    from telegram_uploader_integration import TelegramUploader
+else:
+    from ..telegram_uploader_integration import TelegramUploader
+    #DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/file_sharing_bot.db")
+    TG_CONFIG_FILE = os.getenv("TG_CONFIG_FILE", None)
+from bot import Bot
+from database.database import (
+    create_category, get_category, get_categories, update_category, delete_category,
+    get_files_by_category, search_files, add_file, create_file_link, get_file
+)
 # Initialize uploader
-uploader = TelegramUploader() if os.getenv("TG_CONFIG_FILE") else None
+uploader = TelegramUploader() if TG_CONFIG_FILE else None
 
 @Bot.on_callback_query(filters.regex(r"^cat_edit_"))
 async def handle_category_edit(client: Client, callback_query: CallbackQuery):

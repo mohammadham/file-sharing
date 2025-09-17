@@ -9,8 +9,14 @@ import uuid
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import os
-
-DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/file_sharing_bot.db")
+import sys
+import pathlib
+PARENT_PATH = pathlib.Path(__file__).parent.resolve()
+if PARENT_PATH not in ["",None] and PARENT_PATH not in sys.path:
+    sys.path.append(PARENT_PATH)
+    from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH, DATABASE_PATH
+else:
+    DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/file_sharing_bot.db")
 
 # Ensure database directory exists
 os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)

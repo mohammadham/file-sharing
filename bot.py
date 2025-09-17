@@ -10,9 +10,10 @@ import sys
 from datetime import datetime
 import os
 
-from config import API_HASH, APP_ID, LOGGER, TG_BOT_TOKEN, TG_BOT_WORKERS, FORCESUB_CHANNEL, FORCESUB_CHANNEL2, FORCESUB_CHANNEL3, CHANNEL_ID, PORT, USE_SQLITE
+from config import API_HASH, APP_ID, LOGGER, TG_BOT_TOKEN, TG_BOT_WORKERS, FORCESUB_CHANNEL, FORCESUB_CHANNEL2, FORCESUB_CHANNEL3, CHANNEL_ID, PORT, USE_SQLITE, APP_PATH
 import pyrogram.utils
 
+# APP_PATH = os.getenv("APP_PATH", "/app")
 pyrogram.utils.MIN_CHAT_ID = -999999999999
 pyrogram.utils.MIN_CHANNEL_ID = -100999999999999
 
@@ -102,10 +103,10 @@ class Bot(Client):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                           """)
         self.username = usr_bot_me.username
-        
+
         # Create necessary directories
-        os.makedirs("/app/data", exist_ok=True)
-        os.makedirs("/app/temp", exist_ok=True)
+        os.makedirs(APP_PATH + "/data", exist_ok=True)
+        os.makedirs(APP_PATH + "/temp", exist_ok=True)
         
         #web-response
         app = web.AppRunner(await web_server())

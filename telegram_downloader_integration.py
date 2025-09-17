@@ -13,8 +13,12 @@ from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+
+from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH, DATABASE_PATH
+if TEMP_PATH is None or TEMP_PATH == "":
+    TEMP_PATH = Path(tempfile.gettempdir()) / "tg_gdrive_cache"
 # ---------- config ----------
-TEMP_DIR = Path(os.getenv("TEMP_PATH", Path(tempfile.gettempdir()) / "tg_gdrive_cache"))
+TEMP_DIR = Path(TEMP_PATH)
 TEMP_DIR.mkdir(exist_ok=True)
 
 # ---------- JSON response ----------

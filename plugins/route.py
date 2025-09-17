@@ -11,6 +11,14 @@ import subprocess
 import os
 import signal
 import sys
+import pathlib
+PARENT_PATH = pathlib.Path(__file__).parent.resolve()
+if PARENT_PATH not in ["",None] and PARENT_PATH not in sys.path:
+    sys.path.append(PARENT_PATH)
+    from config import TEMP_PATH, CHANNEL_ID, ADMINS, APP_PATH, DATABASE_PATH
+else:
+    #DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/file_sharing_bot.db")
+    APP_PATH = os.getenv("APP_PATH", "/app")
 
 routes = web.RouteTableDef()
 
@@ -94,7 +102,7 @@ async def start_fastapi_server():
             "--port", "8000",
             "--reload"
         ], 
-        cwd="/app",
+        cwd= APP_PATH,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
         )
