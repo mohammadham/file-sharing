@@ -161,15 +161,16 @@ def get_file_emoji(mime_type: str) -> str:
     else:
         return "📄"
 
-@Bot.on_callback_query()
+@Bot.on_callback_query(filters.regex(r"^cat_"))
 async def handle_category_callbacks(client: Client, callback_query: CallbackQuery):
     """Handle category management callbacks"""
     data = callback_query.data
     user_id = callback_query.from_user.id
     message_id = callback_query.message.id
     
-    # Check if user is admin
-    if user_id not in ADMINS:
+    # Check if user is admin for admin-only operations
+    admin_operations = ['cat_create_', 'cat_edit_', 'cat_delete_', 'cat_upload_']
+    if any(data.startswith(op) for op in admin_operations) and user_id not in ADMINS:
         await callback_query.answer("شما مجوز دسترسی به این بخش را ندارید.", show_alert=True)
         return
     

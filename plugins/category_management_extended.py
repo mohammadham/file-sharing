@@ -20,6 +20,10 @@ else:
     from ..telegram_uploader_integration import TelegramUploader
     #DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/file_sharing_bot.db")
     TG_CONFIG_FILE = os.getenv("TG_CONFIG_FILE", None)
+    TEMP_PATH = os.getenv("TEMP_PATH", "/app/temp")
+    CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002075726565"))
+    ADMINS = [6695586027]  # Default admin
+    APP_PATH = os.getenv("APP_PATH", "/app")
 from bot import Bot
 from database.database import (
     create_category, get_category, get_categories, update_category, delete_category,

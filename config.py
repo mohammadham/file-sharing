@@ -22,6 +22,9 @@ CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1002075726565"))
 #OWNER ID
 OWNER_ID = int(os.environ.get("OWNER_ID", "6695586027"))
 
+#Your telegram upload session string, Generate using telegram-uploader
+TG_CONFIG_FILE = os.environ.get("TG_CONFIG_FILE", "~/.config/telegram-upload.json")
+
 #Port
 PORT = os.environ.get("PORT", "8080")
 
