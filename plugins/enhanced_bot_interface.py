@@ -12,6 +12,10 @@ import uuid
 import time
 import sys
 import pathlib
+
+import random
+import string
+
 PARENT_PATH = pathlib.Path(__file__).parent.resolve()
 if PARENT_PATH not in ["",None] :
     sys.path.append(PARENT_PATH)
@@ -33,7 +37,7 @@ if PARENT_PATH not in ["",None] :
         get_files_by_category, get_file, search_files, add_file, create_file_link,
         full_userbase, present_user, add_user
     )
-    from helper_func import get_exp_time, get_readable_time
+    from helper_func import subscribed, encode, decode, get_messages, get_shortlink, get_verify_status, update_verify_status, get_exp_time, get_readable_time
     from .category_management import get_file_emoji
 else:
     from bot import Bot
@@ -54,7 +58,7 @@ else:
         get_files_by_category, get_file, search_files, add_file, create_file_link,
         full_userbase, present_user, add_user
     )
-    from helper_func import get_exp_time, get_readable_time
+    from helper_func import subscribed, encode, decode, get_messages, get_shortlink, get_verify_status, update_verify_status, get_exp_time, get_readable_time
     from plugins.category_management import get_file_emoji
 # Enhanced user state management
 user_states = {}
@@ -296,6 +300,7 @@ async def enhanced_start(client: Client, message: Message):
             await add_user(user_id)
         except:
             pass
+    id = user_id
     verify_status = await get_verify_status(id)
     if verify_status['is_verified'] and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
         await update_verify_status(id, is_verified=False)
