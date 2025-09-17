@@ -6,6 +6,7 @@ Complete implementation of user-friendly bot interface with context-sensitive me
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
+from pyrogram.enums import ParseMode
 import asyncio
 import json
 import uuid
@@ -272,7 +273,7 @@ async def send_menu_message(client: Client, user_id: int, text: str,
                 reply_markup=menu
             )
             add_message_for_cleanup(user_id, msg.id)
-    except Exception as e:
+    except Exception:
         # If edit fails, send new message
         if edit_message_id:
             msg = await client.send_message(
@@ -282,8 +283,8 @@ async def send_menu_message(client: Client, user_id: int, text: str,
             )
             add_message_for_cleanup(user_id, msg.id)
 
-# Enhanced start command
-@Bot.on_message(filters.command('start') & filters.private)
+# Enhanced start command (with subscribed filter) - avoid duplicate handlers
+@Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def enhanced_start(client: Client, message: Message):
     """Enhanced start command with menu"""
     user_id = message.from_user.id
@@ -767,42 +768,34 @@ async def handle_view_file(client: Client, callback_query: CallbackQuery):
     except Exception as e:
         await callback_query.answer(f"خطا: {str(e)}", show_alert=True)
 
-# Import implementations from bot_operations
-# Commented out to avoid circular import - will be handled differently
-# from plugins.bot_operations import (
-#     start_search_process, start_category_creation, start_upload_process,
-#     start_broadcast_process, start_category_editing, show_delete_confirmation,
-#     show_users_management
-# )
-
-# Placeholder functions to avoid import errors - these will be implemented properly later
+# ===== Bridge to real implementations to avoid circular imports =====
 async def start_search_process(client: Client, user_id: int, category_id: str = None):
-    """Placeholder for search process"""
-    pass
+    from .bot_operations import start_search_process as impl
+    return await impl(client, user_id, category_id)
 
 async def start_category_creation(client: Client, user_id: int):
-    """Placeholder for category creation"""
-    pass
+    from .bot_operations import start_category_creation as impl
+    return await impl(client, user_id)
 
 async def start_upload_process(client: Client, user_id: int, category_id: str = None):
-    """Placeholder for upload process"""
-    pass
+    from .bot_operations import start_upload_process as impl
+    return await impl(client, user_id, category_id)
 
 async def start_broadcast_process(client: Client, user_id: int):
-    """Placeholder for broadcast process"""
-    pass
+    from .bot_operations import start_broadcast_process as impl
+    return await impl(client, user_id)
 
 async def start_category_editing(client: Client, user_id: int, category_id: str):
-    """Placeholder for category editing"""
-    pass
+    from .bot_operations import start_category_editing as impl
+    return await impl(client, user_id, category_id)
 
 async def show_delete_confirmation(client: Client, user_id: int, message_id: int, category_id: str):
-    """Placeholder for delete confirmation"""
-    pass
+    from .bot_operations import show_delete_confirmation as impl
+    return await impl(client, user_id, message_id, category_id)
 
 async def show_users_management(client: Client, user_id: int, message_id: int):
-    """Placeholder for users management"""
-    pass
+    from .bot_operations import show_users_management as impl
+    return await impl(client, user_id, message_id)
 
 # Message handler for cleanup and state management
 @Bot.on_message(filters.private & ~filters.command(['start', 'menu']) & ~filters.media)

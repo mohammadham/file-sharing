@@ -9,6 +9,8 @@ import os
 import uuid
 import asyncio
 import sys
+import time
+
 import pathlib
 PARENT_PATH = pathlib.Path(__file__).parent.resolve()
 sys.path.append(PARENT_PATH)
@@ -19,6 +21,7 @@ from database.database import (
     create_category, get_category, get_categories, update_category, delete_category,
     get_files_by_category, search_files, add_file, create_file_link, get_file
 )
+
 @Bot.on_message(filters.private & filters.user(ADMINS) & filters.command('categories'))
 async def show_categories_command(client: Client, message: Message):
     """Show main categories menu"""
@@ -200,7 +203,46 @@ async def handle_category_callbacks(client: Client, callback_query: CallbackQuer
         elif data.startswith("file_info_"):
             file_id = data.split("_", 2)[2]
             await show_file_info(client, callback_query, file_id)
-            
+        
+        elif data.startswith("cat_edit_"):
+            category_id = data.split("_", 2)[2]
+            if category_id == "root":
+                await callback_query.answer("ریشه قابل ویرایش نیست.", show_alert=True)
+            else:
+                await start_category_editing(client, callback_query, category_id)
+        
+        elif data.startswith("cat_delete_"):
+            category_id = data.split("_", 2)[2]
+            if category_id == "root":
+                await callback_query.answer("ریشه قابل حذف نیست.", show_alert=True)
+            else:
+                await show_delete_confirmation(client, callback_query, category_id)
+        
+        elif data.startswith("cat_search_"):
+            target_id = data.split("_", 2)[2]
+            category_id = None if target_id == "root" else target_id
+            await start_category_search(client, callback_query, category_id)
+        
+        elif data.startswith("cat_upload_"):
+            target_id = data.split("_", 2)[2]
+            category_id = None if target_id == "root" else target_id
+            await start_category_upload(client, callback_query, category_id)
+        
+        elif data.startswith("cat_confirm_delete_"):
+            category_id = data.split("_", 3)[3]
+            await confirm_delete_category(client, callback_query, category_id)
+        
+        elif data == "cat_cancel":
+            await callback_query.answer("لغو شد.")
+            await show_categories_menu(client, user_id, None, message_id, True)
+        
+        elif data.startswith("cat_files_"):
+            # Show full files list for category
+            target_id = data.split("_", 2)[2]
+            category_id = None if target_id == "root" else target_id
+            await show_more_files(client, user_id, message_id, category_id)
+            await callback_query.answer()
+        
     except Exception as e:
         await callback_query.answer(f"خطا: {str(e)}", show_alert=True)
 
@@ -243,6 +285,179 @@ async def start_category_creation(client: Client, callback_query: CallbackQuery,
         await client.send_message(user_id, "⏰ زمان شما تمام شد. لطفاً دوباره تلاش کنید.")
     except Exception as e:
         await client.send_message(user_id, f"❌ خطا در ایجاد دسته‌بندی: {str(e)}")
+
+async def start_category_editing(client: Client, callback_query: CallbackQuery, category_id: str):
+    """Edit category name/description"""
+    user_id = callback_query.from_user.id
+    msg_id = callback_query.message.id
+    try:
+        category = await get_category(category_id)
+        if not category:
+            await callback_query.answer("دسته‌بندی یافت نشد.", show_alert=True)
+            return
+        name_msg = await client.ask(user_id, f"📝 نام جدید برای '{category['name']}' (یا /skip):", timeout=120)
+        new_name = None if name_msg.text == "/skip" else name_msg.text.strip()
+        desc_msg = await client.ask(user_id, f"📄 توضیحات جدید (یا /skip):", timeout=120)
+        new_desc = None if desc_msg.text == "/skip" else desc_msg.text.strip()
+        await update_category(category_id, name=new_name, description=new_desc)
+        await client.send_message(user_id, "✅ دسته‌بندی بروزرسانی شد.")
+        await show_categories_menu(client, user_id, category_id, msg_id, True)
+    except asyncio.TimeoutError:
+        await client.send_message(user_id, "⏰ زمان ویرایش تمام شد.")
+    except Exception as e:
+        await client.send_message(user_id, f"❌ خطا در ویرایش: {str(e)}")
+
+async def show_delete_confirmation(client: Client, callback_query: CallbackQuery, category_id: str):
+    """Show delete confirmation UI"""
+    user_id = callback_query.from_user.id
+    msg_id = callback_query.message.id
+    try:
+        category = await get_category(category_id)
+        if not category:
+            await callback_query.answer("دسته‌بندی یافت نشد.", show_alert=True)
+            return
+        files = await get_files_by_category(category_id)
+        subcats = await get_categories(category_id)
+        text = (
+            f"⚠️ **حذف دسته‌بندی**\n\n"
+            f"📁 {category['name']}\n"
+            f"📄 فایل‌ها: {len(files)}\n"
+            f"📁 زیردسته‌ها: {len(subcats)}\n\n"
+            f"آیا مطمئن هستید؟"
+        )
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ تأیید", callback_data=f"cat_confirm_delete_{category_id}"),
+                InlineKeyboardButton("❌ انصراف", callback_data="cat_cancel")
+            ]
+        ])
+        await client.edit_message_text(user_id, msg_id, text, reply_markup=kb)
+    except Exception as e:
+        await client.send_message(user_id, f"❌ خطا: {str(e)}")
+
+async def confirm_delete_category(client: Client, callback_query: CallbackQuery, category_id: str):
+    user_id = callback_query.from_user.id
+    msg_id = callback_query.message.id
+    try:
+        category = await get_category(category_id)
+        if not category:
+            await callback_query.answer("یافت نشد.", show_alert=True)
+            return
+        name = category['name']
+        await delete_category(category_id)
+        await client.send_message(user_id, f"✅ دسته‌بندی '{name}' حذف شد.")
+        # refresh to parent
+        parent_id = category.get('parent_id')
+        await show_categories_menu(client, user_id, parent_id, msg_id, True)
+        await callback_query.answer()
+    except Exception as e:
+        await client.send_message(user_id, f"❌ خطا در حذف: {str(e)}")
+
+async def start_category_search(client: Client, callback_query: CallbackQuery, category_id: str = None):
+    user_id = callback_query.from_user.id
+    msg_id = callback_query.message.id
+    try:
+        ask = await client.ask(user_id, "🔍 عبارت جستجو را وارد کنید (یا /cancel):", timeout=120)
+        if ask.text == "/cancel":
+            await show_categories_menu(client, user_id, category_id, msg_id, True)
+            return
+        query = ask.text.strip()
+        results = await search_files(query, category_id)
+        if not results:
+            await client.send_message(user_id, "❌ نتیجه‌ای یافت نشد.")
+            return
+        text = f"🔍 نتایج جستجو ({len(results)}):\n\n"
+        buttons = []
+        for i, f in enumerate(results[:20]):
+            emoji = get_file_emoji(f.get('mime_type',''))
+            text += f"{i+1}. {emoji} {f['original_name']}\n"
+            buttons.append([InlineKeyboardButton(f"{emoji} {f['original_name'][:40]}", callback_data=f"file_info_{f['id']}")])
+        await client.edit_message_text(user_id, msg_id, text, reply_markup=InlineKeyboardMarkup(buttons))
+    except asyncio.TimeoutError:
+        await client.send_message(user_id, "⏰ زمان جستجو تمام شد.")
+    except Exception as e:
+        await client.send_message(user_id, f"❌ خطا در جستجو: {str(e)}")
+
+async def start_category_upload(client: Client, callback_query: CallbackQuery, category_id: str = None):
+    user_id = callback_query.from_user.id
+    msg_id = callback_query.message.id
+    try:
+        ask = await client.ask(user_id, "📤 فایل را ارسال کنید یا لینک بدهید (یا /cancel):", timeout=300)
+        if ask.text == "/cancel":
+            await show_categories_menu(client, user_id, category_id, msg_id, True)
+            return
+        if ask.document or ask.photo or ask.video or ask.audio:
+            # Forward to DB channel
+            forwarded = await ask.forward(callback_query.message.chat.id if False else client.db_channel.id)
+            # Determine file meta
+            if ask.document:
+                file_name = ask.document.file_name or f"document_{ask.id}"
+                mime = ask.document.mime_type
+                size = ask.document.file_size
+            elif ask.photo:
+                file_name = f"photo_{ask.id}.jpg"
+                mime = "image/jpeg"
+                size = ask.photo.file_size
+            elif ask.video:
+                file_name = ask.video.file_name or f"video_{ask.id}.mp4"
+                mime = ask.video.mime_type
+                size = ask.video.file_size
+            else:
+                file_name = ask.audio.file_name or f"audio_{ask.id}.mp3"
+                mime = ask.audio.mime_type
+                size = ask.audio.file_size
+            # Optional description
+            try:
+                desc_msg = await client.ask(user_id, "📝 توضیح فایل (یا /skip):", timeout=60)
+                description = "" if desc_msg.text == "/skip" else desc_msg.text.strip()
+            except asyncio.TimeoutError:
+                description = ""
+            await add_file(
+                original_name=file_name,
+                file_name=file_name,
+                message_id=forwarded.id,
+                chat_id=str(client.db_channel.id),
+                file_size=size or 0,
+                mime_type=mime or "",
+                category_id=category_id,
+                description=description,
+                uploaded_by=user_id
+            )
+            await client.send_message(user_id, "✅ فایل ثبت شد.")
+            await show_categories_menu(client, user_id, category_id, msg_id, True)
+        elif ask.text and (ask.text.startswith("http://") or ask.text.startswith("https://")):
+            # Simple URL save as placeholder entry
+            import requests
+            try:
+                r = requests.head(ask.text, timeout=10)
+                size = int(r.headers.get('content-length', 0))
+                mime = r.headers.get('content-type', 'application/octet-stream')
+                fname = ask.text.split('/')[-1] or f"url_{int(time.time())}"
+            except:
+                size = 0
+                mime = 'application/octet-stream'
+                fname = f"url_{int(time.time())}"
+            url_text = f"🔗 URL: {ask.text}\nنام: {fname}"
+            url_msg = await client.send_message(client.db_channel.id, url_text)
+            await add_file(
+                original_name=fname,
+                file_name=fname,
+                message_id=url_msg.id,
+                chat_id=str(client.db_channel.id),
+                file_size=size,
+                mime_type=mime,
+                category_id=category_id,
+                description=f"URL: {ask.text}",
+                uploaded_by=user_id
+            )
+            await client.send_message(user_id, "✅ فایل از لینک ثبت شد.")
+            await show_categories_menu(client, user_id, category_id, msg_id, True)
+        else:
+            await client.send_message(user_id, "❌ ورودی معتبر نیست.")
+    except asyncio.TimeoutError:
+        await client.send_message(user_id, "⏰ زمان آپلود تمام شد.")
+    except Exception as e:
+        await client.send_message(user_id, f"❌ خطا در آپلود: {str(e)}")
 
 async def show_file_info(client: Client, callback_query: CallbackQuery, file_id: str):
     """Show file information and download links"""
@@ -287,3 +502,19 @@ async def show_file_info(client: Client, callback_query: CallbackQuery, file_id:
     )
     
     await callback_query.answer()
+
+async def show_more_files(client: Client, user_id: int, message_id: int, category_id: str = None):
+    try:
+        files = await get_files_by_category(category_id)
+        if not files:
+            await client.edit_message_text(user_id, message_id, "هیچ فایلی وجود ندارد.")
+            return
+        text = f"📄 لیست کامل فایل‌ها ({len(files)}):\n\n"
+        buttons = []
+        for i, f in enumerate(files):
+            emoji = get_file_emoji(f.get('mime_type',''))
+            text += f"{i+1}. {emoji} {f['original_name']}\n"
+            buttons.append([InlineKeyboardButton(f"{emoji} {f['original_name'][:40]}", callback_data=f"file_info_{f['id']}")])
+        await client.edit_message_text(user_id, message_id, text, reply_markup=InlineKeyboardMarkup(buttons))
+    except Exception as e:
+        await client.send_message(user_id, f"❌ خطا در نمایش فایل‌ها: {str(e)}")

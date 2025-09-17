@@ -8,7 +8,7 @@ import string
 import time
 import asyncio
 
-from pyrogram import Client, filters, __version__
+from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
@@ -61,20 +61,9 @@ else:
     from .enhanced_bot_interface import enhanced_start
 
 
-@Bot.on_message(filters.command('start') & filters.private & subscribed)
-async def start_command(client: Client, message: Message):
-    """Enhanced start command with glass menu system"""
-    id = message.from_user.id
-    # Use enhanced start instead of old logic
-    await enhanced_start(client, message)
-
-
-WAIT_MSG = "<b>ᴡᴏʀᴋɪɴɢ....</b>"
-
-REPLY_ERROR = "<code>Use this command as a reply to any telegram message without any spaces.</code>"
-
-
-@Bot.on_message(filters.command('start') & filters.private)
+# NOTE: start command for subscribed users is handled in enhanced_bot_interface to avoid duplication.
+# This handler only responds to non-subscribed users to show force-join menu.
+@Bot.on_message(filters.command('start') & filters.private & ~filters.user(ADMINS) & ~subscribed)
 async def not_joined(client: Client, message: Message):
     buttons = [
         [
@@ -109,6 +98,11 @@ async def not_joined(client: Client, message: Message):
         quote = True,
         disable_web_page_preview = True
     )
+
+WAIT_MSG = "<b>ᴡᴏʀᴋɪɴɢ....</b>"
+
+REPLY_ERROR = "<code>Use this command as a reply to any telegram message without any spaces.</code>"
+
 
 @Bot.on_message(filters.command('users') & filters.private & filters.user(ADMINS))
 async def get_users(client: Bot, message: Message):
