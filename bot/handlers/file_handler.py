@@ -14,7 +14,8 @@ from handlers.base_handler import BaseHandler
 from utils.keyboard_builder import KeyboardBuilder
 from utils.helpers import (
     extract_file_info, validate_file_size, safe_json_loads, 
-    safe_json_dumps, build_file_info_text, format_file_size
+    safe_json_dumps, build_file_info_text, format_file_size,
+    escape_filename_for_markdown
 )
 from models.database_models import File
 from config.settings import MAX_FILE_SIZE, MAX_FILES_PER_PAGE, STORAGE_CHANNEL_ID
@@ -54,9 +55,7 @@ class FileHandler(BaseHandler):
             
             if files:
                 for file in files:
-                    # Escape file name for Markdown
-                    safe_file_name = file.file_name.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]')
-                    text += f"📄 **{safe_file_name}**\n"
+                    text += f"📄 **{escape_filename_for_markdown(file.file_name)}**\n"
                     text += f"   💾 {file.size_mb:.1f} MB | {file.file_type}\n"
                     
                     # Format date safely
@@ -156,7 +155,7 @@ class FileHandler(BaseHandler):
             
             keyboard = KeyboardBuilder.build_cancel_keyboard(f"file_{file_id}")
             
-            text = f"✏️ **ویرایش فایل '{file.file_name}'**\n\n"
+            text = f"✏️ **ویرایش فایل '{escape_filename_for_markdown(file.file_name)}'**\n\n"
             text += "نام جدید فایل را وارد کنید:"
             
             await query.edit_message_text(
@@ -181,7 +180,7 @@ class FileHandler(BaseHandler):
                 await query.edit_message_text("فایل یافت نشد!")
                 return
             
-            text = f"🗑 **حذف فایل '{file.file_name}'**\n\n"
+            text = f"🗑 **حذف فایل '{escape_filename_for_markdown(file.file_name)}'**\n\n"
             text += f"💾 حجم: {file.size_mb:.1f} MB\n"
             text += f"📁 دسته: فایل از دسته فعلی حذف می‌شود\n\n"
             text += "⚠️ **توجه:** فایل از کانال ذخیره‌سازی حذف نمی‌شود.\n\n"
@@ -297,7 +296,7 @@ class FileHandler(BaseHandler):
             categories = await self.db.get_categories(None)
             keyboard = await KeyboardBuilder.build_category_keyboard(categories, None, False)
             
-            text = f"📁 **انتقال فایل '{file.file_name}'**\n\n"
+            text = f"📁 **انتقال فایل '{escape_filename_for_markdown(file.file_name)}'**\n\n"
             text += "دسته مقصد را انتخاب کنید:"
             
             await query.edit_message_text(
@@ -654,7 +653,7 @@ class FileHandler(BaseHandler):
             file_link = f"https://t.me/{context.bot.username}?start=file_{file.id}"
             
             text = f"🔗 **لینک فایل کپی شد**\n\n"
-            text += f"📄 **{file.file_name}**\n\n"
+            text += f"📄 **{escape_filename_for_markdown(file.file_name)}**\n\n"
             text += f"🔗 **لینک:**\n`{file_link}`\n\n"
             text += "💡 این لینک را می‌توانید با دیگران به اشتراک بگذارید."
             

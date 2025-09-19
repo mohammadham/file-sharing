@@ -131,6 +131,11 @@ def escape_markdown(text: str) -> str:
     return text
 
 
+def escape_filename_for_markdown(filename: str) -> str:
+    """Escape filename specifically for Markdown"""
+    return filename.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]')
+
+
 def build_stats_text(stats: Dict[str, Any]) -> str:
     """Build formatted statistics text"""
     return f"""
@@ -150,10 +155,7 @@ def build_file_info_text(file_dict: Dict, category_name: str = "") -> str:
     size_mb = file_dict.get('file_size', 0) / 1024 / 1024
     upload_date = format_datetime(file_dict.get('uploaded_at'))
     
-    # Escape file name for Markdown
-    file_name = file_dict.get('file_name', 'نامشخص')
-    safe_file_name = file_name.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]')
-    text = f"📄 **{safe_file_name}**\n"
+    text = f"📄 **{escape_filename_for_markdown(file_dict.get('file_name', 'نامشخص'))}**\n"
     text += f"📁 دسته: {category_name}\n" if category_name else ""
     text += f"💾 حجم: {size_mb:.1f} MB\n"
     text += f"📅 تاریخ آپلود: {upload_date}\n"
