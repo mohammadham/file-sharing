@@ -232,8 +232,12 @@ class FileHandler(BaseHandler):
                 await query.edit_message_text("دسته‌بندی یافت نشد!")
                 return
             
-            # Set user state to current category for file upload
-            await self.update_user_session(user_id, current_category=category_id)
+            # Set user state to current category and upload mode for file upload
+            await self.update_user_session(
+                user_id, 
+                current_category=category_id,
+                action_state='uploading_file'
+            )
             
             text = f"📤 **آپلود فایل در دسته '{category.name}'**\n\n"
             text += "فایل مورد نظر را ارسال کنید:\n\n"
@@ -329,6 +333,9 @@ class FileHandler(BaseHandler):
             
             # Save to database
             new_file_id = await self.db.save_file(file_data)
+            
+            # Reset user state to browsing after successful upload
+            await self.update_user_session(user_id, action_state='browsing')
             
             category = await self.db.get_category_by_id(session.current_category)
             

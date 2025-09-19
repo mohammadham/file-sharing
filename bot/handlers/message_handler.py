@@ -64,7 +64,7 @@ class BotMessageHandler(BaseHandler):
             session = await self.get_user_session(user_id)
             
             # Check if user is in a file-accepting state
-            if session.action_state == 'browsing':
+            if session.action_state == 'browsing' or session.action_state == 'uploading_file':
                 await self.file_handler.handle_file_upload(update, context)
             elif session.action_state == 'broadcast_file':
                 await self.broadcast_handler.process_broadcast_file(update, context)

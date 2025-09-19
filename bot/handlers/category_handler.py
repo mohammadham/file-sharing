@@ -29,7 +29,12 @@ class CategoryHandler(BaseHandler):
             category_id = int(query.data.split('_')[1])
             user_id = update.effective_user.id
             
-            await self.update_user_session(user_id, current_category=category_id)
+            # Reset user state to browsing when navigating categories
+            await self.update_user_session(
+                user_id, 
+                current_category=category_id,
+                action_state='browsing'
+            )
             
             category = await self.db.get_category_by_id(category_id)
             if not category:
