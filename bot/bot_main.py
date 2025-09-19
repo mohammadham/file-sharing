@@ -13,7 +13,7 @@ from pathlib import Path
 # Add bot directory to path
 sys.path.append(str(Path(__file__).parent))
 
-from telegram import Update
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler as TelegramMessageHandler, filters, ContextTypes
 
 # Import configuration
@@ -21,6 +21,9 @@ from config.settings import BOT_TOKEN, MESSAGES
 
 # Import database manager
 from database.db_manager import DatabaseManager
+
+# Import models
+from models.database_models import Link
 
 # Import handlers
 from handlers.category_handler import CategoryHandler
@@ -66,6 +69,18 @@ class TelegramFileBot:
         """Handle /start command"""
         try:
             user_id = update.effective_user.id
+            
+            # Check if it's a share link
+            if context.args and len(context.args) > 0:
+                arg = context.args[0]
+                if arg.startswith('link_'):
+                    await self._handle_share_link(update, context, arg[5:])  # Remove 'link_' prefix
+                    return
+                elif arg.startswith('file_'):
+                    # Legacy file link support
+                    await self._handle_legacy_file_link(update, context, arg[5:])  # Remove 'file_' prefix
+                    return
+            
             session = await self.db.get_user_session(user_id)
             
             # Reset user state
@@ -155,6 +170,16 @@ class TelegramFileBot:
                 await self.file_handler.copy_file_link(update, context)
             elif callback_data.startswith('details_'):
                 await self.file_handler.show_file_details(update, context)
+            elif callback_data.startswith('download_shared_'):
+                await self._handle_shared_file_download(update, context)
+            elif callback_data.startswith('details_shared_'):
+                await self._handle_shared_file_details(update, context)
+            elif callback_data.startswith('copy_shared_'):
+                await self._handle_shared_link_copy(update, context)
+            elif callback_data.startswith('stats_shared_'):
+                await self._handle_shared_link_stats(update, context)
+            elif callback_data.startswith('back_shared_'):
+                await self._handle_back_shared(update, context)
             elif callback_data.startswith('confirm_'):
                 await self._handle_confirmations(update, context)
             
@@ -248,6 +273,263 @@ class TelegramFileBot:
             
         except Exception as e:
             logger.error(f"Error handling cancel: {e}")
+    
+    async def _handle_share_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, short_code: str):
+        """Handle share link access"""
+        try:
+            # Get link from database
+            link = await self.db.get_link_by_code(short_code)
+            
+            if not link:
+                await update.message.reply_text(
+                    "❌ لینک یافت نشد یا منقضی شده است!",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            # Increment access count
+            await self.db.increment_link_access(short_code)
+            
+            if link.link_type == "file":
+                await self._handle_file_share_link(update, context, link)
+            elif link.link_type == "category":
+                await self._handle_category_share_link(update, context, link)
+            elif link.link_type == "collection":
+                await self._handle_collection_share_link(update, context, link)
+            else:
+                await update.message.reply_text("❌ نوع لینک پشتیبانی نمی‌شود!")
+                
+        except Exception as e:
+            logger.error(f"Error handling share link: {e}")
+            await update.message.reply_text("❌ خطا در پردازش لینک!")
+    
+    async def _handle_file_share_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, link):
+        """Handle shared file link"""
+        try:
+            file = await self.db.get_file_by_id(link.target_id)
+            if not file:
+                await update.message.reply_text("❌ فایل یافت نشد!")
+                return
+            
+            category = await self.db.get_category_by_id(file.category_id)
+            category_name = category.name if category else "نامشخص"
+            
+            from utils.helpers import build_file_info_text, format_file_size
+            
+            text = f"📄 **فایل اشتراک‌گذاری شده**\n\n"
+            text += f"📁 دسته: {category_name}\n"
+            text += f"📊 بازدید: {link.access_count} بار\n\n"
+            text += build_file_info_text(file.to_dict(), category_name)
+            
+            # Create download keyboard
+            from utils.keyboard_builder import KeyboardBuilder
+            keyboard = KeyboardBuilder.build_shared_file_keyboard(file, link)
+            
+            await update.message.reply_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in file share link: {e}")
+            await update.message.reply_text("❌ خطا در نمایش فایل!")
+    
+    async def _handle_category_share_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, link):
+        """Handle shared category link"""
+        # Will implement in next step
+        await update.message.reply_text("🚧 قابلیت لینک دسته‌ها در حال توسعه است!")
+    
+    async def _handle_collection_share_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, link):
+        """Handle shared collection link"""
+        # Will implement in next step  
+        await update.message.reply_text("🚧 قابلیت لینک مجموعه فایل‌ها در حال توسعه است!")
+    
+    async def _handle_legacy_file_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, file_id_str: str):
+        """Handle legacy file links for backward compatibility"""
+        try:
+            file_id = int(file_id_str)
+            file = await self.db.get_file_by_id(file_id)
+            
+            if not file:
+                await update.message.reply_text("❌ فایل یافت نشد!")
+                return
+            
+            # Forward to storage channel (legacy behavior)
+            from config.settings import STORAGE_CHANNEL_ID
+            await context.bot.forward_message(
+                chat_id=update.effective_chat.id,
+                from_chat_id=STORAGE_CHANNEL_ID,
+                message_id=file.storage_message_id
+            )
+            
+            await update.message.reply_text(
+                f"📄 **{file.file_name}**\n"
+                f"💾 حجم: {file.size_mb:.1f} MB\n\n"
+                f"💡 برای لینک‌های بهتر از نسخه جدید ربات استفاده کنید!",
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in legacy file link: {e}")
+            await update.message.reply_text("❌ خطا در دریافت فایل!")
+    
+    async def _handle_shared_file_download(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle download from shared file"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال ارسال فایل...")
+            
+            file_id = int(query.data.split('_')[2])
+            file = await self.db.get_file_by_id(file_id)
+            
+            if not file:
+                await query.answer("❌ فایل یافت نشد!")
+                return
+            
+            # Forward file from storage channel
+            from config.settings import STORAGE_CHANNEL_ID
+            await context.bot.forward_message(
+                chat_id=update.effective_chat.id,
+                from_chat_id=STORAGE_CHANNEL_ID,
+                message_id=file.storage_message_id
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in shared file download: {e}")
+            await query.answer("❌ خطا در دانلود فایل!")
+    
+    async def _handle_shared_file_details(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle details view for shared file"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            file_id = int(query.data.split('_')[2])
+            file = await self.db.get_file_by_id(file_id)
+            
+            if not file:
+                await query.edit_message_text("❌ فایل یافت نشد!")
+                return
+            
+            category = await self.db.get_category_by_id(file.category_id)
+            category_name = category.name if category else "نامشخص"
+            
+            from utils.helpers import build_file_info_text
+            text = "📄 **جزئیات فایل اشتراک‌گذاری شده**\n\n"
+            text += build_file_info_text(file.to_dict(), category_name)
+            
+            # Just show info without action buttons
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_shared_{file_id}")
+            ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in shared file details: {e}")
+            await query.answer("❌ خطا در نمایش جزئیات!")
+    
+    async def _handle_shared_link_copy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle copy shared link"""  
+        try:
+            query = update.callback_query
+            await query.answer("لینک کپی شد!")
+            
+            short_code = query.data.split('_')[2]
+            bot_info = await context.bot.get_me()
+            share_url = f"https://t.me/{bot_info.username}?start=link_{short_code}"
+            
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"🔗 **لینک کپی شده:**\n`{share_url}`",
+                parse_mode='Markdown',
+                reply_to_message_id=query.message.message_id
+            )
+            
+        except Exception as e:
+            logger.error(f"Error copying shared link: {e}")
+            await query.answer("❌ خطا در کپی لینک!")
+    
+    async def _handle_shared_link_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle shared link statistics"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            short_code = query.data.split('_')[2]
+            link = await self.db.get_link_by_code(short_code)
+            
+            if not link:
+                await query.answer("❌ لینک یافت نشد!")
+                return
+            
+            text = f"📈 **آمار لینک اشتراک‌گذاری**\n\n"
+            text += f"🔗 کد: `{link.short_code}`\n"
+            text += f"📊 تعداد بازدید: **{link.access_count}** بار\n"
+            text += f"📅 تاریخ ایجاد: {link.created_at[:16] if link.created_at else 'نامشخص'}\n"
+            text += f"💡 وضعیت: {'🟢 فعال' if link.is_active else '🔴 غیرفعال'}"
+            
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_shared_stats_{short_code}")
+            ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in shared link stats: {e}")
+            await query.answer("❌ خطا در نمایش آمار!")
+    
+    async def _handle_back_shared(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle back button from shared views"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            callback_data = query.data
+            
+            if callback_data.startswith('back_shared_stats_'):
+                # Back from stats to main shared view
+                short_code = callback_data.split('_')[3]
+                link = await self.db.get_link_by_code(short_code)
+                
+                if link and link.link_type == "file":
+                    file = await self.db.get_file_by_id(link.target_id)
+                    if file:
+                        await self._handle_file_share_link(update, context, link)
+                        return
+                        
+            elif callback_data.startswith('back_shared_'):
+                # Back from details to main shared view  
+                file_id = int(callback_data.split('_')[2])
+                file = await self.db.get_file_by_id(file_id)
+                
+                if file:
+                    # Find the link for this file (get the most recent one)
+                    # This is a simplification - in production you might want to pass link info
+                    from database.db_manager import DatabaseManager
+                    import aiosqlite
+                    
+                    async with aiosqlite.connect(self.db.db_path) as db:
+                        db.row_factory = aiosqlite.Row
+                        cursor = await db.execute('''
+                            SELECT * FROM links 
+                            WHERE link_type = 'file' AND target_id = ? AND is_active = 1
+                            ORDER BY created_at DESC LIMIT 1
+                        ''', (file_id,))
+                        row = await cursor.fetchone()
+                        
+                        if row:
+                            link = Link.from_dict(dict(row))
+                            await self._handle_file_share_link(update, context, link)
+                            return
+            
+            # Fallback
+            await query.edit_message_text("❌ خطا در بازگشت!")
+            
+        except Exception as e:
+            logger.error(f"Error in back shared: {e}")
+            await query.answer("❌ خطا در بازگشت!")
     
     def register_handlers(self):
         """Register all handlers"""

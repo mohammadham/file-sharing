@@ -17,7 +17,7 @@ from utils.helpers import (
     safe_json_dumps, build_file_info_text, format_file_size,
     escape_filename_for_markdown
 )
-from models.database_models import File
+from models.database_models import File, Link
 from config.settings import MAX_FILE_SIZE, MAX_FILES_PER_PAGE, STORAGE_CHANNEL_ID
 
 logger = logging.getLogger(__name__)
@@ -789,38 +789,56 @@ class FileHandler(BaseHandler):
             await update.message.reply_text(self.messages['error_occurred'])
     
     async def copy_file_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Copy file link (Telegram file link)"""
+        """Create and copy professional file share link"""
         try:
             query = update.callback_query
-            await self.answer_callback_query(update)
+            await self.answer_callback_query(update, "در حال ایجاد لینک اشتراک‌گذاری...")
             
             file_id = int(query.data.split('_')[2])
+            user_id = update.effective_user.id
             
             file = await self.db.get_file_by_id(file_id)
             if not file:
                 await query.edit_message_text("فایل یافت نشد!")
                 return
             
-            # Create Telegram file link
-            file_link = f"https://t.me/{context.bot.username}?start=file_{file.id}"
+            # Create link object
+            link_data = Link(
+                link_type="file",
+                target_id=file_id,
+                created_by=user_id,
+                title=file.file_name,
+                description=f"فایل {file.file_name} - حجم: {format_file_size(file.file_size)}"
+            )
             
-            text = f"🔗 **لینک فایل کپی شد**\n\n"
-            text += f"📄 **{escape_filename_for_markdown(file.file_name)}**\n\n"
-            text += f"🔗 **لینک:**\n`{file_link}`\n\n"
-            text += "💡 این لینک را می‌توانید با دیگران به اشتراک بگذارید."
+            # Generate and save link
+            short_code = await self.db.create_link(link_data)
+            
+            # Get bot username for URL
+            bot_info = await context.bot.get_me()
+            share_url = f"https://t.me/{bot_info.username}?start=link_{short_code}"
+            
+            # Simple text without complex Markdown
+            text = f"🔗 لینک اشتراک‌گذاری ایجاد شد\n\n"
+            text += f"📄 نام فایل: {file.file_name}\n"
+            text += f"💾 حجم: {format_file_size(file.file_size)}\n"
+            text += f"🏷 نوع: {file.file_type}\n\n"
+            text += f"🔗 کد کوتاه: {short_code}\n"
+            text += f"🌐 لینک کامل:\n{share_url}\n\n"
+            text += "💡 این لینک را می‌توانید با دیگران به اشتراک بگذارید.\n"
+            text += "📊 تعداد دسترسی‌ها قابل پیگیری است."
             
             keyboard = KeyboardBuilder.build_file_actions_keyboard(file)
             
             await query.edit_message_text(
                 text,
-                reply_markup=keyboard,
-                parse_mode='Markdown'
+                reply_markup=keyboard
             )
             
-            # Also send the link as a separate message for easy copying
+            # Send the link as a separate message for easy copying - completely simple
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=f"🔗 {file_link}",
+                text=f"🔗 لینک کپی کنید:\n{share_url}",
                 reply_to_message_id=query.message.message_id
             )
             

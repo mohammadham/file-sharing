@@ -14,7 +14,7 @@ import shutil
 from datetime import datetime
 
 from config.settings import DB_PATH, BACKUP_PATH
-from models.database_models import Category, File, UserSession
+from models.database_models import Category, File, UserSession, Link
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,34 @@ class DatabaseManager:
                     temp_data TEXT,
                     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
+            ''')
+            
+            # Links table for share links
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    short_code TEXT UNIQUE NOT NULL,
+                    link_type TEXT NOT NULL DEFAULT 'file',
+                    target_id INTEGER,
+                    target_ids TEXT,
+                    created_by INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    access_count INTEGER DEFAULT 0,
+                    expires_at TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1,
+                    title TEXT DEFAULT '',
+                    description TEXT DEFAULT ''
+                )
+            ''')
+            
+            # Create index for short_code lookup
+            await db.execute('''
+                CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code)
+            ''')
+            
+            # Create index for link_type lookup  
+            await db.execute('''
+                CREATE INDEX IF NOT EXISTS idx_links_type ON links(link_type)
             ''')
             
             # Create default categories if not exist
@@ -352,3 +380,77 @@ class DatabaseManager:
         shutil.copy2(self.db_path, backup_file)
         logger.info(f"Database backup created: {backup_file}")
         return str(backup_file)
+    
+    # Link operations
+    async def create_link(self, link_data: Link) -> str:
+        """Create a new share link"""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Generate unique short code
+            short_code = link_data.short_code
+            if not short_code:
+                while True:
+                    short_code = Link.generate_short_code()
+                    # Check if exists
+                    cursor = await db.execute('SELECT id FROM links WHERE short_code = ?', (short_code,))
+                    if not await cursor.fetchone():
+                        break
+            
+            cursor = await db.execute('''
+                INSERT INTO links (
+                    short_code, link_type, target_id, target_ids, created_by,
+                    title, description, expires_at, is_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                short_code,
+                link_data.link_type,
+                link_data.target_id,
+                link_data.target_ids,
+                link_data.created_by,
+                link_data.title,
+                link_data.description,
+                link_data.expires_at,
+                link_data.is_active
+            ))
+            await db.commit()
+            return short_code
+    
+    async def get_link_by_code(self, short_code: str) -> Optional[Link]:
+        """Get link by short code"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute('''
+                SELECT * FROM links WHERE short_code = ? AND is_active = 1
+            ''', (short_code,))
+            row = await cursor.fetchone()
+            return Link.from_dict(dict(row)) if row else None
+    
+    async def increment_link_access(self, short_code: str) -> bool:
+        """Increment access count for link"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute('''
+                UPDATE links SET access_count = access_count + 1 
+                WHERE short_code = ? AND is_active = 1
+            ''', (short_code,))
+            await db.commit()
+            return cursor.rowcount > 0
+    
+    async def get_user_links(self, user_id: int, limit: int = 20) -> List[Link]:
+        """Get links created by user"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute('''
+                SELECT * FROM links WHERE created_by = ? 
+                ORDER BY created_at DESC LIMIT ?
+            ''', (user_id, limit))
+            rows = await cursor.fetchall()
+            return [Link.from_dict(dict(row)) for row in rows]
+    
+    async def delete_link(self, short_code: str, user_id: int) -> bool:
+        """Delete link (only by creator)"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute('''
+                UPDATE links SET is_active = 0 
+                WHERE short_code = ? AND created_by = ?
+            ''', (short_code, user_id))
+            await db.commit()
+            return cursor.rowcount > 0

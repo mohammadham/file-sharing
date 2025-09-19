@@ -7,7 +7,7 @@ Keyboard Builder - Creates inline keyboards for the bot
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from typing import List, Optional
-from models.database_models import Category, File
+from models.database_models import Category, File, Link
 
 
 class KeyboardBuilder:
@@ -162,6 +162,21 @@ class KeyboardBuilder:
                 InlineKeyboardButton("🔄 انتقال", callback_data=f"move_file_{file.id}")
             ],
             [InlineKeyboardButton("🔙 بازگشت", callback_data=f"files_{file.category_id}")]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_shared_file_keyboard(file: File, link: Link) -> InlineKeyboardMarkup:
+        """Build keyboard for shared file view"""
+        keyboard = [
+            [
+                InlineKeyboardButton("📥 دانلود فایل", callback_data=f"download_shared_{file.id}"),
+                InlineKeyboardButton("📊 جزئیات", callback_data=f"details_shared_{file.id}")
+            ],
+            [
+                InlineKeyboardButton("🔗 کپی لینک", callback_data=f"copy_shared_{link.short_code}"),
+                InlineKeyboardButton("📈 آمار لینک", callback_data=f"stats_shared_{link.short_code}")
+            ]
         ]
         return InlineKeyboardMarkup(keyboard)
     

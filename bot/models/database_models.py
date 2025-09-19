@@ -5,9 +5,12 @@
 Database Models and Schemas
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from datetime import datetime
+import uuid
+import string
+import random
 
 
 @dataclass
@@ -115,3 +118,66 @@ class UserSession:
             temp_data=data.get('temp_data'),
             last_activity=data.get('last_activity')
         )
+
+
+@dataclass
+class Link:
+    """Share link model"""
+    id: Optional[int] = None
+    short_code: str = ""
+    link_type: str = "file"  # "file" or "category" or "collection"
+    target_id: Optional[int] = None  # file_id or category_id
+    target_ids: Optional[str] = None  # JSON string for collection of file_ids
+    created_by: Optional[int] = None
+    created_at: Optional[datetime] = None
+    access_count: int = 0
+    expires_at: Optional[datetime] = None
+    is_active: bool = True
+    title: str = ""
+    description: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'short_code': self.short_code,
+            'link_type': self.link_type,
+            'target_id': self.target_id,
+            'target_ids': self.target_ids,
+            'created_by': self.created_by,
+            'created_at': self.created_at,
+            'access_count': self.access_count,
+            'expires_at': self.expires_at,
+            'is_active': self.is_active,
+            'title': self.title,
+            'description': self.description
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Link':
+        return cls(
+            id=data.get('id'),
+            short_code=data.get('short_code', ''),
+            link_type=data.get('link_type', 'file'),
+            target_id=data.get('target_id'),
+            target_ids=data.get('target_ids'),
+            created_by=data.get('created_by'),
+            created_at=data.get('created_at'),
+            access_count=data.get('access_count', 0),
+            expires_at=data.get('expires_at'),
+            is_active=data.get('is_active', True),
+            title=data.get('title', ''),
+            description=data.get('description', '')
+        )
+    
+    @staticmethod
+    def generate_short_code(length: int = 8) -> str:
+        """Generate a random short code"""
+        characters = string.ascii_letters + string.digits
+        # Remove similar looking characters
+        safe_chars = ''.join(c for c in characters if c not in 'il1Lo0O')
+        return ''.join(random.choices(safe_chars, k=length))
+    
+    @property
+    def full_url(self) -> str:
+        """Get full share URL"""
+        return f"https://t.me/your_bot?start=link_{self.short_code}"
