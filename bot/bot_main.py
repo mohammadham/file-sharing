@@ -139,6 +139,10 @@ class TelegramFileBot:
                 await self.file_handler.confirm_delete_file(update, context)
             elif callback_data.startswith('move_file'):
                 await self.file_handler.move_file(update, context)
+            elif callback_data.startswith('move_to_cat_') or callback_data.startswith('move_nav_cat_'):
+                await self.file_handler.handle_move_category_selection(update, context)
+            elif callback_data.startswith('cancel_move_'):
+                await self.file_handler.cancel_file_move(update, context)
             elif callback_data.startswith('upload_'):
                 await self.file_handler.show_upload_prompt(update, context)
             elif callback_data.startswith('batch_upload_'):

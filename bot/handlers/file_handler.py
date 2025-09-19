@@ -56,7 +56,8 @@ class FileHandler(BaseHandler):
             if files:
                 for file in files:
                     text += f"📄 **{escape_filename_for_markdown(file.file_name)}**\n"
-                    text += f"   💾 {file.size_mb:.1f} MB | {file.file_type}\n"
+                    file_size_formatted = format_file_size(file.file_size)
+                    text += f"   💾 {file_size_formatted} | {file.file_type}\n"
                     
                     # Format date safely
                     upload_date = "نامشخص"
@@ -86,8 +87,15 @@ class FileHandler(BaseHandler):
             
             # Handle both file_{id} and details_{id} callbacks
             parts = query.data.split('_')
+            logger.info(f"Callback data: {query.data}, Parts: {parts}")
+            
             if len(parts) >= 2:
-                file_id = int(parts[-1])  # Get the last part which is always the file_id
+                try:
+                    file_id = int(parts[-1])  # Get the last part which is always the file_id
+                except ValueError:
+                    logger.error(f"Invalid file_id in callback: {query.data}")
+                    await query.edit_message_text("خطا در شناسایی فایل!")
+                    return
             else:
                 await query.edit_message_text("خطا در شناسایی فایل!")
                 return
@@ -301,20 +309,151 @@ class FileHandler(BaseHandler):
             await self.update_user_session(
                 user_id,
                 action_state='moving_file',
-                temp_data=safe_json_dumps({'file_id': file_id})
+                temp_data=safe_json_dumps({'file_id': file_id, 'current_move_category': 1})
             )
             
-            # Show root categories for selection
-            categories = await self.db.get_categories(None)
-            keyboard = await KeyboardBuilder.build_category_keyboard(categories, None, False)
+            # Get current file category for better context
+            current_category = await self.db.get_category_by_id(file.category_id)
+            current_category_name = current_category.name if current_category else "نامشخص"
+            
+            # Show category selection starting from root with all available categories
+            await self._show_move_categories(update, context, file_id, 1, current_category_name)
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def _show_move_categories(self, update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: int, category_id: int, current_category_name: str):
+        """Show categories for file move operation"""
+        try:
+            # Get target file info
+            file = await self.db.get_file_by_id(file_id)
+            if not file:
+                return
+            
+            # Get categories to show
+            categories = await self.db.get_categories(category_id)
+            current_category = await self.db.get_category_by_id(category_id)
             
             text = f"📁 **انتقال فایل '{escape_filename_for_markdown(file.file_name)}'**\n\n"
-            text += "دسته مقصد را انتخاب کنید:"
+            text += f"📂 دسته فعلی: {current_category_name}\n"
+            text += f"📂 انتخاب دسته مقصد: {current_category.name if current_category else 'منوی اصلی'}\n\n"
+            
+            if categories:
+                text += "📋 دسته‌های موجود:"
+            else:
+                text += "📄 هیچ زیردسته‌ای در این بخش موجود نیست.\n"
+                text += "برای انتقال فایل به این دسته، 'انتخاب این دسته' را بزنید."
+            
+            keyboard = KeyboardBuilder.build_move_file_keyboard(categories, file_id, category_id, current_category)
+            
+            if hasattr(update.callback_query, 'edit_message_text'):
+                await update.callback_query.edit_message_text(
+                    text,
+                    reply_markup=keyboard,
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    text,
+                    reply_markup=keyboard,
+                    parse_mode='Markdown'
+                )
+                
+        except Exception as e:
+            logger.error(f"Error showing move categories: {e}")
+    
+    async def handle_move_category_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle category selection during file move"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # Parse callback data: move_to_cat_{file_id}_{category_id} or move_nav_cat_{file_id}_{category_id}
+            parts = query.data.split('_')
+            
+            if query.data.startswith('move_to_cat_'):
+                # Final selection - move file to this category
+                file_id = int(parts[3])
+                target_category_id = int(parts[4])
+                
+                success = await self._perform_file_move(file_id, target_category_id)
+                
+                if success:
+                    file = await self.db.get_file_by_id(file_id)
+                    target_category = await self.db.get_category_by_id(target_category_id)
+                    
+                    text = f"✅ **انتقال فایل موفقیت‌آمیز**\n\n"
+                    text += f"📄 فایل: {escape_filename_for_markdown(file.file_name)}\n"
+                    text += f"📁 دسته جدید: {target_category.name}\n\n"
+                    text += "فایل با موفقیت منتقل شد!"
+                    
+                    keyboard = KeyboardBuilder.build_file_actions_keyboard(file)
+                    await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+                else:
+                    await query.edit_message_text("❌ خطا در انتقال فایل!")
+                    
+            elif query.data.startswith('move_nav_cat_'):
+                # Navigate to category
+                file_id = int(parts[3])
+                category_id = int(parts[4])
+                
+                user_id = update.effective_user.id
+                session = await self.get_user_session(user_id)
+                temp_data = safe_json_loads(session.temp_data)
+                temp_data['current_move_category'] = category_id
+                await self.update_user_session(user_id, temp_data=safe_json_dumps(temp_data))
+                
+                # Get current category name for display
+                file = await self.db.get_file_by_id(file_id)
+                current_file_category = await self.db.get_category_by_id(file.category_id)
+                current_category_name = current_file_category.name if current_file_category else "نامشخص"
+                
+                await self._show_move_categories(update, context, file_id, category_id, current_category_name)
+                
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def _perform_file_move(self, file_id: int, target_category_id: int) -> bool:
+        """Actually move the file to target category"""
+        try:
+            success = await self.db.update_file(file_id, category_id=target_category_id)
+            return success
+        except Exception as e:
+            logger.error(f"Error moving file: {e}")
+            return False
+    
+    async def cancel_file_move(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Cancel file move operation"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            user_id = update.effective_user.id
+            session = await self.get_user_session(user_id)
+            temp_data = safe_json_loads(session.temp_data)
+            file_id = temp_data.get('file_id')
+            
+            # Reset user state
+            await self.reset_user_state(user_id)
+            
+            if file_id:
+                file = await self.db.get_file_by_id(file_id)
+                if file:
+                    keyboard = KeyboardBuilder.build_file_actions_keyboard(file)
+                    await query.edit_message_text(
+                        "❌ انتقال فایل لغو شد.",
+                        reply_markup=keyboard
+                    )
+                    return
+            
+            # Fallback to main menu
+            categories = await self.db.get_categories(1)
+            root_category = await self.db.get_category_by_id(1)
+            keyboard = await KeyboardBuilder.build_category_keyboard(categories, root_category, True)
             
             await query.edit_message_text(
-                text,
-                reply_markup=keyboard,
-                parse_mode='Markdown'
+                "❌ انتقال فایل لغو شد. بازگشت به منوی اصلی.",
+                reply_markup=keyboard
             )
             
         except Exception as e:

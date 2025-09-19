@@ -152,12 +152,13 @@ def build_stats_text(stats: Dict[str, Any]) -> str:
 
 def build_file_info_text(file_dict: Dict, category_name: str = "") -> str:
     """Build formatted file information text"""
-    size_mb = file_dict.get('file_size', 0) / 1024 / 1024
+    file_size = file_dict.get('file_size', 0)
+    size_formatted = format_file_size(file_size)
     upload_date = format_datetime(file_dict.get('uploaded_at'))
     
     text = f"📄 **{escape_filename_for_markdown(file_dict.get('file_name', 'نامشخص'))}**\n"
     text += f"📁 دسته: {category_name}\n" if category_name else ""
-    text += f"💾 حجم: {size_mb:.1f} MB\n"
+    text += f"💾 حجم: {size_formatted}\n"
     text += f"📅 تاریخ آپلود: {upload_date}\n"
     text += f"🏷 نوع فایل: {file_dict.get('file_type', 'نامشخص')}\n"
     

@@ -104,13 +104,14 @@ class KeyboardBuilder:
         """Build keyboard for file management"""
         keyboard = []
         
-        # File buttons (1 per row)
+        # File buttons (1 per row)  
         for file in files:
-            size_mb = file.size_mb
+            from utils.helpers import format_file_size
+            file_size_formatted = format_file_size(file.file_size)
             # Truncate long file names for button display
             display_name = file.file_name[:30] + "..." if len(file.file_name) > 30 else file.file_name
             file_row = [InlineKeyboardButton(
-                f"📄 {display_name} ({size_mb:.1f}MB)",
+                f"📄 {display_name} ({file_size_formatted})",
                 callback_data=f"file_{file.id}"
             )]
             keyboard.append(file_row)
@@ -202,4 +203,61 @@ class KeyboardBuilder:
                 InlineKeyboardButton("❌ لغو", callback_data=f"cancel_batch_{category_id}")
             ]
         ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_move_file_keyboard(
+        categories: List[Category], 
+        file_id: int, 
+        current_category_id: int,
+        current_category: Optional[Category] = None
+    ) -> InlineKeyboardMarkup:
+        """Build keyboard for file move operation"""
+        keyboard = []
+        
+        # Show categories (navigate into them)
+        for i in range(0, len(categories), 2):
+            row = []
+            for j in range(2):
+                if i + j < len(categories):
+                    cat = categories[i + j]
+                    row.append(InlineKeyboardButton(
+                        f"📁 {cat.name}", 
+                        callback_data=f"move_nav_cat_{file_id}_{cat.id}"
+                    ))
+            keyboard.append(row)
+        
+        # Option to select current category (if not root)
+        if current_category and current_category.id != 1:
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"✅ انتخاب '{current_category.name}'", 
+                    callback_data=f"move_to_cat_{file_id}_{current_category.id}"
+                )
+            ])
+        
+        # Navigation buttons
+        nav_row = []
+        
+        # Back button (if not at root)
+        if current_category and current_category.parent_id:
+            nav_row.append(InlineKeyboardButton(
+                "🔙 بازگشت", 
+                callback_data=f"move_nav_cat_{file_id}_{current_category.parent_id}"
+            ))
+        elif current_category and current_category.id != 1:
+            nav_row.append(InlineKeyboardButton(
+                "🔙 منوی اصلی", 
+                callback_data=f"move_nav_cat_{file_id}_1"
+            ))
+        
+        # Cancel button
+        nav_row.append(InlineKeyboardButton(
+            "❌ لغو انتقال", 
+            callback_data=f"cancel_move_{file_id}"
+        ))
+        
+        if nav_row:
+            keyboard.append(nav_row)
+        
         return InlineKeyboardMarkup(keyboard)
