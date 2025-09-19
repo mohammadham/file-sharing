@@ -107,8 +107,10 @@ class KeyboardBuilder:
         # File buttons (1 per row)
         for file in files:
             size_mb = file.size_mb
+            # Truncate long file names for button display
+            display_name = file.file_name[:30] + "..." if len(file.file_name) > 30 else file.file_name
             file_row = [InlineKeyboardButton(
-                f"📄 {file.file_name} ({size_mb:.1f}MB)",
+                f"📄 {display_name} ({size_mb:.1f}MB)",
                 callback_data=f"file_{file.id}"
             )]
             keyboard.append(file_row)

@@ -150,7 +150,10 @@ def build_file_info_text(file_dict: Dict, category_name: str = "") -> str:
     size_mb = file_dict.get('file_size', 0) / 1024 / 1024
     upload_date = format_datetime(file_dict.get('uploaded_at'))
     
-    text = f"📄 **{file_dict.get('file_name', 'نامشخص')}**\n"
+    # Escape file name for Markdown
+    file_name = file_dict.get('file_name', 'نامشخص')
+    safe_file_name = file_name.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]')
+    text = f"📄 **{safe_file_name}**\n"
     text += f"📁 دسته: {category_name}\n" if category_name else ""
     text += f"💾 حجم: {size_mb:.1f} MB\n"
     text += f"📅 تاریخ آپلود: {upload_date}\n"

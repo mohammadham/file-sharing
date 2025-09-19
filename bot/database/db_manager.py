@@ -305,12 +305,11 @@ class DatabaseManager:
                     values.append(value)
             
             if fields:
-                values.append(user_id)
                 await db.execute(f'''
                     INSERT OR REPLACE INTO user_sessions 
                     (user_id, {', '.join(key.split('=')[0].strip() for key in fields)}, last_activity)
                     VALUES (?, {', '.join(['?' for _ in fields])}, CURRENT_TIMESTAMP)
-                ''', [user_id] + [value for value in values[:-1]])
+                ''', [user_id] + values)
                 await db.commit()
     
     # Statistics

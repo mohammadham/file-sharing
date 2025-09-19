@@ -147,12 +147,10 @@ class TelegramFileBot:
                 await self.file_handler.finish_batch_upload(update, context)
             elif callback_data.startswith('cancel_batch_'):
                 await self.file_handler.cancel_batch_upload(update, context)
-            elif callback_data.startswith('batch_upload_'):
-                await self.file_handler.start_batch_upload(update, context)
-            elif callback_data.startswith('finish_batch_'):
-                await self.file_handler.finish_batch_upload(update, context)
-            elif callback_data.startswith('cancel_batch_'):
-                await self.file_handler.cancel_batch_upload(update, context)
+            elif callback_data.startswith('copy_link_'):
+                await self.file_handler.copy_file_link(update, context)
+            elif callback_data.startswith('details_'):
+                await self.file_handler.show_file_details(update, context)
             elif callback_data.startswith('confirm_'):
                 await self._handle_confirmations(update, context)
             

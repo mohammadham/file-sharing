@@ -54,9 +54,20 @@ class FileHandler(BaseHandler):
             
             if files:
                 for file in files:
-                    text += f"📄 **{file.file_name}**\n"
+                    # Escape file name for Markdown
+                    safe_file_name = file.file_name.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]')
+                    text += f"📄 **{safe_file_name}**\n"
                     text += f"   💾 {file.size_mb:.1f} MB | {file.file_type}\n"
-                    text += f"   📅 {file.uploaded_at[:16] if file.uploaded_at else 'نامشخص'}\n\n"
+                    
+                    # Format date safely
+                    upload_date = "نامشخص"
+                    if file.uploaded_at:
+                        if isinstance(file.uploaded_at, str):
+                            upload_date = file.uploaded_at[:16]
+                        else:
+                            upload_date = file.uploaded_at.strftime("%Y-%m-%d %H:%M")
+                    
+                    text += f"   📅 {upload_date}\n\n"
                 
                 text += f"📊 صفحه {page + 1} از {total_pages} (کل {total_files} فایل)"
             else:
@@ -566,6 +577,9 @@ class FileHandler(BaseHandler):
             # Save to database
             new_file_id = await self.db.save_file(file_data)
             
+            # Update file_data with the new ID for proper keyboard generation
+            file_data.id = new_file_id
+            
             # Reset user state to browsing after successful upload
             await self.update_user_session(user_id, action_state='browsing')
             
@@ -622,3 +636,42 @@ class FileHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error processing file edit: {e}")
             await update.message.reply_text(self.messages['error_occurred'])
+    
+    async def copy_file_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Copy file link (Telegram file link)"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            file_id = int(query.data.split('_')[2])
+            
+            file = await self.db.get_file_by_id(file_id)
+            if not file:
+                await query.edit_message_text("فایل یافت نشد!")
+                return
+            
+            # Create Telegram file link
+            file_link = f"https://t.me/{context.bot.username}?start=file_{file.id}"
+            
+            text = f"🔗 **لینک فایل کپی شد**\n\n"
+            text += f"📄 **{file.file_name}**\n\n"
+            text += f"🔗 **لینک:**\n`{file_link}`\n\n"
+            text += "💡 این لینک را می‌توانید با دیگران به اشتراک بگذارید."
+            
+            keyboard = KeyboardBuilder.build_file_actions_keyboard(file)
+            
+            await query.edit_message_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+            
+            # Also send the link as a separate message for easy copying
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"🔗 {file_link}",
+                reply_to_message_id=query.message.message_id
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
