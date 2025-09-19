@@ -84,7 +84,13 @@ class FileHandler(BaseHandler):
             query = update.callback_query
             await self.answer_callback_query(update)
             
-            file_id = int(query.data.split('_')[1])
+            # Handle both file_{id} and details_{id} callbacks
+            parts = query.data.split('_')
+            if len(parts) >= 2:
+                file_id = int(parts[-1])  # Get the last part which is always the file_id
+            else:
+                await query.edit_message_text("خطا در شناسایی فایل!")
+                return
             
             file = await self.db.get_file_by_id(file_id)
             if not file:
@@ -109,7 +115,13 @@ class FileHandler(BaseHandler):
             query = update.callback_query
             await self.answer_callback_query(update, "در حال ارسال فایل...")
             
-            file_id = int(query.data.split('_')[1])
+            # Handle both file_{id} and details_{id} callbacks
+            parts = query.data.split('_')
+            if len(parts) >= 2:
+                file_id = int(parts[-1])  # Get the last part which is always the file_id
+            else:
+                await query.edit_message_text("خطا در شناسایی فایل!")
+                return
             
             file = await self.db.get_file_by_id(file_id)
             if not file:
