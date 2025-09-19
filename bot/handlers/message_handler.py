@@ -63,6 +63,8 @@ class BotMessageHandler(BaseHandler):
             user_id = update.effective_user.id
             session = await self.get_user_session(user_id)
             
+            logger.info(f"File upload attempt - User: {user_id}, State: {session.action_state}, Category: {session.current_category}")
+            
             # Check if user is in a file-accepting state
             if session.action_state == 'browsing' or session.action_state == 'uploading_file':
                 await self.file_handler.handle_file_upload(update, context)
@@ -70,12 +72,20 @@ class BotMessageHandler(BaseHandler):
                 await self.file_handler.handle_batch_file_upload(update, context)
             elif session.action_state == 'broadcast_file':
                 await self.broadcast_handler.process_broadcast_file(update, context)
+            elif session.current_category and session.current_category > 0:
+                # If user has a valid current category, allow upload even in other states
+                logger.info(f"Allowing file upload in category {session.current_category} for state {session.action_state}")
+                # Temporarily set state to uploading_file to allow upload
+                await self.update_user_session(user_id, action_state='uploading_file')
+                await self.file_handler.handle_file_upload(update, context)
             else:
                 await update.message.reply_text(
-                    "لطفا ابتدا به دسته مورد نظر بروید و سپس فایل را ارسال کنید."
+                    "لطفا ابتدا به دسته مورد نظر بروید و سپس فایل را ارسال کنید.\n"
+                    "برای بازگشت به منوی اصلی /start را بزنید."
                 )
         
         except Exception as e:
+            logger.error(f"Error in handle_file_message: {e}")
             await self.handle_error(update, context, e)
     
     async def show_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

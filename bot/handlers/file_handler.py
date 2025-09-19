@@ -563,12 +563,12 @@ class FileHandler(BaseHandler):
             
             # Send confirmation with updated keyboard
             keyboard = KeyboardBuilder.build_batch_upload_keyboard(category_id, len(files_list))
-            size_mb = file_size / 1024 / 1024 if file_size else 0
+            file_size_formatted = format_file_size(file_size)
             
             await update.message.reply_text(
                 f"✅ فایل {len(files_list)} دریافت شد!\n"
                 f"📄 <b>{file_name}</b>\n"
-                f"💾 حجم: {size_mb:.1f} MB\n\n"
+                f"💾 حجم: {file_size_formatted}\n\n"
                 f"📊 مجموع فایل‌های دریافت شده: {len(files_list)}\n"
                 f"🔄 در انتظار فایل بعدی یا اتمام ارسال...",
                 reply_markup=keyboard,
@@ -730,8 +730,9 @@ class FileHandler(BaseHandler):
             # Update file_data with the new ID for proper keyboard generation
             file_data.id = new_file_id
             
-            # Reset user state to browsing after successful upload
-            await self.update_user_session(user_id, action_state='browsing')
+            # Reset user state to browsing after successful upload (only if not in batch mode)
+            if session.action_state != 'batch_uploading':
+                await self.update_user_session(user_id, action_state='browsing')
             
             category = await self.db.get_category_by_id(session.current_category)
             

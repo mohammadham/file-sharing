@@ -159,8 +159,7 @@ class KeyboardBuilder:
                 InlineKeyboardButton("📋 کپی لینک", callback_data=f"copy_link_{file.id}")
             ],
             [
-                InlineKeyboardButton("🔄 انتقال", callback_data=f"move_file_{file.id}"),
-                InlineKeyboardButton("📊 جزئیات", callback_data=f"details_{file.id}")
+                InlineKeyboardButton("🔄 انتقال", callback_data=f"move_file_{file.id}")
             ],
             [InlineKeyboardButton("🔙 بازگشت", callback_data=f"files_{file.category_id}")]
         ]
