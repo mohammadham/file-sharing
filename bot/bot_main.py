@@ -141,6 +141,18 @@ class TelegramFileBot:
                 await self.file_handler.move_file(update, context)
             elif callback_data.startswith('upload_'):
                 await self.file_handler.show_upload_prompt(update, context)
+            elif callback_data.startswith('batch_upload_'):
+                await self.file_handler.start_batch_upload(update, context)
+            elif callback_data.startswith('finish_batch_'):
+                await self.file_handler.finish_batch_upload(update, context)
+            elif callback_data.startswith('cancel_batch_'):
+                await self.file_handler.cancel_batch_upload(update, context)
+            elif callback_data.startswith('batch_upload_'):
+                await self.file_handler.start_batch_upload(update, context)
+            elif callback_data.startswith('finish_batch_'):
+                await self.file_handler.finish_batch_upload(update, context)
+            elif callback_data.startswith('cancel_batch_'):
+                await self.file_handler.cancel_batch_upload(update, context)
             elif callback_data.startswith('confirm_'):
                 await self._handle_confirmations(update, context)
             
@@ -173,6 +185,8 @@ class TelegramFileBot:
             # Page info (just ignore)
             elif callback_data == 'page_info':
                 await update.callback_query.answer("ℹ️ اطلاعات صفحه")
+            elif callback_data == 'files_count_info':
+                await update.callback_query.answer("📊 تعداد فایل‌های دریافت شده تا کنون")
             
             else:
                 await update.callback_query.answer("❌ عملیات نامشخص!")

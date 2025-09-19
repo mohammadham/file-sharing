@@ -75,6 +75,12 @@ class KeyboardBuilder:
             ]
             keyboard.append(files_row)
             
+            # Batch upload row
+            batch_row = [
+                InlineKeyboardButton("📤🗂 آپلود چند فایل", callback_data=f"batch_upload_{category_id}")
+            ]
+            keyboard.append(batch_row)
+            
             # Main actions
             actions_row = [
                 InlineKeyboardButton("📢 برودکست", callback_data="broadcast_menu"),
@@ -182,4 +188,16 @@ class KeyboardBuilder:
     def build_cancel_keyboard(return_to: str = "cat_1") -> InlineKeyboardMarkup:
         """Build simple cancel keyboard"""
         keyboard = [[InlineKeyboardButton("❌ لغو", callback_data=return_to)]]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_batch_upload_keyboard(category_id: int, files_count: int = 0) -> InlineKeyboardMarkup:
+        """Build keyboard for batch upload process"""
+        keyboard = [
+            [InlineKeyboardButton(f"📊 فایل‌های دریافت شده: {files_count}", callback_data="files_count_info")],
+            [
+                InlineKeyboardButton("✅ اتمام ارسال", callback_data=f"finish_batch_{category_id}"),
+                InlineKeyboardButton("❌ لغو", callback_data=f"cancel_batch_{category_id}")
+            ]
+        ]
         return InlineKeyboardMarkup(keyboard)
