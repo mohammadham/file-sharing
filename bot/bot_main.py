@@ -214,6 +214,12 @@ class TelegramFileBot:
             elif callback_data.startswith('back_to_shared_'):
                 await self._handle_back_to_shared(update, context)
             
+            # NEW: Handle download all operations
+            elif callback_data.startswith('download_all_category_'):
+                await self._handle_download_all_category(update, context)
+            elif callback_data.startswith('download_all_collection_'):
+                await self._handle_download_all_collection(update, context)
+            
             # Advanced category edit operations
             elif callback_data.startswith('edit_cat_name_'):
                 await self.category_edit_handler.edit_category_name(update, context)
@@ -243,6 +249,8 @@ class TelegramFileBot:
                 await self._handle_cancel_move_category(update, context)
             elif callback_data.startswith('details_'):
                 await self.file_handler.show_file_details(update, context)
+            elif callback_data.startswith('download_shared_file_'):
+                await self._handle_download_shared_file(update, context)
             elif callback_data.startswith('download_shared_'):
                 await self._handle_shared_file_download(update, context)
             elif callback_data.startswith('details_shared_'):
@@ -287,6 +295,16 @@ class TelegramFileBot:
                 await update.callback_query.answer("ℹ️ اطلاعات صفحه")
             elif callback_data == 'files_count_info':
                 await update.callback_query.answer("📊 تعداد فایل‌های دریافت شده تا کنون")
+            elif callback_data == 'main_menu':
+                # Return to main menu
+                categories = await self.db.get_categories(1)
+                root_category = await self.db.get_category_by_id(1)
+                keyboard = await KeyboardBuilder.build_category_keyboard(categories, root_category, True)
+                await update.callback_query.edit_message_text(
+                    "🏠 **منوی اصلی**\n\nلطفاً یکی از گزینه‌ها را انتخاب کنید:",
+                    reply_markup=keyboard,
+                    parse_mode='Markdown'
+                )
             
             else:
                 await update.callback_query.answer("❌ عملیات نامشخص!")
@@ -395,7 +413,6 @@ class TelegramFileBot:
             text += build_file_info_text(file.to_dict(), category_name)
             
             # Create download keyboard
-            from utils.keyboard_builder import KeyboardBuilder
             keyboard = KeyboardBuilder.build_shared_file_keyboard(file, link)
             
             await update.message.reply_text(
@@ -432,7 +449,6 @@ class TelegramFileBot:
             
             text += f"💡 می‌توانید فایل‌ها را مشاهده و دانلود کنید."
             
-            from utils.keyboard_builder import KeyboardBuilder
             keyboard = KeyboardBuilder.build_shared_category_keyboard(category, link)
             
             await update.message.reply_text(
@@ -477,7 +493,6 @@ class TelegramFileBot:
             if len(files) > 5:
                 text += f"... و {len(files) - 5} فایل دیگر"
             
-            from utils.keyboard_builder import KeyboardBuilder
             keyboard = KeyboardBuilder.build_shared_collection_keyboard(link)
             
             await update.message.reply_text(
@@ -491,7 +506,7 @@ class TelegramFileBot:
             await update.message.reply_text("❌ خطا در نمایش مجموعه!")
             
     async def _handle_browse_shared_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle browsing shared category files"""
+        """Handle browsing shared category files - FIXED"""
         try:
             query = update.callback_query
             await query.answer()
@@ -504,7 +519,7 @@ class TelegramFileBot:
                 return
             
             category = await self.db.get_category_by_id(link.target_id)
-            files = await self.db.get_files(link.target_id, limit=20)
+            files = await self.db.get_files(link.target_id, limit=50)
             
             if not files:
                 await query.edit_message_text("❌ هیچ فایلی در این دسته موجود نیست!")
@@ -512,24 +527,39 @@ class TelegramFileBot:
             
             text = f"📂 **فایل‌های دسته '{category.name}'**\n\n"
             
+            # Build file list with download buttons
+            from utils.helpers import format_file_size
+            keyboard = []
+            
             for i, file in enumerate(files, 1):
-                from utils.helpers import format_file_size
                 text += f"{i}. **{file.file_name}**\n"
                 text += f"   💾 {format_file_size(file.file_size)} | {file.file_type}\n\n"
+                
+                # Add individual file download button
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"📥 دانلود {file.file_name[:20]}...", 
+                        callback_data=f"download_shared_file_{file.id}_{short_code}"
+                    )
+                ])
             
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_shared_{short_code}")]
+            # Add back button
+            keyboard.append([
+                InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_shared_{short_code}")
             ])
             
-            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            await query.edit_message_text(
+                text, 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                parse_mode='Markdown'
+            )
             
         except Exception as e:
             logger.error(f"Error browsing shared category: {e}")
             await query.answer("❌ خطا در مشاهده فایل‌ها!")
             
     async def _handle_browse_shared_collection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle browsing shared collection files"""
+        """Handle browsing shared collection files - FIXED"""
         try:
             query = update.callback_query
             await query.answer()
@@ -556,37 +586,343 @@ class TelegramFileBot:
             
             text = f"📦 **فایل‌های مجموعه**\n\n"
             
+            # Build file list with download buttons
+            from utils.helpers import format_file_size
+            keyboard = []
+            
             for i, file in enumerate(files, 1):
-                from utils.helpers import format_file_size
                 text += f"{i}. **{file.file_name}**\n"
                 text += f"   💾 {format_file_size(file.file_size)} | {file.file_type}\n\n"
+                
+                # Add individual file download button
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"📥 دانلود {file.file_name[:20]}...", 
+                        callback_data=f"download_shared_file_{file.id}_{short_code}"
+                    )
+                ])
             
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_shared_{short_code}")]
+            # Add back button
+            keyboard.append([
+                InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_shared_{short_code}")
             ])
             
-            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            await query.edit_message_text(
+                text, 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                parse_mode='Markdown'
+            )
             
         except Exception as e:
             logger.error(f"Error browsing shared collection: {e}")
             await query.answer("❌ خطا در مشاهده فایل‌ها!")
     
+    async def _handle_download_shared_file(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle downloading shared file - FIXED"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال ارسال فایل...")
+            
+            parts = query.data.split('_')
+            logger.info(f"Download shared file callback data: {query.data}, parts: {parts}")
+            
+            # Validate parts array
+            if len(parts) < 5:
+                await query.answer("❌ داده callback نامعتبر!")
+                logger.error(f"Invalid callback data format: {query.data}")
+                return
+            
+            try:
+                file_id = int(parts[3])
+                short_code = parts[4]
+            except ValueError as ve:
+                logger.error(f"Error parsing callback data {query.data}: {ve}")
+                await query.answer("❌ خطا در پردازش داده!")
+                return
+            
+            file = await self.db.get_file_by_id(file_id)
+            if not file:
+                await query.answer("❌ فایل یافت نشد!")
+                return
+            
+            # Forward file from storage channel
+            from config.settings import STORAGE_CHANNEL_ID
+            try:
+                await context.bot.forward_message(
+                    chat_id=update.effective_chat.id,
+                    from_chat_id=STORAGE_CHANNEL_ID,
+                    message_id=file.storage_message_id
+                )
+                
+                await query.answer("✅ فایل ارسال شد!")
+                
+            except Exception as e:
+                logger.error(f"Error forwarding shared file: {e}")
+                await query.answer("❌ خطا در ارسال فایل!")
+                
+        except Exception as e:
+            logger.error(f"Error in download shared file: {e}")
+            await query.answer("❌ خطا در دانلود!")
+    
+    async def _handle_download_all_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle downloading all files from shared category - NEW"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال ارسال تمام فایل‌های دسته...")
+            
+            parts = query.data.split('_')
+            logger.info(f"Download all category callback data: {query.data}, parts: {parts}")
+            
+            if len(parts) < 4:
+                await query.answer("❌ داده callback نامعتبر!")
+                logger.error(f"Invalid callback data format: {query.data}")
+                return
+                
+            short_code = parts[3]
+            link = await self.db.get_link_by_code(short_code)
+            
+            if not link or link.link_type != "category":
+                await query.answer("❌ لینک نامعتبر!")
+                return
+            
+            files = await self.db.get_files(link.target_id, limit=50)
+            
+            if not files:
+                await query.answer("❌ هیچ فایلی برای دانلود وجود ندارد!")
+                return
+            
+            # Send a message about starting download
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"📥 **شروع ارسال {len(files)} فایل...**\n\nلطفاً منتظر بمانید تا تمام فایل‌ها ارسال شوند.",
+                parse_mode='Markdown'
+            )
+            
+            from config.settings import STORAGE_CHANNEL_ID
+            sent_count = 0
+            failed_count = 0
+            
+            for file in files:
+                try:
+                    await context.bot.forward_message(
+                        chat_id=update.effective_chat.id,
+                        from_chat_id=STORAGE_CHANNEL_ID,
+                        message_id=file.storage_message_id
+                    )
+                    sent_count += 1
+                    # Small delay to avoid hitting rate limits
+                    await asyncio.sleep(0.5)
+                    
+                except Exception as e:
+                    logger.error(f"Error forwarding file {file.file_name}: {e}")
+                    failed_count += 1
+            
+            # Send completion message
+            completion_text = f"✅ **ارسال کامل شد!**\n\n"
+            completion_text += f"📤 ارسال شده: {sent_count} فایل\n"
+            if failed_count > 0:
+                completion_text += f"❌ خطا در ارسال: {failed_count} فایل\n"
+            
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=completion_text,
+                parse_mode='Markdown'
+            )
+                
+        except Exception as e:
+            logger.error(f"Error in download all category: {e}")
+            await query.answer("❌ خطا در دانلود گروهی!")
+    
+    async def _handle_download_all_collection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle downloading all files from shared collection - NEW"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال ارسال تمام فایل‌های مجموعه...")
+            
+            parts = query.data.split('_')
+            logger.info(f"Download all collection callback data: {query.data}, parts: {parts}")
+            
+            if len(parts) < 4:
+                await query.answer("❌ داده callback نامعتبر!")
+                logger.error(f"Invalid callback data format: {query.data}")
+                return
+                
+            short_code = parts[3]
+            link = await self.db.get_link_by_code(short_code)
+            
+            if not link or link.link_type != "collection":
+                await query.answer("❌ لینک نامعتبر!")
+                return
+            
+            import json
+            file_ids = json.loads(link.target_ids)
+            
+            files = []
+            for file_id in file_ids:
+                file = await self.db.get_file_by_id(file_id)
+                if file:
+                    files.append(file)
+            
+            if not files:
+                await query.answer("❌ هیچ فایلی برای دانلود وجود ندارد!")
+                return
+            
+            # Send a message about starting download
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"📥 **شروع ارسال {len(files)} فایل...**\n\nلطفاً منتظر بمانید تا تمام فایل‌ها ارسال شوند.",
+                parse_mode='Markdown'
+            )
+            
+            from config.settings import STORAGE_CHANNEL_ID
+            sent_count = 0
+            failed_count = 0
+            
+            for file in files:
+                try:
+                    await context.bot.forward_message(
+                        chat_id=update.effective_chat.id,
+                        from_chat_id=STORAGE_CHANNEL_ID,
+                        message_id=file.storage_message_id
+                    )
+                    sent_count += 1
+                    # Small delay to avoid hitting rate limits
+                    await asyncio.sleep(0.5)
+                    
+                except Exception as e:
+                    logger.error(f"Error forwarding file {file.file_name}: {e}")
+                    failed_count += 1
+            
+            # Send completion message
+            completion_text = f"✅ **ارسال کامل شد!**\n\n"
+            completion_text += f"📤 ارسال شده: {sent_count} فایل\n"
+            if failed_count > 0:
+                completion_text += f"❌ خطا در ارسال: {failed_count} فایل\n"
+            
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=completion_text,
+                parse_mode='Markdown'
+            )
+                
+        except Exception as e:
+            logger.error(f"Error in download all collection: {e}")
+            await query.answer("❌ خطا در دانلود گروهی!")
+    
     async def _handle_back_to_shared(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle back to shared link main view"""
+        """Handle back to shared link main view - FIXED"""
         try:
             query = update.callback_query
             await query.answer()
             
-            short_code = query.data.split('_')[3]
+            parts = query.data.split('_')
+            logger.info(f"Back to shared callback data: {query.data}, parts: {parts}")
             
-            # Re-handle the original share link
-            await self._handle_share_link(update, context, short_code)
+            if len(parts) < 4:
+                await query.answer("❌ داده callback نامعتبر!")
+                logger.error(f"Invalid callback data format: {query.data}")
+                return
+                
+            short_code = parts[3]
+            
+            # Re-handle the original share link by recreating the display
+            link = await self.db.get_link_by_code(short_code)
+            if not link:
+                await query.edit_message_text("❌ لینک یافت نشد!")
+                return
+                
+            # Recreate the share link display based on type
+            if link.link_type == "category":
+                await self._handle_category_share_link_edit(update, context, link)
+            elif link.link_type == "collection":
+                await self._handle_collection_share_link_edit(update, context, link)
+            else:
+                await query.edit_message_text("❌ نوع لینک پشتیبانی نمی‌شود!")
             
         except Exception as e:
             logger.error(f"Error in back to shared: {e}")
             await query.answer("❌ خطا در بازگشت!")
     
+    async def _handle_category_share_link_edit(self, update: Update, context: ContextTypes.DEFAULT_TYPE, link):
+        """Handle shared category link for edit message"""
+        try:
+            category = await self.db.get_category_by_id(link.target_id)
+            if not category:
+                await update.callback_query.edit_message_text("❌ دسته یافت نشد!")
+                return
+            
+            files = await self.db.get_files(link.target_id, limit=1000)
+            from utils.helpers import format_file_size
+            
+            total_size = sum(f.file_size for f in files)
+            
+            text = f"📂 **دسته اشتراک‌گذاری شده**\n\n"
+            text += f"📁 **نام دسته:** {category.name}\n"
+            text += f"📊 **تعداد فایل:** {len(files)}\n"
+            text += f"💾 **حجم کل:** {format_file_size(total_size)}\n"
+            text += f"📈 **بازدید:** {link.access_count} بار\n\n"
+            
+            if category.description:
+                text += f"📝 **توضیحات:** {category.description}\n\n"
+            
+            text += f"💡 می‌توانید فایل‌ها را مشاهده و دانلود کنید."
+            
+            keyboard = KeyboardBuilder.build_shared_category_keyboard(category, link)
+            
+            await update.callback_query.edit_message_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in category share link edit: {e}")
+            await update.callback_query.edit_message_text("❌ خطا در نمایش دسته!")
+    
+    async def _handle_collection_share_link_edit(self, update: Update, context: ContextTypes.DEFAULT_TYPE, link):
+        """Handle shared collection link for edit message"""
+        try:
+            import json
+            file_ids = json.loads(link.target_ids)
+            
+            files = []
+            total_size = 0
+            for file_id in file_ids:
+                file = await self.db.get_file_by_id(file_id)
+                if file:
+                    files.append(file)
+                    total_size += file.file_size
+            
+            if not files:
+                await update.callback_query.edit_message_text("❌ فایل‌های مجموعه یافت نشد!")
+                return
+            
+            from utils.helpers import format_file_size
+            
+            text = f"📦 **مجموعه فایل‌های اشتراک‌گذاری شده**\n\n"
+            text += f"📊 **تعداد فایل:** {len(files)}\n"
+            text += f"💾 **حجم کل:** {format_file_size(total_size)}\n"
+            text += f"📈 **بازدید:** {link.access_count} بار\n\n"
+            text += f"📋 **فایل‌ها:**\n"
+            
+            for i, file in enumerate(files[:5], 1):
+                text += f"{i}. {file.file_name} ({format_file_size(file.file_size)})\n"
+            
+            if len(files) > 5:
+                text += f"... و {len(files) - 5} فایل دیگر"
+            
+            keyboard = KeyboardBuilder.build_shared_collection_keyboard(link)
+            
+            await update.callback_query.edit_message_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in collection share link edit: {e}")
+            await update.callback_query.edit_message_text("❌ خطا در نمایش مجموعه!")
+
     async def _handle_move_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle category move operation"""
         try:
@@ -675,7 +1011,6 @@ class TelegramFileBot:
     
     async def _build_move_category_keyboard(self, categories, category_id: int, current_parent_id: int, current_parent):
         """Build keyboard for category move operation"""
-        from utils.keyboard_builder import KeyboardBuilder
         keyboard = []
         
         # Show categories (navigate into them)
@@ -811,200 +1146,53 @@ class TelegramFileBot:
             
         except Exception as e:
             logger.error(f"Error canceling move category: {e}")
-            await query.answer("❌ خطا در لغو انتقال!")
     
-    async def _handle_move_category_navigation(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle navigation during category move"""
+    async def _handle_legacy_file_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: str):
+        """Handle legacy file links"""
         try:
-            query = update.callback_query
-            await query.answer()
-            
-            parts = query.data.split('_')
-            category_id = int(parts[3])
-            new_parent_id = int(parts[4])
-            
-            # Update user session with new current category
-            user_id = update.effective_user.id
-            await self.update_user_session(
-                user_id,
-                temp_data=safe_json_dumps({'category_id': category_id, 'current_move_category': new_parent_id})
-            )
-            
-            # Show new destination options
-            await self._show_move_category_destinations(update, context, category_id, new_parent_id)
-            
-        except Exception as e:
-            logger.error(f"Error in move category navigation: {e}")
-            await query.answer("❌ خطا در ناوبری!")
-    
-    async def _handle_move_category_to(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle actual category move to destination"""
-        try:
-            query = update.callback_query
-            await query.answer()
-            
-            parts = query.data.split('_')
-            category_id = int(parts[3])
-            new_parent_id = int(parts[4])
-            user_id = update.effective_user.id
-            
-            # Get category details
-            category = await self.db.get_category_by_id(category_id)
-            new_parent = await self.db.get_category_by_id(new_parent_id)
-            
-            if not category:
-                await query.edit_message_text("❌ دسته یافت نشد!")
-                return
-            
-            # Prevent moving to itself or its children
-            if category_id == new_parent_id or await self._is_child_category(new_parent_id, category_id):
-                await query.answer("❌ نمی‌توان دسته را به خودش یا زیرمجموعه‌اش منتقل کرد!")
-                return
-            
-            # Update category parent
-            success = await self.db.update_category(
-                category_id,
-                parent_id=new_parent_id
-            )
-            
-            if success:
-                # Reset user state
-                await self.update_user_session(
-                    user_id,
-                    action_state='browsing',
-                    temp_data=None
-                )
-                
-                parent_name = new_parent.name if new_parent else "منوی اصلی"
-                text = f"✅ **انتقال موفق**\n\n"
-                text += f"دسته '{category.name}' با موفقیت به '{parent_name}' منتقل شد."
-                
-                # Return to category edit menu
-                keyboard = KeyboardBuilder.build_cancel_keyboard(f"edit_category_menu_{category_id}")
-                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
-            else:
-                await query.answer("❌ خطا در انتقال دسته!")
-                
-        except Exception as e:
-            logger.error(f"Error in move category to: {e}")
-            await query.answer("❌ خطا در انتقال دسته!")
-    
-    async def _handle_cancel_move_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle cancel move category operation"""
-        try:
-            query = update.callback_query
-            await query.answer()
-            
-            category_id = int(query.data.split('_')[3])
-            user_id = update.effective_user.id
-            
-            # Reset user state
-            await self.update_user_session(
-                user_id,
-                action_state='browsing',
-                temp_data=None
-            )
-            
-            text = "❌ **انتقال لغو شد**\n\n"
-            text += "عملیات انتقال دسته لغو شد."
-            
-            keyboard = KeyboardBuilder.build_cancel_keyboard(f"edit_category_menu_{category_id}")
-            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
-            
-        except Exception as e:
-            logger.error(f"Error in cancel move category: {e}")
-            await query.answer("❌ خطا در لغو انتقال!")
-    
-    async def _handle_icon_page(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle icon page navigation"""
-        try:
-            query = update.callback_query
-            await query.answer()
-            
-            parts = query.data.split('_')
-            category_id = int(parts[2])
-            page = int(parts[3])
-            
-            category = await self.db.get_category_by_id(category_id)
-            if not category:
-                await query.edit_message_text("دسته‌بندی یافت نشد!")
-                return
-            
-            text = f"🎨 **انتخاب آیکون برای '{category.name}'**\n\n"
-            text += f"🔄 آیکون فعلی: {category.icon}\n\n"
-            text += f"💡 آیکون مورد نظر را انتخاب کنید:"
-            
-            from utils.keyboard_builder import KeyboardBuilder
-            keyboard = KeyboardBuilder.build_icon_selection_keyboard(category_id, page)
-            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
-            
-        except Exception as e:
-            logger.error(f"Error in icon page navigation: {e}")
-            await query.answer("❌ خطا در تغییر صفحه!")
-    
-    async def _handle_legacy_file_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, file_id_str: str):
-        """Handle legacy file links for backward compatibility"""
-        try:
-            file_id = int(file_id_str)
-            file = await self.db.get_file_by_id(file_id)
-            
+            file = await self.db.get_file_by_id(int(file_id))
             if not file:
                 await update.message.reply_text("❌ فایل یافت نشد!")
                 return
+                
+            category = await self.db.get_category_by_id(file.category_id)
+            category_name = category.name if category else "نامشخص"
             
-            # Forward to storage channel (legacy behavior)
-            from config.settings import STORAGE_CHANNEL_ID
-            await context.bot.forward_message(
-                chat_id=update.effective_chat.id,
-                from_chat_id=STORAGE_CHANNEL_ID,
-                message_id=file.storage_message_id
-            )
+            from utils.helpers import build_file_info_text
+            
+            text = f"📄 **فایل**\n\n"
+            text += f"📁 دسته: {category_name}\n\n"
+            text += build_file_info_text(file.to_dict(), category_name)
+            
+            keyboard = KeyboardBuilder.build_file_actions_keyboard(file)
             
             await update.message.reply_text(
-                f"📄 **{file.file_name}**\n"
-                f"💾 حجم: {file.size_mb:.1f} MB\n\n"
-                f"💡 برای لینک‌های بهتر از نسخه جدید ربات استفاده کنید!",
+                text,
+                reply_markup=keyboard,
                 parse_mode='Markdown'
             )
             
         except Exception as e:
-            logger.error(f"Error in legacy file link: {e}")
-            await update.message.reply_text("❌ خطا در دریافت فایل!")
+            logger.error(f"Error handling legacy file link: {e}")
+            await update.message.reply_text("❌ خطا در پردازش لینک!")
     
     async def _handle_shared_file_download(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle download from shared file"""
+        """Handle shared file download"""
         try:
-            query = update.callback_query
-            await query.answer("در حال ارسال فایل...")
-            
-            file_id = int(query.data.split('_')[2])
-            file = await self.db.get_file_by_id(file_id)
-            
-            if not file:
-                await query.answer("❌ فایل یافت نشد!")
-                return
-            
-            # Forward file from storage channel
-            from config.settings import STORAGE_CHANNEL_ID
-            await context.bot.forward_message(
-                chat_id=update.effective_chat.id,
-                from_chat_id=STORAGE_CHANNEL_ID,
-                message_id=file.storage_message_id
-            )
-            
+            await self._handle_download_shared_file(update, context)
         except Exception as e:
             logger.error(f"Error in shared file download: {e}")
-            await query.answer("❌ خطا در دانلود فایل!")
+            await update.callback_query.answer("❌ خطا در دانلود فایل!")
     
     async def _handle_shared_file_details(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle details view for shared file"""
+        """Handle shared file details"""
         try:
             query = update.callback_query
             await query.answer()
             
             file_id = int(query.data.split('_')[2])
-            file = await self.db.get_file_by_id(file_id)
             
+            file = await self.db.get_file_by_id(file_id)
             if not file:
                 await query.edit_message_text("❌ فایل یافت نشد!")
                 return
@@ -1016,9 +1204,9 @@ class TelegramFileBot:
             text = "📄 **جزئیات فایل اشتراک‌گذاری شده**\n\n"
             text += build_file_info_text(file.to_dict(), category_name)
             
-            # Just show info without action buttons
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_shared_{file_id}")
+                InlineKeyboardButton("📥 دانلود", callback_data=f"download_shared_{file_id}"),
+                InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")
             ]])
             
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
@@ -1028,18 +1216,20 @@ class TelegramFileBot:
             await query.answer("❌ خطا در نمایش جزئیات!")
     
     async def _handle_shared_link_copy(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle copy shared link"""  
+        """Handle copying shared link"""
         try:
             query = update.callback_query
-            await query.answer("لینک کپی شد!")
+            await query.answer()
             
             short_code = query.data.split('_')[2]
+            
+            # Get bot username for proper URL
             bot_info = await context.bot.get_me()
             share_url = f"https://t.me/{bot_info.username}?start=link_{short_code}"
             
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=f"🔗 **لینک کپی شده:**\n`{share_url}`",
+                text=f"🔗 **کپی لینک:**\n`{share_url}`",
                 parse_mode='Markdown',
                 reply_to_message_id=query.message.message_id
             )
@@ -1055,20 +1245,23 @@ class TelegramFileBot:
             await query.answer()
             
             short_code = query.data.split('_')[2]
-            link = await self.db.get_link_by_code(short_code)
             
-            if not link:
-                await query.answer("❌ لینک یافت نشد!")
+            from utils.link_manager import LinkManager
+            link_manager = LinkManager(self.db)
+            
+            stats = await link_manager.get_link_stats(short_code)
+            if not stats:
+                await query.answer("❌ آمار لینک یافت نشد!")
                 return
             
             text = f"📈 **آمار لینک اشتراک‌گذاری**\n\n"
-            text += f"🔗 کد: `{link.short_code}`\n"
-            text += f"📊 تعداد بازدید: **{link.access_count}** بار\n"
-            text += f"📅 تاریخ ایجاد: {link.created_at[:16] if link.created_at else 'نامشخص'}\n"
-            text += f"💡 وضعیت: {'🟢 فعال' if link.is_active else '🔴 غیرفعال'}"
+            text += f"🔗 **کد:** `{stats['short_code']}`\n"
+            text += f"📊 **بازدید:** {stats['access_count']} بار\n"
+            text += f"📅 **تاریخ ایجاد:** {stats['created_at'][:16] if stats['created_at'] else 'نامشخص'}\n"
+            text += f"🏷 **عنوان:** {stats['title']}\n"
             
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_shared_stats_{short_code}")
+                InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")
             ]])
             
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
@@ -1078,58 +1271,33 @@ class TelegramFileBot:
             await query.answer("❌ خطا در نمایش آمار!")
     
     async def _handle_back_shared(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle back button from shared views"""
+        """Handle back from shared link"""
+        try:
+            await self._handle_back_to_shared(update, context)
+        except Exception as e:
+            logger.error(f"Error in back shared: {e}")
+            await update.callback_query.answer("❌ خطا در بازگشت!")
+    
+    async def _handle_icon_page(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle icon page navigation"""
         try:
             query = update.callback_query
             await query.answer()
             
-            callback_data = query.data
+            parts = query.data.split('_')
+            category_id = int(parts[2])
+            page = int(parts[3])
             
-            if callback_data.startswith('back_shared_stats_'):
-                # Back from stats to main shared view
-                short_code = callback_data.split('_')[3]
-                link = await self.db.get_link_by_code(short_code)
-                
-                if link and link.link_type == "file":
-                    file = await self.db.get_file_by_id(link.target_id)
-                    if file:
-                        await self._handle_file_share_link(update, context, link)
-                        return
-                        
-            elif callback_data.startswith('back_shared_'):
-                # Back from details to main shared view  
-                file_id = int(callback_data.split('_')[2])
-                file = await self.db.get_file_by_id(file_id)
-                
-                if file:
-                    # Find the link for this file (get the most recent one)
-                    # This is a simplification - in production you might want to pass link info
-                    from database.db_manager import DatabaseManager
-                    import aiosqlite
-                    
-                    async with aiosqlite.connect(self.db.db_path) as db:
-                        db.row_factory = aiosqlite.Row
-                        cursor = await db.execute('''
-                            SELECT * FROM links 
-                            WHERE link_type = 'file' AND target_id = ? AND is_active = 1
-                            ORDER BY created_at DESC LIMIT 1
-                        ''', (file_id,))
-                        row = await cursor.fetchone()
-                        
-                        if row:
-                            link = Link.from_dict(dict(row))
-                            await self._handle_file_share_link(update, context, link)
-                            return
+            keyboard = KeyboardBuilder.build_icon_selection_keyboard(category_id, page)
             
-            # Fallback
-            await query.edit_message_text("❌ خطا در بازگشت!")
+            await query.edit_message_reply_markup(reply_markup=keyboard)
             
         except Exception as e:
-            logger.error(f"Error in back shared: {e}")
-            await query.answer("❌ خطا در بازگشت!")
+            logger.error(f"Error in icon page: {e}")
+            await query.answer("❌ خطا در تغییر صفحه!")
     
     async def _handle_link_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle link statistics view"""
+        """Handle link statistics"""
         try:
             query = update.callback_query
             await query.answer()
@@ -1146,7 +1314,7 @@ class TelegramFileBot:
             
             text = f"📈 **آمار تفصیلی لینک**\n\n"
             text += f"🔗 **کد:** `{stats['short_code']}`\n"
-            text += f"📊 **بازدیدها:** {stats['access_count']} بار\n"
+            text += f"📊 **بازدید:** {stats['access_count']} بار\n"
             text += f"📅 **تاریخ ایجاد:** {stats['created_at'][:16] if stats['created_at'] else 'نامشخص'}\n"
             
             if stats['expires_at']:
