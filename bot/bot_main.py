@@ -224,6 +224,8 @@ class TelegramFileBot:
                 await self.category_edit_handler.remove_thumbnail(update, context)
             elif callback_data.startswith('set_cat_tags_'):
                 await self.category_edit_handler.set_category_tags(update, context)
+            elif callback_data.startswith('move_category_'):
+                await self._handle_move_category(update, context)
             elif callback_data.startswith('details_'):
                 await self.file_handler.show_file_details(update, context)
             elif callback_data.startswith('download_shared_'):
@@ -569,6 +571,27 @@ class TelegramFileBot:
         except Exception as e:
             logger.error(f"Error in back to shared: {e}")
             await query.answer("❌ خطا در بازگشت!")
+    
+    async def _handle_move_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle category move operation (placeholder)"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            category_id = int(query.data.split('_')[2])
+            
+            # For now, just show a message that this feature is under development
+            text = "🚧 **قابلیت انتقال دسته**\n\n"
+            text += "این قابلیت در حال توسعه است و به زودی اضافه خواهد شد.\n\n"
+            text += "💡 در حال حاضر می‌توانید از سایر قابلیت‌های ویرایش دسته استفاده کنید."
+            
+            from utils.keyboard_builder import KeyboardBuilder
+            keyboard = KeyboardBuilder.build_cancel_keyboard(f"edit_category_menu_{category_id}")
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in move category: {e}")
+            await query.answer("❌ خطا در انتقال دسته!")
     
     async def _handle_icon_page(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle icon page navigation"""
