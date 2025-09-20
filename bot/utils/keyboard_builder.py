@@ -29,7 +29,7 @@ class KeyboardBuilder:
                 if i + j < len(categories):
                     cat = categories[i + j]
                     row.append(InlineKeyboardButton(
-                        f"{cat.name}", 
+                        f"{cat.display_name}", 
                         callback_data=f"cat_{cat.id}"
                     ))
             keyboard.append(row)
@@ -63,7 +63,7 @@ class KeyboardBuilder:
             # Category management buttons
             if current_category and current_category.id != 1:
                 category_mgmt_row = [
-                    InlineKeyboardButton("✏️ ویرایش دسته", callback_data=f"edit_cat_{current_category.id}"),
+                    InlineKeyboardButton("✏️ ویرایش دسته", callback_data=f"edit_category_menu_{current_category.id}"),
                     InlineKeyboardButton("🗑 حذف دسته", callback_data=f"del_cat_{current_category.id}")
                 ]
                 keyboard.append(category_mgmt_row)
@@ -75,11 +75,12 @@ class KeyboardBuilder:
             ]
             keyboard.append(files_row)
             
-            # Batch upload row
-            batch_row = [
+            # Category link and batch upload row
+            category_actions_row = [
+                InlineKeyboardButton("🔗 لینک دسته", callback_data=f"category_link_{category_id}"),
                 InlineKeyboardButton("📤🗂 آپلود چند فایل", callback_data=f"batch_upload_{category_id}")
             ]
-            keyboard.append(batch_row)
+            keyboard.append(category_actions_row)
             
             # Main actions
             actions_row = [
@@ -160,6 +161,26 @@ class KeyboardBuilder:
             ],
             [
                 InlineKeyboardButton("🔄 انتقال", callback_data=f"move_file_{file.id}")
+            ],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data=f"files_{file.category_id}")]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_enhanced_file_link_keyboard(file: File, short_code: str) -> InlineKeyboardMarkup:
+        """Build enhanced keyboard for file link with advanced options"""
+        keyboard = [
+            [
+                InlineKeyboardButton("📥 دانلود", callback_data=f"download_{file.id}"),
+                InlineKeyboardButton("📊 آمار لینک", callback_data=f"link_stats_{short_code}")
+            ],
+            [
+                InlineKeyboardButton("🔗 کپی دوباره", callback_data=f"copy_link_{file.id}"),
+                InlineKeyboardButton("✏️ ویرایش فایل", callback_data=f"edit_file_{file.id}")
+            ],
+            [
+                InlineKeyboardButton("🔒 غیرفعال‌سازی لینک", callback_data=f"deactivate_link_{short_code}"),
+                InlineKeyboardButton("📋 لینک‌های من", callback_data="my_links")
             ],
             [InlineKeyboardButton("🔙 بازگشت", callback_data=f"files_{file.category_id}")]
         ]
@@ -274,4 +295,164 @@ class KeyboardBuilder:
         if nav_row:
             keyboard.append(nav_row)
         
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_category_link_options_keyboard(category_id: int) -> InlineKeyboardMarkup:
+        """Build keyboard for category link options"""
+        keyboard = [
+            [InlineKeyboardButton("📂 لینک تمام فایل‌های دسته", callback_data=f"create_category_link_{category_id}")],
+            [InlineKeyboardButton("📋 انتخاب فایل‌های خاص", callback_data=f"select_files_{category_id}")],
+            [InlineKeyboardButton("📊 آمار دسته", callback_data=f"category_stats_{category_id}")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data=f"cat_{category_id}")]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_files_selection_keyboard(files: List[File], category_id: int, selected_ids: List[int] = None) -> InlineKeyboardMarkup:
+        """Build keyboard for selecting multiple files"""
+        if selected_ids is None:
+            selected_ids = []
+            
+        keyboard = []
+        
+        # File selection buttons
+        for file in files:
+            from utils.helpers import format_file_size
+            file_size_formatted = format_file_size(file.file_size)
+            display_name = file.file_name[:25] + "..." if len(file.file_name) > 25 else file.file_name
+            
+            # Check if selected
+            selected_mark = "✅" if file.id in selected_ids else "⬜"
+            
+            keyboard.append([InlineKeyboardButton(
+                f"{selected_mark} {display_name} ({file_size_formatted})",
+                callback_data=f"toggle_file_{file.id}_{category_id}"
+            )])
+        
+        # Action buttons
+        if selected_ids:
+            action_row = [
+                InlineKeyboardButton(f"🔗 ایجاد لینک ({len(selected_ids)} فایل)", callback_data=f"create_collection_link_{category_id}"),
+                InlineKeyboardButton("🗑 پاک کردن انتخاب", callback_data=f"clear_selection_{category_id}")
+            ]
+            keyboard.append(action_row)
+        
+        # Navigation
+        nav_row = [
+            InlineKeyboardButton("✅ انتخاب همه", callback_data=f"select_all_{category_id}"),
+            InlineKeyboardButton("🔙 بازگشت", callback_data=f"category_link_{category_id}")
+        ]
+        keyboard.append(nav_row)
+        
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_shared_category_keyboard(category: Category, link: Link) -> InlineKeyboardMarkup:
+        """Build keyboard for shared category view"""
+        keyboard = [
+            [
+                InlineKeyboardButton("📁 مشاهده فایل‌ها", callback_data=f"browse_shared_category_{link.short_code}"),
+                InlineKeyboardButton("📥 دانلود همه", callback_data=f"download_all_category_{link.short_code}")
+            ],
+            [
+                InlineKeyboardButton("🔗 کپی لینک", callback_data=f"copy_shared_{link.short_code}"),
+                InlineKeyboardButton("📈 آمار لینک", callback_data=f"stats_shared_{link.short_code}")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_shared_collection_keyboard(link: Link) -> InlineKeyboardMarkup:
+        """Build keyboard for shared collection view"""
+        keyboard = [
+            [
+                InlineKeyboardButton("📂 مشاهده فایل‌ها", callback_data=f"browse_shared_collection_{link.short_code}"),
+                InlineKeyboardButton("📥 دانلود همه", callback_data=f"download_all_collection_{link.short_code}")
+            ],
+            [
+                InlineKeyboardButton("🔗 کپی لینک", callback_data=f"copy_shared_{link.short_code}"),
+                InlineKeyboardButton("📈 آمار لینک", callback_data=f"stats_shared_{link.short_code}")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_category_edit_menu_keyboard(category_id: int) -> InlineKeyboardMarkup:
+        """Build advanced category edit menu keyboard"""
+        keyboard = [
+            [
+                InlineKeyboardButton("📝 ویرایش نام", callback_data=f"edit_cat_name_{category_id}"),
+                InlineKeyboardButton("📄 ویرایش توضیحات", callback_data=f"edit_cat_desc_{category_id}")
+            ],
+            [
+                InlineKeyboardButton("🖼 تنظیم تامپنیل", callback_data=f"set_cat_thumbnail_{category_id}"),
+                InlineKeyboardButton("🎨 انتخاب آیکون", callback_data=f"set_cat_icon_{category_id}")
+            ],
+            [
+                InlineKeyboardButton("🏷 تنظیم برچسب‌ها", callback_data=f"set_cat_tags_{category_id}"),
+                InlineKeyboardButton("📊 مشاهده آمار", callback_data=f"category_stats_{category_id}")
+            ],
+            [
+                InlineKeyboardButton("🔗 ایجاد لینک", callback_data=f"category_link_{category_id}"),
+                InlineKeyboardButton("📤 انتقال دسته", callback_data=f"move_category_{category_id}")
+            ],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data=f"cat_{category_id}")]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_icon_selection_keyboard(category_id: int, current_page: int = 0) -> InlineKeyboardMarkup:
+        """Build keyboard for selecting category icon"""
+        icons = [
+            ("📁", "folder"), ("🗂", "folder2"), ("📂", "folder3"), ("🗃", "folder4"),
+            ("📊", "chart"), ("📈", "graph"), ("📉", "graph2"), ("💼", "briefcase"),
+            ("🎵", "music"), ("🎶", "music2"), ("🎤", "mic"), ("🎧", "headphone"),
+            ("🎬", "movie"), ("🎥", "camera"), ("📹", "video"), ("🖼", "image"),
+            ("📄", "document"), ("📝", "note"), ("📋", "clipboard"), ("📓", "book"),
+            ("💻", "computer"), ("⚙️", "settings"), ("🔧", "tools"), ("🛠", "tools2"),
+            ("📱", "mobile"), ("📞", "phone"), ("💾", "disk"), ("🖥", "desktop"),
+            ("🎮", "game"), ("🎯", "target"), ("🎨", "art"), ("✨", "sparkle")
+        ]
+        
+        keyboard = []
+        start_idx = current_page * 16
+        page_icons = icons[start_idx:start_idx + 16]
+        
+        # Icon buttons (4 per row)
+        for i in range(0, len(page_icons), 4):
+            row = []
+            for j in range(4):
+                if i + j < len(page_icons):
+                    icon, code = page_icons[i + j]
+                    row.append(InlineKeyboardButton(
+                        icon, 
+                        callback_data=f"select_icon_{category_id}_{code}"
+                    ))
+            keyboard.append(row)
+        
+        # Pagination
+        nav_row = []
+        if current_page > 0:
+            nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"icon_page_{category_id}_{current_page-1}"))
+        
+        if start_idx + 16 < len(icons):
+            nav_row.append(InlineKeyboardButton("➡️", callback_data=f"icon_page_{category_id}_{current_page+1}"))
+        
+        if nav_row:
+            keyboard.append(nav_row)
+        
+        # Back button
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data=f"edit_category_menu_{category_id}")])
+        
+        return InlineKeyboardMarkup(keyboard)
+    
+    @staticmethod
+    def build_thumbnail_options_keyboard(category_id: int) -> InlineKeyboardMarkup:
+        """Build keyboard for thumbnail options"""
+        keyboard = [
+            [InlineKeyboardButton("📸 ارسال تصویر جدید", callback_data=f"upload_thumbnail_{category_id}")],
+            [InlineKeyboardButton("🗑 حذف تامپنیل", callback_data=f"remove_thumbnail_{category_id}")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data=f"edit_category_menu_{category_id}")]
+        ]
         return InlineKeyboardMarkup(keyboard)

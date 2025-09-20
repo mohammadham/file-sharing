@@ -11,6 +11,7 @@ from datetime import datetime
 import uuid
 import string
 import random
+import json
 
 
 @dataclass
@@ -20,6 +21,9 @@ class Category:
     name: str = ""
     parent_id: Optional[int] = None
     description: str = ""
+    icon: str = "📁"  # Default folder icon
+    thumbnail_file_id: str = ""  # Telegram file ID for thumbnail
+    tags: str = ""  # JSON string for tags
     created_at: Optional[datetime] = None
     
     def to_dict(self) -> Dict[str, Any]:
@@ -28,6 +32,9 @@ class Category:
             'name': self.name,
             'parent_id': self.parent_id,
             'description': self.description,
+            'icon': self.icon,
+            'thumbnail_file_id': self.thumbnail_file_id,
+            'tags': self.tags,
             'created_at': self.created_at
         }
     
@@ -38,8 +45,28 @@ class Category:
             name=data.get('name', ''),
             parent_id=data.get('parent_id'),
             description=data.get('description', ''),
+            icon=data.get('icon', '📁'),
+            thumbnail_file_id=data.get('thumbnail_file_id', ''),
+            tags=data.get('tags', ''),
             created_at=data.get('created_at')
         )
+    
+    @property
+    def display_name(self) -> str:
+        """Get display name with icon"""
+        return f"{self.icon} {self.name}"
+    
+    @property
+    def tags_list(self) -> List[str]:
+        """Get tags as list"""
+        try:
+            return json.loads(self.tags) if self.tags else []
+        except:
+            return []
+    
+    def set_tags(self, tags: List[str]):
+        """Set tags from list"""
+        self.tags = json.dumps(tags, ensure_ascii=False)
 
 
 @dataclass

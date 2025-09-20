@@ -36,6 +36,9 @@ class DatabaseManager:
                     name TEXT NOT NULL,
                     parent_id INTEGER,
                     description TEXT,
+                    icon TEXT DEFAULT '📁',
+                    thumbnail_file_id TEXT DEFAULT '',
+                    tags TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (parent_id) REFERENCES categories (id)
                 )
@@ -190,7 +193,7 @@ class DatabaseManager:
             await db.commit()
             return True
     
-    async def update_category(self, category_id: int, name: str = None, description: str = None) -> bool:
+    async def update_category(self, category_id: int, name: str = None, description: str = None, icon: str = None, thumbnail_file_id: str = None, tags: str = None) -> bool:
         """Update category information"""
         async with aiosqlite.connect(self.db_path) as db:
             fields = []
@@ -203,6 +206,18 @@ class DatabaseManager:
             if description is not None:
                 fields.append("description = ?")
                 values.append(description)
+            
+            if icon is not None:
+                fields.append("icon = ?")
+                values.append(icon)
+            
+            if thumbnail_file_id is not None:
+                fields.append("thumbnail_file_id = ?")
+                values.append(thumbnail_file_id)
+            
+            if tags is not None:
+                fields.append("tags = ?")
+                values.append(tags)
             
             if not fields:
                 return False

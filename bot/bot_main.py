@@ -31,6 +31,8 @@ from handlers.file_handler import FileHandler
 from handlers.message_handler import BotMessageHandler
 from handlers.broadcast_handler import BroadcastHandler
 from handlers.search_handler import SearchHandler
+from handlers.category_link_handler import CategoryLinkHandler
+from handlers.category_edit_handler import CategoryEditHandler
 
 # Import actions
 from actions.stats_action import StatsAction  
@@ -60,6 +62,8 @@ class TelegramFileBot:
         self.message_handler = BotMessageHandler(self.db)
         self.broadcast_handler = BroadcastHandler(self.db)
         self.search_handler = SearchHandler(self.db)
+        self.category_link_handler = CategoryLinkHandler(self.db)
+        self.category_edit_handler = CategoryEditHandler(self.db)
         
         # Initialize actions
         self.stats_action = StatsAction(self.db)
@@ -168,6 +172,58 @@ class TelegramFileBot:
                 await self.file_handler.cancel_batch_upload(update, context)
             elif callback_data.startswith('copy_link_'):
                 await self.file_handler.copy_file_link(update, context)
+            elif callback_data.startswith('link_stats_'):
+                await self._handle_link_stats(update, context)
+            elif callback_data.startswith('deactivate_link_'):
+                await self._handle_deactivate_link(update, context)
+            elif callback_data == 'my_links':
+                await self._handle_my_links(update, context)
+            
+            # Category link operations
+            elif callback_data.startswith('category_link_'):
+                await self.category_link_handler.show_category_link_options(update, context)
+            elif callback_data.startswith('create_category_link_'):
+                await self.category_link_handler.create_category_link(update, context)
+            elif callback_data.startswith('select_files_'):
+                await self.category_link_handler.show_files_selection(update, context)
+            elif callback_data.startswith('toggle_file_'):
+                await self.category_link_handler.toggle_file_selection(update, context)
+            elif callback_data.startswith('select_all_'):
+                await self.category_link_handler.select_all_files(update, context)
+            elif callback_data.startswith('clear_selection_'):
+                await self.category_link_handler.clear_selection(update, context)
+            elif callback_data.startswith('create_collection_link_'):
+                await self.category_link_handler.create_collection_link(update, context)
+            elif callback_data.startswith('category_stats_'):
+                await self.category_link_handler.show_category_stats(update, context)
+            elif callback_data.startswith('browse_shared_category_'):
+                await self._handle_browse_shared_category(update, context)
+            elif callback_data.startswith('browse_shared_collection_'):
+                await self._handle_browse_shared_collection(update, context)
+            elif callback_data.startswith('back_to_shared_'):
+                await self._handle_back_to_shared(update, context)
+            
+            # Advanced category edit operations
+            elif callback_data.startswith('edit_category_menu_'):
+                await self.category_edit_handler.show_edit_menu(update, context)
+            elif callback_data.startswith('edit_cat_name_'):
+                await self.category_edit_handler.edit_category_name(update, context)
+            elif callback_data.startswith('edit_cat_desc_'):
+                await self.category_edit_handler.edit_category_description(update, context)
+            elif callback_data.startswith('set_cat_icon_'):
+                await self.category_edit_handler.show_icon_selection(update, context)
+            elif callback_data.startswith('select_icon_'):
+                await self.category_edit_handler.select_icon(update, context)
+            elif callback_data.startswith('icon_page_'):
+                await self._handle_icon_page(update, context)
+            elif callback_data.startswith('set_cat_thumbnail_'):
+                await self.category_edit_handler.show_thumbnail_options(update, context)
+            elif callback_data.startswith('upload_thumbnail_'):
+                await self.category_edit_handler.start_thumbnail_upload(update, context)
+            elif callback_data.startswith('remove_thumbnail_'):
+                await self.category_edit_handler.remove_thumbnail(update, context)
+            elif callback_data.startswith('set_cat_tags_'):
+                await self.category_edit_handler.set_category_tags(update, context)
             elif callback_data.startswith('details_'):
                 await self.file_handler.show_file_details(update, context)
             elif callback_data.startswith('download_shared_'):
@@ -337,13 +393,209 @@ class TelegramFileBot:
     
     async def _handle_category_share_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, link):
         """Handle shared category link"""
-        # Will implement in next step
-        await update.message.reply_text("🚧 قابلیت لینک دسته‌ها در حال توسعه است!")
+        try:
+            category = await self.db.get_category_by_id(link.target_id)
+            if not category:
+                await update.message.reply_text("❌ دسته یافت نشد!")
+                return
+            
+            files = await self.db.get_files(link.target_id, limit=1000)
+            from utils.helpers import format_file_size
+            
+            total_size = sum(f.file_size for f in files)
+            
+            text = f"📂 **دسته اشتراک‌گذاری شده**\n\n"
+            text += f"📁 **نام دسته:** {category.name}\n"
+            text += f"📊 **تعداد فایل:** {len(files)}\n"
+            text += f"💾 **حجم کل:** {format_file_size(total_size)}\n"
+            text += f"📈 **بازدید:** {link.access_count} بار\n\n"
+            
+            if category.description:
+                text += f"📝 **توضیحات:** {category.description}\n\n"
+            
+            text += f"💡 می‌توانید فایل‌ها را مشاهده و دانلود کنید."
+            
+            from utils.keyboard_builder import KeyboardBuilder
+            keyboard = KeyboardBuilder.build_shared_category_keyboard(category, link)
+            
+            await update.message.reply_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in category share link: {e}")
+            await update.message.reply_text("❌ خطا در نمایش دسته!")
     
     async def _handle_collection_share_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, link):
         """Handle shared collection link"""
-        # Will implement in next step  
-        await update.message.reply_text("🚧 قابلیت لینک مجموعه فایل‌ها در حال توسعه است!")
+        try:
+            import json
+            file_ids = json.loads(link.target_ids)
+            
+            files = []
+            total_size = 0
+            for file_id in file_ids:
+                file = await self.db.get_file_by_id(file_id)
+                if file:
+                    files.append(file)
+                    total_size += file.file_size
+            
+            if not files:
+                await update.message.reply_text("❌ فایل‌های مجموعه یافت نشد!")
+                return
+            
+            from utils.helpers import format_file_size
+            
+            text = f"📦 **مجموعه فایل‌های اشتراک‌گذاری شده**\n\n"
+            text += f"📊 **تعداد فایل:** {len(files)}\n"
+            text += f"💾 **حجم کل:** {format_file_size(total_size)}\n"
+            text += f"📈 **بازدید:** {link.access_count} بار\n\n"
+            text += f"📋 **فایل‌ها:**\n"
+            
+            for i, file in enumerate(files[:5], 1):
+                text += f"{i}. {file.file_name} ({format_file_size(file.file_size)})\n"
+            
+            if len(files) > 5:
+                text += f"... و {len(files) - 5} فایل دیگر"
+            
+            from utils.keyboard_builder import KeyboardBuilder
+            keyboard = KeyboardBuilder.build_shared_collection_keyboard(link)
+            
+            await update.message.reply_text(
+                text,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in collection share link: {e}")
+            await update.message.reply_text("❌ خطا در نمایش مجموعه!")
+            
+    async def _handle_browse_shared_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle browsing shared category files"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            short_code = query.data.split('_')[3]
+            link = await self.db.get_link_by_code(short_code)
+            
+            if not link or link.link_type != "category":
+                await query.answer("❌ لینک نامعتبر!")
+                return
+            
+            category = await self.db.get_category_by_id(link.target_id)
+            files = await self.db.get_files(link.target_id, limit=20)
+            
+            if not files:
+                await query.edit_message_text("❌ هیچ فایلی در این دسته موجود نیست!")
+                return
+            
+            text = f"📂 **فایل‌های دسته '{category.name}'**\n\n"
+            
+            for i, file in enumerate(files, 1):
+                from utils.helpers import format_file_size
+                text += f"{i}. **{file.file_name}**\n"
+                text += f"   💾 {format_file_size(file.file_size)} | {file.file_type}\n\n"
+            
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_shared_{short_code}")]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error browsing shared category: {e}")
+            await query.answer("❌ خطا در مشاهده فایل‌ها!")
+            
+    async def _handle_browse_shared_collection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle browsing shared collection files"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            short_code = query.data.split('_')[3]
+            link = await self.db.get_link_by_code(short_code)
+            
+            if not link or link.link_type != "collection":
+                await query.answer("❌ لینک نامعتبر!")
+                return
+            
+            import json
+            file_ids = json.loads(link.target_ids)
+            
+            files = []
+            for file_id in file_ids:
+                file = await self.db.get_file_by_id(file_id)
+                if file:
+                    files.append(file)
+            
+            if not files:
+                await query.edit_message_text("❌ فایل‌های مجموعه یافت نشد!")
+                return
+            
+            text = f"📦 **فایل‌های مجموعه**\n\n"
+            
+            for i, file in enumerate(files, 1):
+                from utils.helpers import format_file_size
+                text += f"{i}. **{file.file_name}**\n"
+                text += f"   💾 {format_file_size(file.file_size)} | {file.file_type}\n\n"
+            
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 بازگشت", callback_data=f"back_to_shared_{short_code}")]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error browsing shared collection: {e}")
+            await query.answer("❌ خطا در مشاهده فایل‌ها!")
+    
+    async def _handle_back_to_shared(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle back to shared link main view"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            short_code = query.data.split('_')[3]
+            
+            # Re-handle the original share link
+            await self._handle_share_link(update, context, short_code)
+            
+        except Exception as e:
+            logger.error(f"Error in back to shared: {e}")
+            await query.answer("❌ خطا در بازگشت!")
+    
+    async def _handle_icon_page(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle icon page navigation"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            parts = query.data.split('_')
+            category_id = int(parts[2])
+            page = int(parts[3])
+            
+            category = await self.db.get_category_by_id(category_id)
+            if not category:
+                await query.edit_message_text("دسته‌بندی یافت نشد!")
+                return
+            
+            text = f"🎨 **انتخاب آیکون برای '{category.name}'**\n\n"
+            text += f"🔄 آیکون فعلی: {category.icon}\n\n"
+            text += f"💡 آیکون مورد نظر را انتخاب کنید:"
+            
+            from utils.keyboard_builder import KeyboardBuilder
+            keyboard = KeyboardBuilder.build_icon_selection_keyboard(category_id, page)
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in icon page navigation: {e}")
+            await query.answer("❌ خطا در تغییر صفحه!")
     
     async def _handle_legacy_file_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE, file_id_str: str):
         """Handle legacy file links for backward compatibility"""
@@ -530,6 +782,129 @@ class TelegramFileBot:
         except Exception as e:
             logger.error(f"Error in back shared: {e}")
             await query.answer("❌ خطا در بازگشت!")
+    
+    async def _handle_link_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle link statistics view"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            short_code = query.data.split('_')[2]
+            
+            from utils.link_manager import LinkManager
+            link_manager = LinkManager(self.db)
+            
+            stats = await link_manager.get_link_stats(short_code)
+            if not stats:
+                await query.answer("❌ لینک یافت نشد!")
+                return
+            
+            text = f"📈 **آمار تفصیلی لینک**\n\n"
+            text += f"🔗 **کد:** `{stats['short_code']}`\n"
+            text += f"📊 **بازدیدها:** {stats['access_count']} بار\n"
+            text += f"📅 **تاریخ ایجاد:** {stats['created_at'][:16] if stats['created_at'] else 'نامشخص'}\n"
+            
+            if stats['expires_at']:
+                expiry_status = "🔴 منقضی شده" if stats['is_expired'] else "🟢 فعال"
+                text += f"⏰ **انقضا:** {stats['expires_at'][:16]} ({expiry_status})\n"
+            else:
+                text += f"♾️ **انقضا:** بدون محدودیت\n"
+            
+            text += f"🏷 **عنوان:** {stats['title']}\n"
+            
+            if stats.get('target_info'):
+                target = stats['target_info']
+                if stats['link_type'] == 'file':
+                    from utils.helpers import format_file_size
+                    text += f"\n📄 **فایل مقصد:**\n"
+                    text += f"   • نام: {target['name']}\n"
+                    text += f"   • حجم: {format_file_size(target['size'])}\n"
+                    text += f"   • نوع: {target['type']}\n"
+            
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 بازگشت", callback_data=f"file_{stats.get('target_id', 1)}")
+            ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in link stats: {e}")
+            await query.answer("❌ خطا در نمایش آمار!")
+    
+    async def _handle_deactivate_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle link deactivation"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            short_code = query.data.split('_')[2]
+            user_id = update.effective_user.id
+            
+            from utils.link_manager import LinkManager
+            link_manager = LinkManager(self.db)
+            
+            success = await link_manager.deactivate_link(short_code, user_id)
+            
+            if success:
+                text = f"🔒 **لینک غیرفعال شد**\n\n"
+                text += f"کد `{short_code}` با موفقیت غیرفعال شد.\n"
+                text += f"دیگر قابل استفاده نخواهد بود."
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("📋 لینک‌های من", callback_data="my_links"),
+                    InlineKeyboardButton("🏠 منوی اصلی", callback_data="cat_1")
+                ]])
+                
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            else:
+                await query.answer("❌ خطا در غیرفعال‌سازی لینک!")
+                
+        except Exception as e:
+            logger.error(f"Error deactivating link: {e}")
+            await query.answer("❌ خطا در غیرفعال‌سازی!")
+    
+    async def _handle_my_links(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show user's created links"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            user_id = update.effective_user.id
+            
+            from utils.link_manager import LinkManager
+            link_manager = LinkManager(self.db)
+            
+            links = await link_manager.get_user_links(user_id, limit=10)
+            
+            if not links:
+                text = "📋 **لینک‌های شما**\n\n"
+                text += "شما هنوز هیچ لینکی ایجاد نکرده‌اید.\n"
+                text += "از منوی فایل‌ها برای ایجاد لینک استفاده کنید."
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🏠 منوی اصلی", callback_data="cat_1")
+                ]])
+            else:
+                text = f"📋 **لینک‌های شما** ({len(links)} لینک)\n\n"
+                
+                for i, link in enumerate(links[:5], 1):
+                    status = "🔴" if link['is_expired'] else "🟢"
+                    text += f"{i}. {status} **{link['title'][:25]}...**\n"
+                    text += f"   🔗 `{link['short_code']}` | 📊 {link['access_count']} بازدید\n"
+                    text += f"   📅 {link['created_at'][:16] if link['created_at'] else 'نامشخص'}\n\n"
+                
+                if len(links) > 5:
+                    text += f"... و {len(links) - 5} لینک دیگر"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🏠 منوی اصلی", callback_data="cat_1")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error showing user links: {e}")
+            await query.answer("❌ خطا در نمایش لینک‌ها!")
     
     def register_handlers(self):
         """Register all handlers"""

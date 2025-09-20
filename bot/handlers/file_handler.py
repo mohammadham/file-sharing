@@ -789,7 +789,7 @@ class FileHandler(BaseHandler):
             await update.message.reply_text(self.messages['error_occurred'])
     
     async def copy_file_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Create and copy professional file share link"""
+        """Create and copy professional file share link with advanced options"""
         try:
             query = update.callback_query
             await self.answer_callback_query(update, "در حال ایجاد لینک اشتراک‌گذاری...")
@@ -802,45 +802,88 @@ class FileHandler(BaseHandler):
                 await query.edit_message_text("فایل یافت نشد!")
                 return
             
-            # Create link object
-            link_data = Link(
-                link_type="file",
-                target_id=file_id,
-                created_by=user_id,
-                title=file.file_name,
-                description=f"فایل {file.file_name} - حجم: {format_file_size(file.file_size)}"
-            )
+            # Use advanced LinkManager
+            from utils.link_manager import LinkManager
+            link_manager = LinkManager(self.db)
             
-            # Generate and save link
-            short_code = await self.db.create_link(link_data)
-            
-            # Get bot username for URL
-            bot_info = await context.bot.get_me()
-            share_url = f"https://t.me/{bot_info.username}?start=link_{short_code}"
-            
-            # Simple text without complex Markdown
-            text = f"🔗 لینک اشتراک‌گذاری ایجاد شد\n\n"
-            text += f"📄 نام فایل: {file.file_name}\n"
-            text += f"💾 حجم: {format_file_size(file.file_size)}\n"
-            text += f"🏷 نوع: {file.file_type}\n\n"
-            text += f"🔗 کد کوتاه: {short_code}\n"
-            text += f"🌐 لینک کامل:\n{share_url}\n\n"
-            text += "💡 این لینک را می‌توانید با دیگران به اشتراک بگذارید.\n"
-            text += "📊 تعداد دسترسی‌ها قابل پیگیری است."
-            
-            keyboard = KeyboardBuilder.build_file_actions_keyboard(file)
-            
-            await query.edit_message_text(
-                text,
-                reply_markup=keyboard
-            )
-            
-            # Send the link as a separate message for easy copying - completely simple
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"🔗 لینک کپی کنید:\n{share_url}",
-                reply_to_message_id=query.message.message_id
-            )
-            
+            try:
+                short_code, share_url = await link_manager.create_file_link(
+                    file_id=file_id,
+                    user_id=user_id
+                )
+                
+                # Get bot username for proper URL
+                bot_info = await context.bot.get_me()
+                share_url = f"https://t.me/{bot_info.username}?start=link_{short_code}"
+                
+                # Enhanced link information
+                text = f"🔗 **لینک اشتراک‌گذاری حرفه‌ای ایجاد شد**\n\n"
+                text += f"📄 **نام فایل:** {file.file_name}\n"
+                text += f"💾 **حجم:** {format_file_size(file.file_size)}\n"
+                text += f"🏷 **نوع:** {file.file_type}\n\n"
+                text += f"🔗 **کد کوتاه:** `{short_code}`\n"
+                text += f"🌐 **لینک کامل:**\n`{share_url}`\n\n"
+                text += "✨ **قابلیت‌های پیشرفته:**\n"
+                text += "• 📊 پیگیری تعداد بازدیدها\n"
+                text += "• 🔒 لینک امن و یکتا\n"
+                text += "• ⚡ دسترسی سریع به فایل\n"
+                text += "• 📱 سازگار با تمام دستگاه‌ها\n\n"
+                text += "💡 این لینک را با دیگران در شبکه‌های اجتماعی، ایمیل یا پیام به اشتراک بگذارید!"
+                
+                # Enhanced keyboard with link options
+                keyboard = KeyboardBuilder.build_enhanced_file_link_keyboard(file, short_code)
+                
+                await query.edit_message_text(
+                    text,
+                    reply_markup=keyboard,
+                    parse_mode='Markdown'
+                )
+                
+                # Send the link as a copyable message
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=f"📋 **کپی لینک:**\n`{share_url}`\n\n🔗 **کپی کد کوتاه:**\n`{short_code}`",
+                    parse_mode='Markdown',
+                    reply_to_message_id=query.message.message_id
+                )
+                
+            except Exception as link_error:
+                logger.error(f"LinkManager error: {link_error}")
+                # Fallback to original method
+                await self._create_simple_file_link(update, context, file, file_id, user_id)
+                
         except Exception as e:
             await self.handle_error(update, context, e)
+    
+    async def _create_simple_file_link(self, update, context, file, file_id, user_id):
+        """Fallback simple file link creation"""
+        # Create link object
+        link_data = Link(
+            link_type="file",
+            target_id=file_id,
+            created_by=user_id,
+            title=file.file_name,
+            description=f"فایل {file.file_name} - حجم: {format_file_size(file.file_size)}"
+        )
+        
+        # Generate and save link
+        short_code = await self.db.create_link(link_data)
+        
+        # Get bot username for URL
+        bot_info = await context.bot.get_me()
+        share_url = f"https://t.me/{bot_info.username}?start=link_{short_code}"
+        
+        text = f"🔗 لینک اشتراک‌گذاری ایجاد شد\n\n"
+        text += f"📄 نام فایل: {file.file_name}\n"
+        text += f"💾 حجم: {format_file_size(file.file_size)}\n"
+        text += f"🔗 کد کوتاه: {short_code}\n"
+        
+        keyboard = KeyboardBuilder.build_file_actions_keyboard(file)
+        
+        await update.callback_query.edit_message_text(text, reply_markup=keyboard)
+        
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"🔗 لینک کپی کنید:\n{share_url}",
+            reply_to_message_id=update.callback_query.message.message_id
+        )

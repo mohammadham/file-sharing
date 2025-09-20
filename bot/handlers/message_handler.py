@@ -43,6 +43,19 @@ class BotMessageHandler(BaseHandler):
             
             elif session.action_state == 'editing_file':
                 await self.file_handler.process_file_edit(update, context)
+            elif session.action_state == 'editing_category_name':
+                # Import here to avoid circular import
+                from handlers.category_edit_handler import CategoryEditHandler
+                category_edit_handler = CategoryEditHandler(self.db)
+                await category_edit_handler.process_category_name(update, context)
+            elif session.action_state == 'editing_category_description':
+                from handlers.category_edit_handler import CategoryEditHandler
+                category_edit_handler = CategoryEditHandler(self.db)
+                await category_edit_handler.process_category_description(update, context)
+            elif session.action_state == 'setting_category_tags':
+                from handlers.category_edit_handler import CategoryEditHandler
+                category_edit_handler = CategoryEditHandler(self.db)
+                await category_edit_handler.process_category_tags(update, context)
             
             elif session.action_state == 'broadcast_text':
                 await self.broadcast_handler.process_broadcast_text(update, context)
@@ -72,6 +85,11 @@ class BotMessageHandler(BaseHandler):
                 await self.file_handler.handle_batch_file_upload(update, context)
             elif session.action_state == 'broadcast_file':
                 await self.broadcast_handler.process_broadcast_file(update, context)
+            elif session.action_state == 'uploading_thumbnail':
+                # Handle thumbnail upload
+                from handlers.category_edit_handler import CategoryEditHandler
+                category_edit_handler = CategoryEditHandler(self.db)
+                await category_edit_handler.process_thumbnail_upload(update, context)
             elif session.current_category and session.current_category > 0:
                 # If user has a valid current category, allow upload even in other states
                 logger.info(f"Allowing file upload in category {session.current_category} for state {session.action_state}")
