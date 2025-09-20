@@ -193,7 +193,7 @@ class DatabaseManager:
             await db.commit()
             return True
     
-    async def update_category(self, category_id: int, name: str = None, description: str = None, icon: str = None, thumbnail_file_id: str = None, tags: str = None) -> bool:
+    async def update_category(self, category_id: int, name: str = None, description: str = None, icon: str = None, thumbnail_file_id: str = None, tags: str = None, parent_id: int = None) -> bool:
         """Update category information"""
         async with aiosqlite.connect(self.db_path) as db:
             fields = []
@@ -218,6 +218,10 @@ class DatabaseManager:
             if tags is not None:
                 fields.append("tags = ?")
                 values.append(tags)
+            
+            if parent_id is not None:
+                fields.append("parent_id = ?")
+                values.append(parent_id)
             
             if not fields:
                 return False
@@ -330,9 +334,12 @@ class DatabaseManager:
             else:
                 # Create new session
                 session = UserSession(user_id=user_id)
-                session_data = session.to_dict()
-                session_data.pop('user_id', None)  # Remove user_id to avoid duplicate
-                await self.update_user_session(user_id, **session_data)
+                # Insert new session into database
+                await db.execute('''
+                    INSERT INTO user_sessions (user_id, current_category, action_state, temp_data)
+                    VALUES (?, ?, ?, ?)
+                ''', (user_id, session.current_category, session.action_state, session.temp_data))
+                await db.commit()
                 return session
     
     async def update_user_session(self, user_id: int, **kwargs):
@@ -349,12 +356,30 @@ class DatabaseManager:
             
             if fields:
                 values.append(user_id)
-                # Use UPDATE instead of INSERT OR REPLACE to preserve existing data
-                await db.execute(f'''
+                # Try UPDATE first, if no rows affected, INSERT
+                cursor = await db.execute(f'''
                     UPDATE user_sessions 
                     SET {', '.join(fields)}, last_activity = CURRENT_TIMESTAMP
                     WHERE user_id = ?
                 ''', values)
+                
+                if cursor.rowcount == 0:
+                    # User doesn't exist, insert new session
+                    session_data = {
+                        'user_id': user_id,
+                        'current_category': 1,
+                        'action_state': 'browsing',
+                        'temp_data': None
+                    }
+                    session_data.update(kwargs)
+                    
+                    await db.execute('''
+                        INSERT INTO user_sessions (user_id, current_category, action_state, temp_data)
+                        VALUES (?, ?, ?, ?)
+                    ''', (user_id, session_data.get('current_category', 1), 
+                          session_data.get('action_state', 'browsing'), 
+                          session_data.get('temp_data')))
+                
                 await db.commit()
     
     # Statistics
