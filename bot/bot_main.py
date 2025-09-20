@@ -136,6 +136,8 @@ class TelegramFileBot:
                 await self.category_handler.show_category(update, context)
             elif callback_data.startswith('add_cat'):
                 await self.category_handler.add_category(update, context)
+            elif callback_data.startswith('edit_category_menu_'):
+                await self.category_edit_handler.show_edit_menu(update, context)
             elif callback_data.startswith('edit_cat'):
                 await self.category_handler.edit_category(update, context)
             elif callback_data.startswith('del_cat'):
@@ -204,8 +206,6 @@ class TelegramFileBot:
                 await self._handle_back_to_shared(update, context)
             
             # Advanced category edit operations
-            elif callback_data.startswith('edit_category_menu_'):
-                await self.category_edit_handler.show_edit_menu(update, context)
             elif callback_data.startswith('edit_cat_name_'):
                 await self.category_edit_handler.edit_category_name(update, context)
             elif callback_data.startswith('edit_cat_desc_'):
