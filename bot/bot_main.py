@@ -136,6 +136,9 @@ class TelegramFileBot:
             callback_data = update.callback_query.data
             action = callback_data.split('_')[0]
             
+            # DEBUG: Log all callback data for troubleshooting
+            logger.info(f"Received callback_data: '{callback_data}', action: '{action}'")
+            
             # Category operations
             if action == 'cat':
                 await self.category_handler.show_category(update, context)
@@ -159,8 +162,6 @@ class TelegramFileBot:
                 await self.file_handler.show_files(update, context)
             elif action == 'file':
                 await self.file_handler.show_file_details(update, context)
-            elif callback_data.startswith('download'):
-                await self.file_handler.download_file(update, context)
             elif callback_data.startswith('edit_file'):
                 await self.file_handler.edit_file(update, context)
             elif callback_data.startswith('delete_file'):
@@ -219,6 +220,12 @@ class TelegramFileBot:
                 await self._handle_download_all_category(update, context)
             elif callback_data.startswith('download_all_collection_'):
                 await self._handle_download_all_collection(update, context)
+            elif callback_data.startswith('download_shared_file_'):
+                await self._handle_download_shared_file(update, context)
+            elif callback_data.startswith('download_shared_'):
+                await self._handle_shared_file_download(update, context)
+            elif callback_data.startswith('download'):
+                await self.file_handler.download_file(update, context)
             
             # Advanced category edit operations
             elif callback_data.startswith('edit_cat_name_'):
@@ -247,14 +254,10 @@ class TelegramFileBot:
                 await self._handle_move_category_to(update, context)
             elif callback_data.startswith('cancel_move_cat_'):
                 await self._handle_cancel_move_category(update, context)
-            elif callback_data.startswith('details_'):
-                await self.file_handler.show_file_details(update, context)
-            elif callback_data.startswith('download_shared_file_'):
-                await self._handle_download_shared_file(update, context)
-            elif callback_data.startswith('download_shared_'):
-                await self._handle_shared_file_download(update, context)
             elif callback_data.startswith('details_shared_'):
                 await self._handle_shared_file_details(update, context)
+            elif callback_data.startswith('details_'):
+                await self.file_handler.show_file_details(update, context)
             elif callback_data.startswith('copy_shared_'):
                 await self._handle_shared_link_copy(update, context)
             elif callback_data.startswith('stats_shared_'):
@@ -532,7 +535,10 @@ class TelegramFileBot:
             keyboard = []
             
             for i, file in enumerate(files, 1):
-                text += f"{i}. **{file.file_name}**\n"
+                # Escape filename for Markdown
+                from utils.helpers import escape_filename_for_markdown
+                safe_filename = escape_filename_for_markdown(file.file_name)
+                text += f"{i}. **{safe_filename}**\n"
                 text += f"   💾 {format_file_size(file.file_size)} | {file.file_type}\n\n"
                 
                 # Add individual file download button
@@ -591,7 +597,10 @@ class TelegramFileBot:
             keyboard = []
             
             for i, file in enumerate(files, 1):
-                text += f"{i}. **{file.file_name}**\n"
+                # Escape filename for Markdown
+                from utils.helpers import escape_filename_for_markdown
+                safe_filename = escape_filename_for_markdown(file.file_name)
+                text += f"{i}. **{safe_filename}**\n"
                 text += f"   💾 {format_file_size(file.file_size)} | {file.file_type}\n\n"
                 
                 # Add individual file download button
@@ -635,19 +644,24 @@ class TelegramFileBot:
             try:
                 file_id = int(parts[3])
                 short_code = parts[4]
+                logger.info(f"Parsed file_id: {file_id}, short_code: {short_code}")
             except ValueError as ve:
                 logger.error(f"Error parsing callback data {query.data}: {ve}")
                 await query.answer("❌ خطا در پردازش داده!")
                 return
             
+            logger.info(f"Getting file by id: {file_id}")
             file = await self.db.get_file_by_id(file_id)
             if not file:
                 await query.answer("❌ فایل یافت نشد!")
                 return
             
+            logger.info(f"File found: {file.file_name}, storage_message_id: {file.storage_message_id}")
+            
             # Forward file from storage channel
             from config.settings import STORAGE_CHANNEL_ID
             try:
+                logger.info(f"Forwarding message from channel {STORAGE_CHANNEL_ID}, message_id: {file.storage_message_id}")
                 await context.bot.forward_message(
                     chat_id=update.effective_chat.id,
                     from_chat_id=STORAGE_CHANNEL_ID,
@@ -655,6 +669,7 @@ class TelegramFileBot:
                 )
                 
                 await query.answer("✅ فایل ارسال شد!")
+                logger.info(f"File successfully forwarded: {file.file_name}")
                 
             except Exception as e:
                 logger.error(f"Error forwarding shared file: {e}")
@@ -662,10 +677,10 @@ class TelegramFileBot:
                 
         except Exception as e:
             logger.error(f"Error in download shared file: {e}")
-            await query.answer("❌ خطا در دانلود!")
+            await self.handle_error_safe(update, context)
     
     async def _handle_download_all_category(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle downloading all files from shared category - NEW"""
+        """Handle downloading all files from shared category - FIXED"""
         try:
             query = update.callback_query
             await query.answer("در حال ارسال تمام فایل‌های دسته...")
@@ -673,6 +688,8 @@ class TelegramFileBot:
             parts = query.data.split('_')
             logger.info(f"Download all category callback data: {query.data}, parts: {parts}")
             
+            # Expected format: download_all_category_{short_code}
+            # Parts: ['download', 'all', 'category', short_code]
             if len(parts) < 4:
                 await query.answer("❌ داده callback نامعتبر!")
                 logger.error(f"Invalid callback data format: {query.data}")
@@ -685,7 +702,15 @@ class TelegramFileBot:
                 await query.answer("❌ لینک نامعتبر!")
                 return
             
-            files = await self.db.get_files(link.target_id, limit=50)
+            # Ensure target_id is integer for database query
+            try:
+                category_id = int(link.target_id) if isinstance(link.target_id, str) else link.target_id
+            except (ValueError, TypeError):
+                logger.error(f"Invalid target_id in link: {link.target_id}")
+                await query.answer("❌ داده لینک نامعتبر!")
+                return
+            
+            files = await self.db.get_files(category_id, limit=50)
             
             if not files:
                 await query.answer("❌ هیچ فایلی برای دانلود وجود ندارد!")
@@ -731,10 +756,10 @@ class TelegramFileBot:
                 
         except Exception as e:
             logger.error(f"Error in download all category: {e}")
-            await query.answer("❌ خطا در دانلود گروهی!")
+            await self.handle_error_safe(query, context)
     
     async def _handle_download_all_collection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle downloading all files from shared collection - NEW"""
+        """Handle downloading all files from shared collection - FIXED"""
         try:
             query = update.callback_query
             await query.answer("در حال ارسال تمام فایل‌های مجموعه...")
@@ -742,6 +767,8 @@ class TelegramFileBot:
             parts = query.data.split('_')
             logger.info(f"Download all collection callback data: {query.data}, parts: {parts}")
             
+            # Expected format: download_all_collection_{short_code}
+            # Parts: ['download', 'all', 'collection', short_code]
             if len(parts) < 4:
                 await query.answer("❌ داده callback نامعتبر!")
                 logger.error(f"Invalid callback data format: {query.data}")
@@ -807,7 +834,8 @@ class TelegramFileBot:
                 
         except Exception as e:
             logger.error(f"Error in download all collection: {e}")
-            await query.answer("❌ خطا در دانلود گروهی!")
+            # await query.answer("❌ خطا در دانلود گروهی!")
+            await self.handle_error_safe(query, context)
     
     async def _handle_back_to_shared(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle back to shared link main view - FIXED"""
@@ -1442,6 +1470,16 @@ class TelegramFileBot:
         ))
         
         logger.info("All handlers registered successfully")
+    
+    async def handle_error_safe(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle errors safely without causing additional exceptions"""
+        try:
+            if update.callback_query:
+                await update.callback_query.answer("❌ خطایی رخ داد! لطفا دوباره تلاش کنید.")
+            elif update.message:
+                await update.message.reply_text("❌ خطایی رخ داد! لطفا دوباره تلاش کنید.")
+        except Exception as e:
+            logger.error(f"Error in error handler: {e}")
     
     async def start_bot(self):
         """Start the Telegram bot"""

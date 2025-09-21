@@ -148,6 +148,7 @@ class UserSession:
 
 
 @dataclass
+@dataclass
 class Link:
     """Share link model"""
     id: Optional[int] = None
