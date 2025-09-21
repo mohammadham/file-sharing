@@ -491,7 +491,10 @@ class TelegramFileBot:
             text += f"📋 **فایل‌ها:**\n"
             
             for i, file in enumerate(files[:5], 1):
-                text += f"{i}. {file.file_name} ({format_file_size(file.file_size)})\n"
+                # Escape filename for Markdown
+                from utils.helpers import escape_filename_for_markdown
+                safe_filename = escape_filename_for_markdown(file.file_name)
+                text += f"{i}. {safe_filename} ({format_file_size(file.file_size)})\n"
             
             if len(files) > 5:
                 text += f"... و {len(files) - 5} فایل دیگر"
@@ -934,7 +937,10 @@ class TelegramFileBot:
             text += f"📋 **فایل‌ها:**\n"
             
             for i, file in enumerate(files[:5], 1):
-                text += f"{i}. {file.file_name} ({format_file_size(file.file_size)})\n"
+                # Escape filename for Markdown
+                from utils.helpers import escape_filename_for_markdown
+                safe_filename = escape_filename_for_markdown(file.file_name)
+                text += f"{i}. {safe_filename} ({format_file_size(file.file_size)})\n"
             
             if len(files) > 5:
                 text += f"... و {len(files) - 5} فایل دیگر"

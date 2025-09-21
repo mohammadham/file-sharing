@@ -415,7 +415,10 @@ class CategoryLinkHandler(BaseHandler):
             text += f"📋 **فایل‌های شامل:**\n"
             
             for i, (name, size) in enumerate(files_info[:5], 1):
-                text += f"{i}. {name} ({format_file_size(size)})\n"
+                # Escape filename for Markdown
+                from utils.helpers import escape_filename_for_markdown
+                safe_name = escape_filename_for_markdown(name)
+                text += f"{i}. {safe_name} ({format_file_size(size)})\n"
             
             if len(files_info) > 5:
                 text += f"... و {len(files_info) - 5} فایل دیگر"

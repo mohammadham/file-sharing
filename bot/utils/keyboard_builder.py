@@ -318,15 +318,17 @@ class KeyboardBuilder:
         
         # File selection buttons
         for file in files:
-            from utils.helpers import format_file_size
+            from utils.helpers import format_file_size, escape_filename_for_markdown
             file_size_formatted = format_file_size(file.file_size)
+            # Truncate and escape filename for safe display
             display_name = file.file_name[:25] + "..." if len(file.file_name) > 25 else file.file_name
+            safe_display_name = escape_filename_for_markdown(display_name)
             
             # Check if selected
             selected_mark = "✅" if file.id in selected_ids else "⬜"
             
             keyboard.append([InlineKeyboardButton(
-                f"{selected_mark} {display_name} ({file_size_formatted})",
+                f"{selected_mark} {display_name} ({file_size_formatted})",  # Use original name for button text (no escaping needed here)
                 callback_data=f"toggle_file_{file.id}_{category_id}"
             )])
         
