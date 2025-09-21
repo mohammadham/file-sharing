@@ -89,9 +89,12 @@ class KeyboardBuilder:
             ]
             keyboard.append(actions_row)
             
-            # Stats button
-            stats_row = [InlineKeyboardButton("📊 آمار", callback_data="stats")]
-            keyboard.append(stats_row)
+            # Download System and Stats
+            system_row = [
+                InlineKeyboardButton("🔗 مدیریت سیستم دانلود", callback_data="download_system_control"),
+                InlineKeyboardButton("📊 آمار", callback_data="stats")
+            ]
+            keyboard.append(system_row)
         
         return InlineKeyboardMarkup(keyboard)
     
@@ -153,13 +156,14 @@ class KeyboardBuilder:
         keyboard = [
             [
                 InlineKeyboardButton("📥 دانلود", callback_data=f"download_{file.id}"),
-                InlineKeyboardButton("✏️ ویرایش", callback_data=f"edit_file_{file.id}")
+                InlineKeyboardButton("🔗 لینک‌های دانلود", callback_data=f"file_download_links_{file.id}")
             ],
             [
-                InlineKeyboardButton("🗑 حذف", callback_data=f"delete_file_{file.id}"),
+                InlineKeyboardButton("✏️ ویرایش", callback_data=f"edit_file_{file.id}"),
                 InlineKeyboardButton("📋 کپی لینک", callback_data=f"copy_link_{file.id}")
             ],
             [
+                InlineKeyboardButton("🗑 حذف", callback_data=f"delete_file_{file.id}"),
                 InlineKeyboardButton("🔄 انتقال", callback_data=f"move_file_{file.id}")
             ],
             [InlineKeyboardButton("🔙 بازگشت", callback_data=f"files_{file.category_id}")]

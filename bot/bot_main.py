@@ -66,6 +66,14 @@ class TelegramFileBot:
         self.category_link_handler = CategoryLinkHandler(self.db)
         self.category_edit_handler = CategoryEditHandler(self.db)
         
+        # Initialize download system handler
+        from handlers.download_system_handler import DownloadSystemHandler
+        self.download_system_handler = DownloadSystemHandler(
+            self.db,
+            download_api_url="http://localhost:8001",
+            admin_token="SdYmbHA6QQs3_m6BU6fNuD6qD6mMoMPNN1ecQiQ7z1g"  # از create_admin_token.py
+        )
+        
         # Initialize actions
         self.stats_action = StatsAction(self.db)
         self.backup_action = BackupAction(self.db)
@@ -288,6 +296,20 @@ class TelegramFileBot:
             # Stats
             elif callback_data == 'stats':
                 await self.stats_action.show_stats(update, context)
+            
+            # Download System Control
+            elif callback_data == 'download_system_control':
+                await self.download_system_handler.show_system_control(update, context)
+            elif callback_data.startswith('file_download_links_'):
+                await self.download_system_handler.show_file_download_options(update, context)
+            elif callback_data.startswith('create_stream_link_'):
+                await self.download_system_handler.create_stream_link(update, context)
+            elif callback_data.startswith('create_fast_link_'):
+                await self.download_system_handler.create_fast_link(update, context)
+            elif callback_data == 'system_monitoring':
+                await self.download_system_handler.system_monitoring(update, context)
+            elif callback_data == 'system_cleanup':
+                await self.download_system_handler.system_cleanup(update, context)
             
             # Cancel operations
             elif action == 'cancel':
