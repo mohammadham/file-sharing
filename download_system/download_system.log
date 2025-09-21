@@ -1,0 +1,17 @@
+🚀 Starting Enterprise Telegram Download System v1.0.0
+INFO:     Will watch for changes in these directories: ['/app/download-system']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [3396] using WatchFiles
+INFO:     Started server process [3410]
+INFO:     Waiting for application startup.
+2025-09-21 11:13:34,394 - api.main - INFO - 🚀 Starting Enterprise Download System...
+2025-09-21 11:13:34,396 - core.database - INFO - Download system database initialized successfully
+2025-09-21 11:13:34,397 - api.main - INFO - ✅ Database initialized
+2025-09-21 11:13:34,397 - api.main - INFO - ✅ Managers initialized
+2025-09-21 11:13:34,397 - api.main - INFO - 🎉 System ready to serve requests
+INFO:     Application startup complete.
+INFO:     127.0.0.1:42388 - "GET /api/files/category/1 HTTP/1.1" 200 OK
+2025-09-21 11:13:51,569 - core.download_manager - INFO - Created download link: j_Mc1AylVQ5d for file 17
+INFO:     127.0.0.1:42392 - "POST /api/download/links/create HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41684 - "HEAD /api/download/info/j_Mc1AylVQ5d HTTP/1.1" 405 Method Not Allowed
+INFO:     127.0.0.1:40920 - "GET /api/download/info/j_Mc1AylVQ5d HTTP/1.1" 200 OK
