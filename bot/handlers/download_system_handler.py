@@ -91,12 +91,13 @@ class DownloadSystemHandler(BaseHandler):
             
             from utils.helpers import format_file_size
             
+            from utils.helpers import escape_filename_for_markdown
+            
             text = f"🔗 **مدیریت لینک‌های دانلود پیشرفته**\n\n"
-            text += f"📄 **فایل:** {file.file_name}\n"
+            text += f"📄 **فایل:** {escape_filename_for_markdown(file.file_name)}\n"
             text += f"💾 **حجم:** {format_file_size(file.file_size)}\n"
             text += f"🏷 **نوع:** {file.file_type}\n\n"
-            text += "انتخاب کنید:\n\n"
-            text += f"🕐 _تاریخ: {datetime.now().strftime('%H:%M:%S')}_"
+            text += "انتخاب کنید:"
             
             keyboard = InlineKeyboardMarkup([
                 [

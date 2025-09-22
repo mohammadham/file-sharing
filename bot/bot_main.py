@@ -165,7 +165,9 @@ class TelegramFileBot:
             elif callback_data.startswith('confirm_delete_cat'):
                 await self.category_handler.confirm_delete_category(update, context)
             
-            # File operations
+            # File operations - IMPORTANT: Check specific patterns before general ones
+            elif callback_data.startswith('file_download_links_'):
+                await self.download_system_handler.show_file_download_options(update, context)
             elif action == 'files':
                 await self.file_handler.show_files(update, context)
             elif action == 'file':
@@ -226,12 +228,14 @@ class TelegramFileBot:
             # Download System Control - MUST BE BEFORE other download checks
             elif callback_data == 'download_system_control':
                 await self.download_system_handler.show_system_control(update, context)
-            elif callback_data.startswith('file_download_links_'):
-                await self.download_system_handler.show_file_download_options(update, context)
             elif callback_data.startswith('create_stream_link_'):
                 await self.download_system_handler.create_stream_link(update, context)
             elif callback_data.startswith('create_fast_link_'):
                 await self.download_system_handler.create_fast_link(update, context)
+            elif callback_data.startswith('create_restricted_link_'):
+                await update.callback_query.answer("⚙️ لینک محدود - در حال توسعه!")
+            elif callback_data.startswith('view_file_links_'):
+                await update.callback_query.answer("📋 مشاهده لینک‌ها - در حال توسعه!")
             elif callback_data == 'system_monitoring':
                 await self.download_system_handler.system_monitoring(update, context)
             elif callback_data == 'system_cleanup':
