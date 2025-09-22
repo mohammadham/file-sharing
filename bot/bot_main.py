@@ -71,7 +71,7 @@ class TelegramFileBot:
         self.download_system_handler = DownloadSystemHandler(
             self.db,
             download_api_url="http://localhost:8001",
-            admin_token="SdYmbHA6QQs3_m6BU6fNuD6qD6mMoMPNN1ecQiQ7z1g"  # از create_admin_token.py
+            admin_token="UeZ7nxNr-0Z_6b9dntKcOdzzLU1fMZjNz1-SqWQESkY"
         )
         
         # Initialize actions
@@ -223,6 +223,20 @@ class TelegramFileBot:
             elif callback_data.startswith('back_to_shared_'):
                 await self._handle_back_to_shared(update, context)
             
+            # Download System Control - MUST BE BEFORE other download checks
+            elif callback_data == 'download_system_control':
+                await self.download_system_handler.show_system_control(update, context)
+            elif callback_data.startswith('file_download_links_'):
+                await self.download_system_handler.show_file_download_options(update, context)
+            elif callback_data.startswith('create_stream_link_'):
+                await self.download_system_handler.create_stream_link(update, context)
+            elif callback_data.startswith('create_fast_link_'):
+                await self.download_system_handler.create_fast_link(update, context)
+            elif callback_data == 'system_monitoring':
+                await self.download_system_handler.system_monitoring(update, context)
+            elif callback_data == 'system_cleanup':
+                await self.download_system_handler.system_cleanup(update, context)
+            
             # NEW: Handle download all operations
             elif callback_data.startswith('download_all_category_'):
                 await self._handle_download_all_category(update, context)
@@ -296,20 +310,7 @@ class TelegramFileBot:
             # Stats
             elif callback_data == 'stats':
                 await self.stats_action.show_stats(update, context)
-            
-            # Download System Control
-            elif callback_data == 'download_system_control':
-                await self.download_system_handler.show_system_control(update, context)
-            elif callback_data.startswith('file_download_links_'):
-                await self.download_system_handler.show_file_download_options(update, context)
-            elif callback_data.startswith('create_stream_link_'):
-                await self.download_system_handler.create_stream_link(update, context)
-            elif callback_data.startswith('create_fast_link_'):
-                await self.download_system_handler.create_fast_link(update, context)
-            elif callback_data == 'system_monitoring':
-                await self.download_system_handler.system_monitoring(update, context)
-            elif callback_data == 'system_cleanup':
-                await self.download_system_handler.system_cleanup(update, context)
+
             
             # Cancel operations
             elif action == 'cancel':

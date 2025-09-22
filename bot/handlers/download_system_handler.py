@@ -95,7 +95,8 @@ class DownloadSystemHandler(BaseHandler):
             text += f"📄 **فایل:** {file.file_name}\n"
             text += f"💾 **حجم:** {format_file_size(file.file_size)}\n"
             text += f"🏷 **نوع:** {file.file_type}\n\n"
-            text += "انتخاب کنید:"
+            text += "انتخاب کنید:\n\n"
+            text += f"🕐 _تاریخ: {datetime.now().strftime('%H:%M:%S')}_"
             
             keyboard = InlineKeyboardMarkup([
                 [
