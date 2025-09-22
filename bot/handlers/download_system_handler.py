@@ -363,3 +363,375 @@ class DownloadSystemHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error cleaning up cache: {e}")
             return {'success': False, 'error': str(e)}
+    
+    async def create_restricted_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ایجاد لینک دانلود با تنظیمات محدود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            file_id = int(query.data.split('_')[3])
+            user_id = update.effective_user.id
+            
+            # ذخیره وضعیت کاربر برای دریافت تنظیمات
+            await self.db.update_user_session(
+                user_id,
+                action_state='creating_restricted_link',
+                temp_data=json.dumps({'file_id': file_id, 'step': 'max_downloads'})
+            )
+            
+            text = f"⚙️ **ایجاد لینک دانلود محدود**\n\n"
+            text += f"🔧 **مرحله 1 از 4:** تعداد دانلود\n\n"
+            text += f"حداکثر تعداد دانلود مجاز را وارد کنید:\n"
+            text += f"• برای نامحدود: 0\n"
+            text += f"• توصیه شده: 1-100"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("5 دانلود", callback_data=f"set_max_downloads_{file_id}_5"),
+                    InlineKeyboardButton("10 دانلود", callback_data=f"set_max_downloads_{file_id}_10")
+                ],
+                [
+                    InlineKeyboardButton("25 دانلود", callback_data=f"set_max_downloads_{file_id}_25"),
+                    InlineKeyboardButton("50 دانلود", callback_data=f"set_max_downloads_{file_id}_50")
+                ],
+                [
+                    InlineKeyboardButton("نامحدود", callback_data=f"set_max_downloads_{file_id}_0")
+                ],
+                [
+                    InlineKeyboardButton("❌ لغو", callback_data=f"file_download_links_{file_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def view_file_links(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مشاهده لینک‌های موجود برای فایل"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            file_id = int(query.data.split('_')[3])
+            
+            # دریافت لینک‌های موجود از API
+            links_data = await self.get_file_links(file_id)
+            
+            file = await self.db.get_file_by_id(file_id)
+            if not file:
+                await query.edit_message_text("فایل یافت نشد!")
+                return
+            
+            from utils.helpers import escape_filename_for_markdown
+            
+            text = f"📋 **لینک‌های دانلود**\n\n"
+            text += f"📄 **فایل:** {escape_filename_for_markdown(file.file_name)}\n\n"
+            
+            if links_data.get('success') and links_data.get('links'):
+                links = links_data['links']
+                text += f"🔗 **لینک‌های فعال:** {len(links)}\n\n"
+                
+                for i, link in enumerate(links[:5], 1):  # نمایش 5 لینک اول
+                    status_icon = "🟢" if link.get('is_active') else "🔴"
+                    link_type_icons = {
+                        'stream': '🌊',
+                        'fast': '⚡️',
+                        'restricted': '⚙️'
+                    }
+                    type_icon = link_type_icons.get(link.get('type', 'unknown'), '🔗')
+                    
+                    text += f"{i}. {type_icon} **{link.get('type', 'نامشخص').title()}** {status_icon}\n"
+                    text += f"   📊 دانلودها: {link.get('downloads', 0)}/{link.get('max_downloads', '∞')}\n"
+                    text += f"   ⏰ ایجاد: {link.get('created_at', 'نامشخص')[:16]}\n"
+                    if link.get('expires_at'):
+                        text += f"   🕐 انقضا: {link.get('expires_at')[:16]}\n"
+                    text += "\n"
+                
+                if len(links) > 5:
+                    text += f"... و {len(links) - 5} لینک دیگر"
+                
+                keyboard_rows = []
+                
+                # دکمه‌های مدیریت لینک‌ها
+                for link in links[:3]:  # نمایش دکمه برای 3 لینک اول
+                    keyboard_rows.append([
+                        InlineKeyboardButton(
+                            f"📊 آمار {link.get('type', 'نامشخص')[:6]}", 
+                            callback_data=f"link_stats_{link.get('code', '')}"
+                        ),
+                        InlineKeyboardButton(
+                            f"🔗 کپی {link.get('type', 'نامشخص')[:6]}", 
+                            callback_data=f"copy_link_{link.get('code', '')}"
+                        )
+                    ])
+                    
+                    if link.get('is_active'):
+                        keyboard_rows.append([
+                            InlineKeyboardButton(
+                                f"🔒 غیرفعال‌سازی {link.get('type', 'نامشخص')[:6]}", 
+                                callback_data=f"deactivate_link_{link.get('code', '')}"
+                            )
+                        ])
+                
+            else:
+                text += "❌ هیچ لینک فعالی برای این فایل وجود ندارد.\n\n"
+                text += "💡 می‌توانید از گزینه‌های بالا لینک جدید ایجاد کنید."
+                keyboard_rows = []
+            
+            # دکمه‌های عمومی
+            keyboard_rows.extend([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"view_file_links_{file_id}"),
+                    InlineKeyboardButton("➕ لینک جدید", callback_data=f"file_download_links_{file_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"file_{file_id}")
+                ]
+            ])
+            
+            keyboard = InlineKeyboardMarkup(keyboard_rows)
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def get_file_links(self, file_id: int) -> dict:
+        """دریافت لینک‌های فایل از API"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/download/links/file/{file_id}",
+                    headers=self.headers
+                ) as response:
+                    return await response.json()
+        except Exception as e:
+            logger.error(f"Error getting file links: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def handle_set_max_downloads(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مدیریت تنظیم حداکثر دانلود برای لینک محدود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # Parse callback data: set_max_downloads_{file_id}_{max_downloads}
+            parts = query.data.split('_')
+            if len(parts) < 4:
+                await query.edit_message_text("❌ داده نامعتبر!")
+                return
+                
+            file_id = int(parts[3])
+            max_downloads = int(parts[4]) if parts[4] != '0' else None
+            user_id = update.effective_user.id
+            
+            # بروزرسانی session داده
+            await self.db.update_user_session(
+                user_id,
+                temp_data=json.dumps({
+                    'file_id': file_id, 
+                    'step': 'expires_hours',
+                    'max_downloads': max_downloads
+                })
+            )
+            
+            max_text = "نامحدود" if max_downloads is None else str(max_downloads)
+            
+            text = f"⚙️ **ایجاد لینک دانلود محدود**\n\n"
+            text += f"🔧 **مرحله 2 از 4:** زمان انقضا\n\n"
+            text += f"✅ حداکثر دانلود: {max_text}\n\n"
+            text += f"زمان انقضا (ساعت) را انتخاب کنید:"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("1 ساعت", callback_data=f"set_expires_{file_id}_1"),
+                    InlineKeyboardButton("6 ساعت", callback_data=f"set_expires_{file_id}_6")
+                ],
+                [
+                    InlineKeyboardButton("24 ساعت", callback_data=f"set_expires_{file_id}_24"),
+                    InlineKeyboardButton("72 ساعت", callback_data=f"set_expires_{file_id}_72")
+                ],
+                [
+                    InlineKeyboardButton("هرگز منقضی نشود", callback_data=f"set_expires_{file_id}_0")
+                ],
+                [
+                    InlineKeyboardButton("❌ لغو", callback_data=f"file_download_links_{file_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_expires(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مدیریت تنظیم زمان انقضا برای لینک محدود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # Parse callback data: set_expires_{file_id}_{expires_hours}
+            parts = query.data.split('_')
+            if len(parts) < 4:
+                await query.edit_message_text("❌ داده نامعتبر!")
+                return
+                
+            file_id = int(parts[3])
+            expires_hours = int(parts[4]) if parts[4] != '0' else None
+            user_id = update.effective_user.id
+            
+            # دریافت داده‌های قبلی
+            session = await self.db.get_user_session(user_id)
+            temp_data = json.loads(session.get('temp_data', '{}'))
+            
+            temp_data.update({
+                'step': 'create_final',
+                'expires_hours': expires_hours
+            })
+            
+            await self.db.update_user_session(
+                user_id,
+                temp_data=json.dumps(temp_data)
+            )
+            
+            max_text = "نامحدود" if temp_data.get('max_downloads') is None else str(temp_data.get('max_downloads'))
+            expires_text = "هرگز" if expires_hours is None else f"{expires_hours} ساعت"
+            
+            text = f"⚙️ **ایجاد لینک دانلود محدود**\n\n"
+            text += f"🔧 **تأیید نهایی:**\n\n"
+            text += f"✅ حداکثر دانلود: {max_text}\n"
+            text += f"✅ زمان انقضا: {expires_text}\n\n"
+            text += f"آیا می‌خواهید لینک ایجاد شود؟"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ ایجاد لینک", callback_data=f"confirm_create_restricted_{file_id}"),
+                ],
+                [
+                    InlineKeyboardButton("❌ لغو", callback_data=f"file_download_links_{file_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def create_final_restricted_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ایجاد نهایی لینک دانلود محدود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update, "در حال ایجاد لینک...")
+            
+            file_id = int(query.data.split('_')[3])
+            user_id = update.effective_user.id
+            
+            # دریافت داده‌های session
+            session = await self.db.get_user_session(user_id)
+            temp_data = json.loads(session.get('temp_data', '{}'))
+            
+            if temp_data.get('file_id') != file_id:
+                await query.edit_message_text("❌ خطا در داده‌های session!")
+                return
+            
+            # ایجاد لینک از طریق API سیستم دانلود
+            link_data = {
+                "file_id": file_id,
+                "download_type": "fast",  # یا "stream" بر اساس نیاز
+                "max_downloads": temp_data.get('max_downloads'),
+                "expires_hours": temp_data.get('expires_hours')
+            }
+            
+            result = await self.create_download_link_via_api(link_data)
+            
+            # پاکسازی session
+            await self.db.update_user_session(
+                user_id,
+                action_state='browsing',
+                temp_data=None
+            )
+            
+            if result.get('success'):
+                max_text = "نامحدود" if temp_data.get('max_downloads') is None else str(temp_data.get('max_downloads'))
+                expires_text = "هرگز" if temp_data.get('expires_hours') is None else f"{temp_data.get('expires_hours')} ساعت"
+                
+                text = f"✅ **لینک دانلود محدود ایجاد شد**\n\n"
+                text += f"🔗 **کد لینک:** `{result['link_code']}`\n"
+                text += f"🌐 **URL دانلود:**\n`{result['download_url']}`\n\n"
+                text += f"⚙️ **تنظیمات:**\n"
+                text += f"• حداکثر دانلود: {max_text}\n"
+                text += f"• زمان انقضا: {expires_text}\n\n"
+                text += f"✨ **ویژگی‌های لینک محدود:**\n"
+                text += f"• کنترل تعداد دانلود\n"
+                text += f"• کنترل زمان انقضا\n"
+                text += f"• آمار تفصیلی\n"
+                text += f"• امکان غیرفعال‌سازی"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 کپی لینک", 
+                                           callback_data=f"copy_restricted_link_{result['link_code']}")
+                    ],
+                    [
+                        InlineKeyboardButton("📊 آمار لینک", 
+                                           callback_data=f"link_stats_{result['link_code']}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", 
+                                           callback_data=f"file_download_links_{file_id}")
+                    ]
+                ])
+                
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            else:
+                text = f"❌ **خطا در ایجاد لینک**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += f"لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش دوباره", 
+                                           callback_data=f"create_restricted_link_{file_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", 
+                                           callback_data=f"file_download_links_{file_id}")
+                    ]
+                ])
+                
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+                
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    async def copy_link_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """کپی لینک دانلود به کلیپ‌بورد"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            link_code = query.data.split('_')[3]
+            
+            # ساخت URL کامل
+            download_url = f"{self.api_url}/api/download/fast/{link_code}"
+            
+            text = f"🔗 **لینک دانلود کپی شد**"
+            text += f"📋 **برای کپی روی لینک زیر کلیک کنید:**"
+            text += f"`{download_url}`"
+            text += f"💡 **نکات:**"
+            text += f"• این لینک مستقیماً فایل را دانلود می‌کند"
+            text += f"• کد لینک: `{link_code}`"
+            text += f"• می‌توانید در مرورگر یا برنامه دانلود استفاده کنید"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 لینک جدید", callback_data="file_download_links_1"),
+                    InlineKeyboardButton("📊 آمار", callback_data=f"link_stats_{link_code}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="file_1")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            

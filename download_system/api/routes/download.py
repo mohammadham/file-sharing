@@ -437,6 +437,54 @@ async def get_download_stats(
     )
 
 
+@router.get("/links/file/{file_id}")
+async def get_file_download_links(
+    file_id: int,
+    current_token = Depends(require_permission("links.read")),
+    download_manager = Depends(get_download_manager)
+):
+    """Get all download links for a specific file"""
+    
+    # Get all user's links and filter by file_id
+    all_links = await download_manager.db.get_user_download_links(current_token.id, 100)
+    file_links = [link for link in all_links if link.file_id == file_id]
+    
+    if not file_links:
+        return {
+            "file_id": file_id,
+            "links": [],
+            "message": "No download links found for this file"
+        }
+    
+    result = []
+    for link in file_links:
+        # Generate download URL
+        download_url = f"/api/download/{link.download_type.value}/{link.link_code}"
+        
+        # Check if expired
+        is_expired = link.expires_at and datetime.utcnow() > link.expires_at
+        
+        result.append({
+            "link_id": link.id,
+            "link_code": link.link_code,
+            "download_url": download_url,
+            "download_type": link.download_type.value,
+            "is_active": link.is_active and not is_expired,
+            "is_expired": is_expired,
+            "download_count": link.download_count,
+            "max_downloads": link.max_downloads,
+            "expires_at": link.expires_at,
+            "password_protected": bool(link.password_hash),
+            "created_at": link.created_at
+        })
+    
+    return {
+        "file_id": file_id,
+        "links": result,
+        "total_count": len(result)
+    }
+
+
 @router.delete("/links/{link_code}")
 async def delete_download_link(
     link_code: str,

@@ -71,7 +71,7 @@ class TelegramFileBot:
         self.download_system_handler = DownloadSystemHandler(
             self.db,
             download_api_url="http://localhost:8001",
-            admin_token="UeZ7nxNr-0Z_6b9dntKcOdzzLU1fMZjNz1-SqWQESkY"
+            admin_token="uVsXgmICyxa0mhPshBJZ1XtYpFFt-p5rLrdMvZnhv4c"
         )
         
         # Initialize actions
@@ -233,9 +233,17 @@ class TelegramFileBot:
             elif callback_data.startswith('create_fast_link_'):
                 await self.download_system_handler.create_fast_link(update, context)
             elif callback_data.startswith('create_restricted_link_'):
-                await update.callback_query.answer("⚙️ لینک محدود - در حال توسعه!")
+                await self.download_system_handler.create_restricted_link(update, context)
             elif callback_data.startswith('view_file_links_'):
-                await update.callback_query.answer("📋 مشاهده لینک‌ها - در حال توسعه!")
+                await self.download_system_handler.view_file_links(update, context)
+            elif callback_data.startswith('set_max_downloads_'):
+                await self.download_system_handler.handle_set_max_downloads(update, context)
+            elif callback_data.startswith('set_expires_'):
+                await self.download_system_handler.handle_set_expires(update, context)
+            elif callback_data.startswith('confirm_create_restricted_'):
+                await self.download_system_handler.create_final_restricted_link(update, context)
+            elif callback_data.startswith('copy_restricted_link_'):
+                await self.download_system_handler.copy_link_handler(update, context)
             elif callback_data == 'system_monitoring':
                 await self.download_system_handler.system_monitoring(update, context)
             elif callback_data == 'system_cleanup':
