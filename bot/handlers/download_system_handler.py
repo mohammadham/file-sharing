@@ -735,3 +735,10 @@ class DownloadSystemHandler(BaseHandler):
             
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
+            # ارسال لینک به کلیپ‌بورد
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode='Markdown')
+            
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+            
