@@ -132,8 +132,19 @@ def escape_markdown(text: str) -> str:
 
 
 def escape_filename_for_markdown(filename: str) -> str:
-    """Escape filename specifically for Markdown"""
-    return filename.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]')
+    """Escape filename specifically for Telegram Markdown V2"""
+    if not filename:
+        return "نامشخص"
+    
+    # MarkdownV2 special characters that need escaping
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    
+    # Escape each special character
+    escaped = filename
+    for char in special_chars:
+        escaped = escaped.replace(char, f'\\{char}')
+    
+    return escaped
 
 
 def build_stats_text(stats: Dict[str, Any]) -> str:
