@@ -244,6 +244,16 @@ class TelegramFileBot:
                 await self.download_system_handler.create_final_restricted_link(update, context)
             elif callback_data.startswith('copy_restricted_link_'):
                 await self.download_system_handler.copy_link_handler(update, context)
+            elif callback_data.startswith('copy_stream_link_'):
+                await self.download_system_handler.copy_link_handler(update, context)
+            elif callback_data.startswith('copy_fast_link_'):
+                await self.download_system_handler.copy_link_handler(update, context)
+            elif callback_data.startswith('download_link_stats_'):
+                await self.download_system_handler.show_download_link_stats(update, context)
+            elif callback_data.startswith('download_link_info_'):
+                await self.download_system_handler.show_download_link_info(update, context)
+            elif callback_data.startswith('delete_download_link_'):
+                await self.download_system_handler.delete_download_link(update, context)
             elif callback_data == 'system_monitoring':
                 await self.download_system_handler.system_monitoring(update, context)
             elif callback_data == 'system_cleanup':

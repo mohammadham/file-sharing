@@ -710,35 +710,271 @@ class DownloadSystemHandler(BaseHandler):
             query = update.callback_query
             await self.answer_callback_query(update)
             
-            link_code = query.data.split('_')[3]
+            callback_data = query.data
+            link_code = callback_data.split('_')[-1]  # آخرین بخش همیشه کد لینک است
+            
+            # تشخیص نوع لینک بر اساس callback_data
+            if callback_data.startswith('copy_stream_link_'):
+                download_type = "stream"
+                icon = "🌊"
+                type_name = "استریم"
+            elif callback_data.startswith('copy_fast_link_'):
+                download_type = "fast"
+                icon = "⚡️"
+                type_name = "سریع"
+            elif callback_data.startswith('copy_restricted_link_'):
+                download_type = "fast"  # Restricted links use fast download
+                icon = "⚙️"
+                type_name = "محدود"
+            else:
+                download_type = "fast"
+                icon = "🔗"
+                type_name = "عمومی"
             
             # ساخت URL کامل
-            download_url = f"{self.api_url}/api/download/fast/{link_code}"
+            download_url = f"{self.api_url}/api/download/{download_type}/{link_code}"
             
-            text = f"🔗 **لینک دانلود کپی شد**"
-            text += f"📋 **برای کپی روی لینک زیر کلیک کنید:**"
-            text += f"`{download_url}`"
-            text += f"💡 **نکات:**"
-            text += f"• این لینک مستقیماً فایل را دانلود می‌کند"
-            text += f"• کد لینک: `{link_code}`"
+            text = f"{icon} **لینک دانلود {type_name} کپی شد**\n\n"
+            text += f"📋 **برای کپی روی لینک زیر کلیک کنید:**\n"
+            text += f"`{download_url}`\n\n"
+            text += f"💡 **نکات:**\n"
+            text += f"• این لینک مستقیماً فایل را دانلود می‌کند\n"
+            text += f"• کد لینک: `{link_code}`\n"
             text += f"• می‌توانید در مرورگر یا برنامه دانلود استفاده کنید"
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("🔄 لینک جدید", callback_data="file_download_links_1"),
-                    InlineKeyboardButton("📊 آمار", callback_data=f"link_stats_{link_code}")
+                    InlineKeyboardButton("📊 آمار لینک", callback_data=f"download_link_stats_{link_code}"),
+                    InlineKeyboardButton("🔗 اطلاعات لینک", callback_data=f"download_link_info_{link_code}")
                 ],
                 [
-                    InlineKeyboardButton("🔙 بازگشت", callback_data="file_1")
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
                 ]
             ])
             
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
-            # ارسال لینک به کلیپ‌بورد
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode='Markdown')
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def show_download_link_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش آمار تفصیلی لینک دانلود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
             
+            link_code = query.data.split('_')[-1]
+            
+            # دریافت آمار از API
+            stats_data = await self.get_link_stats(link_code)
+            
+            if stats_data.get('success'):
+                stats = stats_data['data']
+                
+                text = f"📊 **آمار تفصیلی لینک دانلود**\n\n"
+                text += f"🔗 **کد لینک:** `{link_code}`\n"
+                text += f"📥 **کل دانلودها:** {stats.get('total_downloads', 0)}\n"
+                text += f"👥 **IP های منحصر به فرد:** {stats.get('unique_ips', 0)}\n"
+                text += f"💾 **حجم منتقل شده:** {self._format_bytes(stats.get('total_bytes_transferred', 0))}\n"
+                text += f"⚡️ **سرعت میانگین:** {stats.get('average_speed_mbps', 0):.2f} MB/s\n"
+                text += f"📅 **تاریخ ایجاد:** {stats.get('created_at', 'نامشخص')[:16]}\n"
+                text += f"🕐 **آخرین دسترسی:** {stats.get('last_accessed', 'هرگز')[:16] if stats.get('last_accessed') else 'هرگز'}\n\n"
+                
+                # اطلاعات اضافی
+                if stats.get('expires_at'):
+                    text += f"⏰ **انقضا:** {stats.get('expires_at')[:16]}\n"
+                else:
+                    text += f"♾️ **انقضا:** بدون محدودیت\n"
+                
+                if stats.get('max_downloads'):
+                    text += f"📊 **حد دانلود:** {stats.get('download_count', 0)}/{stats.get('max_downloads')}\n"
+                else:
+                    text += f"📊 **حد دانلود:** نامحدود\n"
+                
+            else:
+                text = f"❌ **خطا در دریافت آمار**\n\n"
+                text += f"علت: {stats_data.get('error', 'نامشخص')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"download_link_stats_{link_code}"),
+                    InlineKeyboardButton("🔗 اطلاعات لینک", callback_data=f"download_link_info_{link_code}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
             await self.handle_error(update, context, e)
+    
+    async def show_download_link_info(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش اطلاعات کامل لینک دانلود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
             
+            link_code = query.data.split('_')[-1]
+            
+            # دریافت اطلاعات از API
+            info_data = await self.get_link_info(link_code)
+            
+            if info_data.get('success'):
+                info = info_data['data']
+                
+                # آیکون بر اساس نوع
+                type_icons = {
+                    'stream': '🌊',
+                    'fast': '⚡️', 
+                    'restricted': '⚙️'
+                }
+                icon = type_icons.get(info.get('download_type'), '🔗')
+                
+                text = f"{icon} **اطلاعات کامل لینک دانلود**\n\n"
+                text += f"📄 **فایل:** {info.get('file_name', 'نامشخص')}\n"
+                text += f"💾 **حجم فایل:** {self._format_bytes(info.get('file_size', 0))}\n"
+                text += f"🏷 **نوع فایل:** {info.get('file_type', 'نامشخص')}\n"
+                text += f"🔗 **کد لینک:** `{link_code}`\n"
+                text += f"🌐 **نوع دانلود:** {info.get('download_type', 'نامشخص').title()}\n\n"
+                
+                # وضعیت لینک
+                is_expired = info.get('is_expired', False)
+                if is_expired:
+                    text += f"🔴 **وضعیت:** منقضی شده\n"
+                else:
+                    text += f"🟢 **وضعیت:** فعال\n"
+                
+                # محدودیت‌ها
+                text += f"📊 **دانلودها:** {info.get('download_count', 0)}"
+                if info.get('max_downloads'):
+                    text += f"/{info.get('max_downloads')}\n"
+                else:
+                    text += f" (نامحدود)\n"
+                
+                if info.get('expires_at'):
+                    text += f"⏰ **انقضا:** {info.get('expires_at')[:16]}\n"
+                else:
+                    text += f"♾️ **انقضا:** بدون محدودیت\n"
+                
+                if info.get('password_protected'):
+                    text += f"🔒 **محافظت با رمز:** بله\n"
+                else:
+                    text += f"🔓 **محافظت با رمز:** خیر\n"
+                
+                text += f"\n📅 **تاریخ ایجاد:** {info.get('created_at', 'نامشخص')[:16]}"
+                
+            else:
+                text = f"❌ **خطا در دریافت اطلاعات**\n\n"
+                text += f"علت: {info_data.get('error', 'نامشخص')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📊 آمار تفصیلی", callback_data=f"download_link_stats_{link_code}"),
+                    InlineKeyboardButton("🗑 حذف لینک", callback_data=f"delete_download_link_{link_code}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")  
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def get_link_stats(self, link_code: str) -> dict:
+        """دریافت آمار لینک از API"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/download/stats/{link_code}",
+                    headers=self.headers
+                ) as response:
+                    data = await response.json()
+                    return {'success': response.status == 200, 'data': data}
+        except Exception as e:
+            logger.error(f"Error getting link stats: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_link_info(self, link_code: str) -> dict:
+        """دریافت اطلاعات لینک از API"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/download/info/{link_code}"
+                ) as response:
+                    data = await response.json()
+                    return {'success': response.status == 200, 'data': data}
+        except Exception as e:
+            logger.error(f"Error getting link info: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def _format_bytes(self, bytes_value: int) -> str:
+        """فرمت کردن حجم فایل"""
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if bytes_value < 1024.0:
+                return f"{bytes_value:.1f} {unit}"
+            bytes_value /= 1024.0
+        return f"{bytes_value:.1f} PB"
+    
+    async def delete_download_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """حذف لینک دانلود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            link_code = query.data.split('_')[-1]
+            
+            # حذف لینک از طریق API
+            delete_result = await self.delete_link_via_api(link_code)
+            
+            if delete_result.get('success'):
+                text = f"✅ **لینک دانلود حذف شد**\n\n"
+                text += f"🔗 **کد لینک:** `{link_code}`\n"
+                text += f"🗑 لینک با موفقیت غیرفعال و حذف شد.\n\n"
+                text += f"💡 **نکته:** دانلودهای در حال انجام قطع خواهند شد."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔙 بازگشت به کنترل سیستم", callback_data="download_system_control")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در حذف لینک**\n\n"
+                text += f"🔗 **کد لینک:** `{link_code}`\n"
+                text += f"علت: {delete_result.get('error', 'نامشخص')}\n\n"
+                text += f"لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش دوباره", callback_data=f"delete_download_link_{link_code}"),
+                        InlineKeyboardButton("🔗 اطلاعات لینک", callback_data=f"download_link_info_{link_code}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def delete_link_via_api(self, link_code: str) -> dict:
+        """حذف لینک از طریق API"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.delete(
+                    f"{self.api_url}/api/download/links/{link_code}",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        return {'success': True}
+                    else:
+                        error_data = await response.json()
+                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
+        except Exception as e:
+            logger.error(f"Error deleting link: {e}")
+            return {'success': False, 'error': str(e)}
