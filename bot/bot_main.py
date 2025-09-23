@@ -258,6 +258,18 @@ class TelegramFileBot:
                 await self.download_system_handler.system_monitoring(update, context)
             elif callback_data == 'system_cleanup':
                 await self.download_system_handler.system_cleanup(update, context)
+            elif callback_data == 'system_settings':
+                await self.download_system_handler.handle_system_settings(update, context)
+            elif callback_data == 'token_management':
+                await self.download_system_handler.handle_token_management(update, context)
+            elif callback_data == 'api_settings':
+                await self.download_system_handler.handle_api_settings(update, context)
+            elif callback_data == 'download_stats':
+                await self.download_system_handler.handle_download_stats(update, context)
+            elif callback_data == 'retry_api_connection':
+                await self.download_system_handler.handle_api_settings(update, context)
+            elif callback_data == 'test_api_connection':
+                await self._handle_test_api_connection(update, context)
             
             # NEW: Handle download all operations
             elif callback_data.startswith('download_all_category_'):
@@ -1532,6 +1544,70 @@ class TelegramFileBot:
         except Exception as e:
             logger.error(f"Error in error handler: {e}")
     
+    
+    async def _handle_test_api_connection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تست اتصال API"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تست اتصال...")
+            
+            # تست اتصال به API
+            start_time = asyncio.get_event_loop().time()
+            system_status = await self.download_system_handler.get_system_status()
+            end_time = asyncio.get_event_loop().time()
+            
+            ping_time = int((end_time - start_time) * 1000)  # تبدیل به میلی‌ثانیه
+            
+            if system_status.get('ready', False):
+                text = "✅ **تست اتصال موفقیت‌آمیز**\n\n"
+                text += f"🌐 **سرور:** `{self.download_system_handler.api_url}`\n"
+                text += f"⏱ **زمان پاسخ:** {ping_time} ms\n"
+                text += f"📡 **وضعیت API:** آنلاین\n"
+                text += f"📊 **نسخه سرور:** {system_status.get('version', 'نامشخص')}\n"
+                text += f"💾 **حافظه آزاد:** {system_status.get('free_memory', 'نامشخص')}\n"
+                text += f"🔄 **دانلودهای فعال:** {system_status.get('active_downloads', 0)}\n\n"
+                
+                if ping_time < 100:
+                    text += "🚀 **سرعت اتصال:** عالی"
+                elif ping_time < 300:
+                    text += "⚡️ **سرعت اتصال:** خوب"
+                elif ping_time < 500:
+                    text += "🐌 **سرعت اتصال:** متوسط"
+                else:
+                    text += "🔴 **سرعت اتصال:** کند"
+            else:
+                text = "❌ **تست اتصال ناموفق**\n\n"
+                text += f"🌐 **سرور:** `{self.download_system_handler.api_url}`\n"
+                text += f"⏱ **زمان پاسخ:** {ping_time} ms (Timeout)\n"
+                text += f"📡 **وضعیت API:** آفلاین\n"
+                text += f"🔍 **خطا:** {system_status.get('error', 'نامشخص')}\n\n"
+                text += "💡 **راهکارهای احتمالی:**\n"
+                text += "• بررسی اتصال اینترنت\n"
+                text += "• بررسی تنظیمات فایروال\n"
+                text += "• بررسی وضعیت سرور دانلود\n"
+                text += "• تماس با مدیر سیستم"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تست مجدد", callback_data="test_api_connection"),
+                    InlineKeyboardButton("📊 جزئیات بیشتر", callback_data="api_detailed_info")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in test API connection: {e}")
+            await self.download_system_handler._show_api_error_with_retry(
+                query,
+                "❌ خطا در تست اتصال", 
+                str(e),
+                "test_api_connection",
+                "api_settings"
+            )
     async def start_bot(self):
         """Start the Telegram bot"""
         try:

@@ -134,6 +134,18 @@ class DownloadSystemHandler(BaseHandler):
             file_id = int(query.data.split('_')[3])
             user_id = update.effective_user.id
             
+            # بررسی وضعیت سیستم دانلود
+            system_status = await self.get_system_status()
+            if not system_status.get('ready', False):
+                await self._show_api_error_with_retry(
+                    query, 
+                    "🔴 سیستم دانلود در دسترس نیست", 
+                    system_status.get('error', 'خطای اتصال'),
+                    f"create_stream_link_{file_id}",
+                    f"file_download_links_{file_id}"
+                )
+                return
+            
             # ایجاد لینک از طریق API سیستم دانلود
             link_data = {
                 "file_id": file_id,
@@ -169,10 +181,23 @@ class DownloadSystemHandler(BaseHandler):
                 
                 await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             else:
-                await query.edit_message_text(f"❌ خطا در ایجاد لینک: {result.get('error', 'نامشخص')}")
+                await self._show_api_error_with_retry(
+                    query,
+                    "❌ خطا در ایجاد لینک استریم", 
+                    result.get('error', 'نامشخص'),
+                    f"create_stream_link_{file_id}",
+                    f"file_download_links_{file_id}"
+                )
                 
         except Exception as e:
-            await self.handle_error(update, context, e)
+            logger.error(f"Error in create_stream_link: {e}")
+            await self._show_api_error_with_retry(
+                update.callback_query,
+                "❌ خطای سیستمی در ایجاد لینک", 
+                str(e),
+                f"create_stream_link_{update.callback_query.data.split('_')[3]}",
+                f"file_download_links_{update.callback_query.data.split('_')[3]}"
+            )
     
     async def create_fast_link(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """ایجاد لینک دانلود سریع"""
@@ -181,6 +206,18 @@ class DownloadSystemHandler(BaseHandler):
             await self.answer_callback_query(update, "در حال ایجاد لینک سریع...")
             
             file_id = int(query.data.split('_')[3])
+            
+            # بررسی وضعیت سیستم دانلود
+            system_status = await self.get_system_status()
+            if not system_status.get('ready', False):
+                await self._show_api_error_with_retry(
+                    query, 
+                    "🔴 سیستم دانلود در دسترس نیست", 
+                    system_status.get('error', 'خطای اتصال'),
+                    f"create_fast_link_{file_id}",
+                    f"file_download_links_{file_id}"
+                )
+                return
             
             # ایجاد لینک از طریق API سیستم دانلود
             link_data = {
@@ -217,10 +254,23 @@ class DownloadSystemHandler(BaseHandler):
                 
                 await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             else:
-                await query.edit_message_text(f"❌ خطا در ایجاد لینک: {result.get('error', 'نامشخص')}")
+                await self._show_api_error_with_retry(
+                    query,
+                    "❌ خطا در ایجاد لینک سریع", 
+                    result.get('error', 'نامشخص'),
+                    f"create_fast_link_{file_id}",
+                    f"file_download_links_{file_id}"
+                )
                 
         except Exception as e:
-            await self.handle_error(update, context, e)
+            logger.error(f"Error in create_fast_link: {e}")
+            await self._show_api_error_with_retry(
+                update.callback_query,
+                "❌ خطای سیستمی در ایجاد لینک", 
+                str(e),
+                f"create_fast_link_{update.callback_query.data.split('_')[3]}",
+                f"file_download_links_{update.callback_query.data.split('_')[3]}"
+            )
     
     async def system_monitoring(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """نظارت لحظه‌ای بر سیستم"""
@@ -977,4 +1027,265 @@ class DownloadSystemHandler(BaseHandler):
                         return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
         except Exception as e:
             logger.error(f"Error deleting link: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def _show_api_error_with_retry(self, query, title: str, error_detail: str, retry_callback: str, back_callback: str):
+        """نمایش خطای API با امکان تلاش مجدد"""
+        try:
+            text = f"{title}\n\n"
+            text += f"🔍 **جزئیات خطا:**\n"
+            text += f"`{error_detail}`\n\n"
+            
+            # بررسی نوع خطا و ارائه راهنمایی مناسب
+            if "Connection" in error_detail or "connect" in error_detail.lower():
+                text += "🌐 **دلیل احتمالی:** مشکل در اتصال به سرور دانلود\n"
+                text += "💡 **پیشنهاد:** لطفاً چند لحظه صبر کرده و دوباره تلاش کنید\n\n"
+            elif "timeout" in error_detail.lower():
+                text += "⏱ **دلیل احتمالی:** زمان اتصال به سرور تمام شده\n"
+                text += "💡 **پیشنهاد:** سرور ممکن است مشغول باشد، دوباره تلاش کنید\n\n"
+            elif "404" in error_detail or "not found" in error_detail.lower():
+                text += "🔍 **دلیل احتمالی:** فایل یا منبع مورد نظر یافت نشد\n"
+                text += "💡 **پیشنهاد:** ممکن است فایل حذف شده باشد\n\n"
+            elif "500" in error_detail or "internal server error" in error_detail.lower():
+                text += "🛠 **دلیل احتمالی:** خطای داخلی سرور دانلود\n"
+                text += "💡 **پیشنهاد:** لطفاً بعداً دوباره تلاش کنید یا با مدیر تماس بگیرید\n\n"
+            else:
+                text += "❓ **دلیل احتمالی:** خطای نامشخص در سیستم دانلود\n"
+                text += "💡 **پیشنهاد:** دوباره تلاش کنید یا با پشتیبانی تماس بگیرید\n\n"
+            
+            text += f"🕐 **زمان خطا:** {datetime.now().strftime('%H:%M:%S')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تلاش مجدد", callback_data=retry_callback),
+                    InlineKeyboardButton("📞 پشتیبانی", url="https://t.me/support")  # لینک پشتیبانی
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=back_callback)
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error showing API error: {e}")
+            # اگر نمایش خطا هم با مشکل مواجه شد
+            fallback_text = f"❌ خطا در سیستم\n\nجزئیات: {error_detail}\n\nلطفاً دوباره تلاش کنید."
+            fallback_keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔄 تلاش مجدد", callback_data=retry_callback),
+                InlineKeyboardButton("🔙 بازگشت", callback_data=back_callback)
+            ]])
+            try:
+                await query.edit_message_text(fallback_text, reply_markup=fallback_keyboard)
+            except:
+                pass
+    
+    async def handle_system_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مدیریت تنظیمات سیستم - کالبک جدید"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "🔧 **تنظیمات سیستم دانلود**\n\n"
+            text += "در این بخش می‌توانید تنظیمات سیستم دانلود را مدیریت کنید:\n\n"
+            text += "⚙️ **تنظیمات در دسترس:**\n"
+            text += "• تنظیم حداکثر سرعت دانلود\n"
+            text += "• مدیریت فضای ذخیره‌سازی\n"
+            text += "• تنظیم محدودیت‌های کاربران\n"
+            text += "• پیکربندی Cache سیستم\n\n"
+            text += "💡 **توجه:** تغییر تنظیمات ممکن است بر عملکرد سیستم تأثیر بگذارد"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⚡️ تنظیمات سرعت", callback_data="speed_settings"),
+                    InlineKeyboardButton("💾 تنظیمات ذخیره", callback_data="storage_settings")
+                ],
+                [
+                    InlineKeyboardButton("👥 محدودیت کاربران", callback_data="user_limits"),
+                    InlineKeyboardButton("🗂 تنظیمات Cache", callback_data="cache_settings")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_system_settings: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_token_management(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مدیریت توکن‌ها - کالبک جدید"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "🔗 **مدیریت توکن‌های دسترسی**\n\n"
+            text += "در این بخش می‌توانید توکن‌های دسترسی سیستم را مدیریت کنید:\n\n"
+            text += "🛡 **انواع توکن‌ها:**\n"
+            text += "• توکن مدیر (Admin Token)\n"
+            text += "• توکن‌های کاربران\n"
+            text += "• توکن‌های موقت\n"
+            text += "• کلیدهای API\n\n"
+            text += f"🔑 **توکن فعلی:** `{self.admin_token[:20]}...`\n"
+            text += f"✅ **وضعیت:** فعال"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تولید توکن جدید", callback_data="generate_new_token"),
+                    InlineKeyboardButton("📋 مشاهده توکن‌ها", callback_data="view_all_tokens")
+                ],
+                [
+                    InlineKeyboardButton("🔒 غیرفعال‌سازی توکن", callback_data="deactivate_tokens"),
+                    InlineKeyboardButton("⏰ تنظیم انقضا", callback_data="set_token_expiry")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_token_management: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_api_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات API - کالبک جدید"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # بررسی وضعیت API
+            system_status = await self.get_system_status()
+            status_icon = "🟢" if system_status.get('ready', False) else "🔴"
+            status_text = "آنلاین" if system_status.get('ready', False) else "آفلاین"
+            
+            text = "⚙️ **تنظیمات API سیستم دانلود**\n\n"
+            text += f"🌐 **URL سرور:** `{self.api_url}`\n"
+            text += f"{status_icon} **وضعیت:** {status_text}\n"
+            text += f"📡 **نسخه API:** {system_status.get('version', 'نامشخص')}\n\n"
+            
+            if system_status.get('ready', False):
+                text += "✅ **اتصال موفق**\n"
+                text += f"⏱ **پینگ:** {system_status.get('ping', 'نامشخص')} ms\n"
+                text += f"📊 **وضعیت سرور:** سالم\n"
+            else:
+                text += "❌ **اتصال ناموفق**\n"
+                text += f"🔍 **خطا:** {system_status.get('error', 'نامشخص')}\n"
+                text += "💡 **راهکار:** بررسی اتصال شبکه و تنظیمات سرور\n"
+            
+            text += "\n🛠 **تنظیمات قابل تغییر:**\n"
+            text += "• Timeout درخواست‌ها\n"
+            text += "• تعداد تلاش‌های مجدد\n"
+            text += "• فرمت پاسخ‌ها\n"
+            text += "• سطح لاگ‌گیری"
+            
+            keyboard_rows = []
+            
+            if system_status.get('ready', False):
+                keyboard_rows.extend([
+                    [
+                        InlineKeyboardButton("🔄 تست اتصال", callback_data="test_api_connection"),
+                        InlineKeyboardButton("📊 آمار API", callback_data="api_statistics")
+                    ],
+                    [
+                        InlineKeyboardButton("⚙️ تنظیمات پیشرفته", callback_data="advanced_api_settings"),
+                        InlineKeyboardButton("📝 لاگ‌های API", callback_data="api_logs")
+                    ]
+                ])
+            else:
+                keyboard_rows.append([
+                    InlineKeyboardButton("🔄 تلاش مجدد اتصال", callback_data="retry_api_connection"),
+                    InlineKeyboardButton("🛠 تشخیص مشکل", callback_data="diagnose_api_issue")
+                ])
+            
+            keyboard_rows.append([
+                InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+            ])
+            
+            keyboard = InlineKeyboardMarkup(keyboard_rows)
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_api_settings: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_download_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش آمار دانلودها - کالبک اصلاح شده"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # دریافت آمار از API
+            stats_data = await self.get_download_statistics()
+            
+            if stats_data.get('success'):
+                stats = stats_data.get('data', {})
+                
+                text = "📈 **گزارش آمار سیستم دانلود**\n\n"
+                text += f"📥 **کل دانلودها امروز:** {stats.get('today_downloads', 0):,}\n"
+                text += f"📊 **کل دانلودها این ماه:** {stats.get('month_downloads', 0):,}\n"
+                text += f"👥 **کاربران فعال امروز:** {stats.get('active_users_today', 0)}\n"
+                text += f"💾 **حجم منتقل شده امروز:** {self._format_bytes(stats.get('bytes_transferred_today', 0))}\n\n"
+                
+                text += "🔗 **آمار لینک‌ها:**\n"
+                text += f"• لینک‌های فعال: {stats.get('active_links', 0)}\n"
+                text += f"• لینک‌های منقضی: {stats.get('expired_links', 0)}\n"
+                text += f"• میانگین دانلود هر لینک: {stats.get('avg_downloads_per_link', 0):.1f}\n\n"
+                
+                text += "⚡️ **عملکرد سیستم:**\n"
+                text += f"• میانگین سرعت دانلود: {stats.get('avg_download_speed', 0):.1f} MB/s\n"
+                text += f"• زمان پاسخ میانگین: {stats.get('avg_response_time', 0):.2f} ثانیه\n"
+                text += f"• درصد موفقیت: {stats.get('success_rate', 0):.1f}%\n"
+                
+            else:
+                text = "📈 **گزارش آمار سیستم دانلود**\n\n"
+                text += "❌ **خطا در دریافت آمار**\n\n"
+                error = stats_data.get('error', 'نامشخص')
+                text += f"🔍 **جزئیات:** {error}\n\n"
+                text += "💡 **راهکار:** بررسی اتصال به سرور آمار"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="download_stats"),
+                    InlineKeyboardButton("📊 آمار تفصیلی", callback_data="detailed_download_stats")
+                ],
+                [
+                    InlineKeyboardButton("📈 نمودار آمار", callback_data="stats_chart"),
+                    InlineKeyboardButton("📋 گزارش PDF", callback_data="export_stats_pdf")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_download_stats: {e}")
+            await self._show_api_error_with_retry(
+                query,
+                "❌ خطا در دریافت آمار", 
+                str(e),
+                "download_stats",
+                "download_system_control"
+            )
+    
+    async def get_download_statistics(self) -> dict:
+        """دریافت آمار دانلودها از API"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/statistics/downloads",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'data': data}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting download statistics: {e}")
             return {'success': False, 'error': str(e)}
