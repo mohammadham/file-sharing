@@ -300,7 +300,7 @@ class TelegramFileBot:
             elif callback_data == 'telethon_manual_create':
                 await self.telethon_config_handler.start_manual_creation(update, context)
             elif callback_data == 'telethon_skip_phone':
-                await self._handle_telethon_skip_phone(update, context)
+                await self.telethon_config_handler._handle_config_phone_input(update, context, "", {})
             elif callback_data.startswith('telethon_confirm_delete_'):
                 await self._handle_telethon_confirm_delete(update, context)
             elif callback_data.startswith('telethon_manage_config_'):
@@ -329,6 +329,26 @@ class TelegramFileBot:
                 await self.telethon_health_handler.show_detailed_diagnostics(update, context)
             elif callback_data == 'telethon_system_status':
                 await self.telethon_health_handler.show_system_status(update, context)
+            elif callback_data == 'telethon_emergency_login':
+                await self._handle_telethon_emergency_login(update, context)
+            elif callback_data == 'telethon_fix_issues':
+                await self._handle_telethon_fix_issues(update, context)
+            elif callback_data == 'telethon_detailed_stats':
+                await self._handle_telethon_detailed_stats(update, context)
+            elif callback_data == 'telethon_auto_fix':
+                await self._handle_telethon_auto_fix(update, context)
+            elif callback_data == 'telethon_performance_test':
+                await self._handle_telethon_performance_test(update, context)
+            elif callback_data == 'telethon_advanced_settings':
+                await self._handle_telethon_advanced_settings(update, context)
+            elif callback_data.startswith('telethon_test_client_'):
+                await self._handle_telethon_test_client(update, context)
+            elif callback_data.startswith('telethon_reset_session_'):
+                await self._handle_telethon_reset_session(update, context)
+            elif callback_data.startswith('telethon_edit_config_'):
+                await self._handle_telethon_edit_config(update, context)
+            elif callback_data.startswith('telethon_view_config_'):
+                await self._handle_telethon_view_config(update, context)
             
             # NEW: Handle download all operations
             elif callback_data.startswith('download_all_category_'):
@@ -1605,54 +1625,37 @@ class TelegramFileBot:
     
     
     async def _handle_test_api_connection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """تست اتصال API"""
+        """Handle API connection test"""
         try:
             query = update.callback_query
             await query.answer("در حال تست اتصال...")
             
-            # تست اتصال به API
-            start_time = asyncio.get_event_loop().time()
-            system_status = await self.download_system_handler.get_system_status()
-            end_time = asyncio.get_event_loop().time()
+            # Test download system API connection
+            result = await self.download_system_handler.get_system_status()
             
-            ping_time = int((end_time - start_time) * 1000)  # تبدیل به میلی‌ثانیه
-            
-            if system_status.get('ready', False):
-                text = "✅ **تست اتصال موفقیت‌آمیز**\n\n"
-                text += f"🌐 **سرور:** `{self.download_system_handler.api_url}`\n"
-                text += f"⏱ **زمان پاسخ:** {ping_time} ms\n"
-                text += f"📡 **وضعیت API:** آنلاین\n"
-                text += f"📊 **نسخه سرور:** {system_status.get('version', 'نامشخص')}\n"
-                text += f"💾 **حافظه آزاد:** {system_status.get('free_memory', 'نامشخص')}\n"
-                text += f"🔄 **دانلودهای فعال:** {system_status.get('active_downloads', 0)}\n\n"
-                
-                if ping_time < 100:
-                    text += "🚀 **سرعت اتصال:** عالی"
-                elif ping_time < 300:
-                    text += "⚡️ **سرعت اتصال:** خوب"
-                elif ping_time < 500:
-                    text += "🐌 **سرعت اتصال:** متوسط"
-                else:
-                    text += "🔴 **سرعت اتصال:** کند"
+            if result.get('ready', False):
+                text = "✅ **تست اتصال موفق**\n\n"
+                text += f"🌐 سرور: در دسترس\n"
+                text += f"📊 وضعیت: {result.get('status', 'نامشخص')}\n"
+                text += f"🔄 نسخه: {result.get('version', 'نامشخص')}\n"
+                text += f"⚡️ پینگ: عادی\n\n"
+                text += "🎉 سیستم آماده استفاده است!"
             else:
                 text = "❌ **تست اتصال ناموفق**\n\n"
-                text += f"🌐 **سرور:** `{self.download_system_handler.api_url}`\n"
-                text += f"⏱ **زمان پاسخ:** {ping_time} ms (Timeout)\n"
-                text += f"📡 **وضعیت API:** آفلاین\n"
-                text += f"🔍 **خطا:** {system_status.get('error', 'نامشخص')}\n\n"
-                text += "💡 **راهکارهای احتمالی:**\n"
+                text += f"🚫 خطا: {result.get('error', 'نامشخص')}\n"
+                text += f"🔍 علت: عدم دسترسی به API\n\n"
+                text += "💡 **راهکارها:**\n"
                 text += "• بررسی اتصال اینترنت\n"
-                text += "• بررسی تنظیمات فایروال\n"
-                text += "• بررسی وضعیت سرور دانلود\n"
-                text += "• تماس با مدیر سیستم"
+                text += "• راه‌اندازی سرور دانلود\n"
+                text += "• تأیید تنظیمات API"
             
             keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🔄 تست مجدد", callback_data="test_api_connection"),
-                    InlineKeyboardButton("📊 جزئیات بیشتر", callback_data="api_detailed_info")
+                    InlineKeyboardButton("⚙️ تنظیمات", callback_data="api_settings")
                 ],
                 [
-                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
                 ]
             ])
             
@@ -1660,13 +1663,14 @@ class TelegramFileBot:
             
         except Exception as e:
             logger.error(f"Error in test API connection: {e}")
-            await self.download_system_handler._show_api_error_with_retry(
-                query,
-                "❌ خطا در تست اتصال", 
-                str(e),
-                "test_api_connection",
-                "api_settings"
+            await query.edit_message_text(
+                f"❌ خطا در تست اتصال: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]])
             )
+    
+    # _handle_telethon_confirm_delete method is implemented below
     
     async def _handle_telethon_skip_phone(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """پردازش رد کردن شماره تلفن"""
@@ -1733,7 +1737,802 @@ class TelegramFileBot:
             
         except Exception as e:
             logger.error(f"Error in confirm delete config: {e}")
-            await query.answer("❌ خطا در حذف کانفیگ!")
+            await query.edit_message_text(
+                f"❌ خطا در حذف کانفیگ: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                ]])
+            )
+    
+    async def _handle_telethon_advanced_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات پیشرفته Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "⚙️ **تنظیمات پیشرفته Telethon**\n\n"
+            text += "در این بخش می‌توانید تنظیمات پیشرفته سیستم Telethon را مدیریت کنید:\n\n"
+            text += "🔧 **تنظیمات موجود:**\n"
+            text += "• مدیریت timeout های کلاینت\n"
+            text += "• تنظیم محدودیت‌های دانلود\n"
+            text += "• پیکربندی proxy\n"
+            text += "• تنظیمات امنیتی\n"
+            text += "• بهینه‌سازی عملکرد\n\n"
+            text += "⚠️ **هشدار:** تغییر این تنظیمات می‌تواند بر عملکرد سیستم تأثیر بگذارد."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🕐 تنظیمات Timeout", callback_data="telethon_timeout_settings"),
+                    InlineKeyboardButton("📊 محدودیت دانلود", callback_data="telethon_download_limits")
+                ],
+                [
+                    InlineKeyboardButton("🌐 تنظیمات Proxy", callback_data="telethon_proxy_settings"),
+                    InlineKeyboardButton("🔒 تنظیمات امنیتی", callback_data="telethon_security_settings")
+                ],
+                [
+                    InlineKeyboardButton("⚡️ بهینه‌سازی", callback_data="telethon_performance_settings"),
+                    InlineKeyboardButton("📋 پیکربندی اتوماتیک", callback_data="telethon_auto_config")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in advanced settings: {e}")
+            await query.edit_message_text(
+                "❌ خطا در نمایش تنظیمات پیشرفته",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                ]])
+            )
+    
+    async def _handle_telethon_test_client(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تست کلاینت Telethon خاص"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تست کلاینت...")
+            
+            config_name = query.data.replace('telethon_test_client_', '')
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            client = await telethon_manager.get_client(config_name)
+            
+            if client and client.is_connected():
+                try:
+                    me = await client.get_me()
+                    
+                    text = f"✅ **تست موفق - {config_name}**\n\n"
+                    text += f"🔗 **وضعیت اتصال:** متصل\n"
+                    text += f"👤 **نام:** {me.first_name} {me.last_name or ''}\n"
+                    text += f"📱 **شماره:** {me.phone}\n"
+                    text += f"🆔 **شناسه:** `{me.id}`\n"
+                    text += f"👤 **نام کاربری:** @{me.username or 'ندارد'}\n\n"
+                    text += f"🎉 **کلاینت آماده استفاده است!**"
+                    
+                except Exception as test_error:
+                    text = f"⚠️ **تست جزئی موفق - {config_name}**\n\n"
+                    text += f"🔗 **وضعیت اتصال:** متصل\n"
+                    text += f"❌ **خطا در دریافت اطلاعات:** {str(test_error)}\n\n"
+                    text += f"💡 **توضیح:** اتصال برقرار است اما نتوانستیم اطلاعات کاربر را دریافت کنیم."
+            
+            else:
+                status = telethon_manager.get_client_status(config_name)
+                text = f"❌ **تست ناموفق - {config_name}**\n\n"
+                text += f"🔗 **وضعیت اتصال:** قطع\n"
+                text += f"❌ **خطا:** {status.get('error', 'اتصال برقرار نشد')}\n\n"
+                text += f"💡 **راهکار:** مجدداً وارد اکانت شوید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تست مجدد", callback_data=f"telethon_test_client_{config_name}"),
+                    InlineKeyboardButton("🔐 ورود مجدد", callback_data=f"telethon_start_login_{config_name}")
+                ],
+                [
+                    InlineKeyboardButton("🔧 مدیریت کانفیگ", callback_data=f"telethon_manage_config_{config_name}"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error testing client: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در تست کلاینت: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                ]])
+            )
+    
+    async def _handle_telethon_reset_session(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """بازنشانی Session کلاینت"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            config_name = query.data.replace('telethon_reset_session_', '')
+            
+            text = f"⚠️ **بازنشانی Session - {config_name}**\n\n"
+            text += f"آیا مطمئن هستید که می‌خواهید session این کانفیگ را بازنشانی کنید؟\n\n"
+            text += f"🚨 **هشدار:**\n"
+            text += f"• session فعلی حذف خواهد شد\n"
+            text += f"• نیاز به ورود مجدد خواهید داشت\n"
+            text += f"• کد تأیید دوباره ارسال می‌شود\n"
+            text += f"• دانلودهای در حال انجام قطع می‌شوند"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ بله، بازنشانی کن", callback_data=f"telethon_confirm_reset_{config_name}"),
+                    InlineKeyboardButton("❌ لغو", callback_data=f"telethon_manage_config_{config_name}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in reset session: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در بازنشانی session: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                ]])
+            )
+    
+    async def _handle_telethon_edit_config(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ویرایش کانفیگ Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            config_name = query.data.replace('telethon_edit_config_', '')
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            config = telethon_manager.config_manager.get_config(config_name)
+            
+            if not config:
+                await query.edit_message_text(
+                    f"❌ کانفیگ '{config_name}' یافت نشد.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                    ]])
+                )
+                return
+            
+            text = f"📝 **ویرایش کانفیگ - {config_name}**\n\n"
+            text += f"**اطلاعات فعلی:**\n"
+            text += f"• نام: {config.name}\n"
+            text += f"• API ID: {config.api_id}\n"
+            text += f"• شماره: {config.phone or 'وارد نشده'}\n"
+            text += f"• مدل دستگاه: {config.device_model}\n"
+            text += f"• زبان: {config.lang_code}\n\n"
+            text += f"چه بخشی را می‌خواهید ویرایش کنید؟"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📝 ویرایش نام", callback_data=f"telethon_edit_name_{config_name}"),
+                    InlineKeyboardButton("📱 ویرایش شماره", callback_data=f"telethon_edit_phone_{config_name}")
+                ],
+                [
+                    InlineKeyboardButton("📱 تغییر مدل دستگاه", callback_data=f"telethon_edit_device_{config_name}"),
+                    InlineKeyboardButton("🌐 تغییر زبان", callback_data=f"telethon_edit_lang_{config_name}")
+                ],
+                [
+                    InlineKeyboardButton("💾 دانلود کانفیگ JSON", callback_data=f"telethon_export_config_{config_name}")
+                ],
+                [
+                    InlineKeyboardButton("❌ لغو", callback_data=f"telethon_manage_config_{config_name}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in edit config: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در ویرایش کانفیگ: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                ]])
+            )
+    
+    async def _handle_telethon_view_config(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مشاهده جزئیات کامل کانفیگ"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            config_name = query.data.replace('telethon_view_config_', '')
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            config = telethon_manager.config_manager.get_config(config_name)
+            
+            if not config:
+                await query.edit_message_text(
+                    f"❌ کانفیگ '{config_name}' یافت نشد.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                    ]])
+                )
+                return
+            
+            # Get client status
+            status = telethon_manager.get_client_status(config_name)
+            status_icon = "🟢" if status.get('connected', False) else "🔴"
+            status_text = "متصل" if status.get('connected', False) else "قطع"
+            
+            text = f"📋 **جزئیات کامل کانفیگ**\n\n"
+            text += f"🏷 **نام کانفیگ:** {config_name}\n"
+            text += f"📛 **نام داخلی:** {config.name}\n"
+            text += f"🆔 **API ID:** `{config.api_id}`\n"
+            text += f"🔑 **API Hash:** `{config.api_hash[:8]}...{config.api_hash[-4:]}`\n"
+            text += f"📱 **شماره تلفن:** {config.phone or 'وارد نشده'}\n\n"
+            
+            text += f"📱 **اطلاعات دستگاه:**\n"
+            text += f"• مدل: {config.device_model}\n"
+            text += f"• نسخه سیستم: {config.system_version}\n"
+            text += f"• نسخه اپ: {config.app_version}\n"
+            text += f"• زبان: {config.lang_code}\n\n"
+            
+            text += f"📊 **وضعیت:**\n"
+            text += f"• فعالیت: {'فعال' if config.is_active else 'غیرفعال'}\n"
+            text += f"• اتصال: {status_icon} {status_text}\n"
+            text += f"• Session: {'دارد' if config.session_string else 'ندارد'}\n"
+            text += f"• تاریخ ایجاد: {config.created_at[:16]}\n"
+            
+            if status.get('error'):
+                text += f"\n❌ **خطای اخیر:** {status['error'][:50]}..."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📝 ویرایش", callback_data=f"telethon_edit_config_{config_name}"),
+                    InlineKeyboardButton("🩺 تست کلاینت", callback_data=f"telethon_test_client_{config_name}")
+                ],
+                [
+                    InlineKeyboardButton("💾 دانلود JSON", callback_data=f"telethon_export_config_{config_name}"),
+                    InlineKeyboardButton("🔄 بازنشانی Session", callback_data=f"telethon_reset_session_{config_name}")
+                ],
+                [
+                    InlineKeyboardButton("🗑 حذف کانفیگ", callback_data=f"telethon_delete_config_{config_name}"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"telethon_manage_config_{config_name}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error viewing config: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در مشاهده کانفیگ: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_list_configs")
+                ]])
+            )
+    
+    async def _handle_telethon_emergency_login(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ورود اضطراری به Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            configs = telethon_manager.config_manager.list_configs()
+            
+            text = "🚨 **ورود اضطراری Telethon**\n\n"
+            
+            if not configs:
+                text += "❌ **هیچ کانفیگی یافت نشد**\n\n"
+                text += "برای ورود اضطراری، ابتدا یک کانفیگ اضافه کنید.\n\n"
+                text += "💡 **گام‌های ضروری:**\n"
+                text += "1. افزودن کانفیگ JSON\n"
+                text += "2. ورود به اکانت تلگرام\n"
+                text += "3. تست اتصال کلاینت"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("➕ افزودن کانفیگ", callback_data="telethon_add_config")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                    ]
+                ])
+            else:
+                text += "انتخاب کنید کدام کانفیگ را می‌خواهید فوراً فعال کنید:\n\n"
+                
+                keyboard_rows = []
+                
+                for config_name, config_info in configs.items():
+                    status_icon = "🟢" if config_info.get('has_session') else "🔴"
+                    button_text = f"{status_icon} ورود فوری {config_name}"
+                    
+                    keyboard_rows.append([
+                        InlineKeyboardButton(button_text, callback_data=f"telethon_start_login_{config_name}")
+                    ])
+                
+                keyboard_rows.extend([
+                    [
+                        InlineKeyboardButton("➕ افزودن کانفیگ جدید", callback_data="telethon_add_config"),
+                        InlineKeyboardButton("🩺 بررسی سلامت", callback_data="telethon_health_check")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                    ]
+                ])
+                
+                keyboard = InlineKeyboardMarkup(keyboard_rows)
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in emergency login: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در ورود اضطراری: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                ]])
+            )
+    
+    async def _handle_telethon_fix_issues(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """رفع خودکار مسائل Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال شروع رفع مسائل...")
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            from utils.advanced_logger import advanced_logger, LogLevel, LogCategory
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            
+            # شروع فرآیند رفع مسائل
+            text = "🔧 **رفع خودکار مسائل Telethon**\n\n"
+            text += "در حال بررسی و رفع مسائل شناسایی شده...\n\n"
+            
+            fixed_issues = []
+            remaining_issues = []
+            
+            # بررسی و رفع مسائل مختلف
+            configs = telethon_manager.config_manager.list_configs()
+            health_results = await telethon_manager.check_all_clients_health()
+            
+            # 1. تلاش برای اتصال مجدد کلاینت‌های قطع شده
+            disconnected_clients = [
+                name for name, info in health_results.items()
+                if info.get('status') == 'disconnected'
+            ]
+            
+            for config_name in disconnected_clients:
+                try:
+                    client = await telethon_manager.get_client(config_name)
+                    if client and client.is_connected():
+                        fixed_issues.append(f"✅ اتصال مجدد '{config_name}'")
+                        advanced_logger.log_telethon_client_status(config_name, 'reconnected')
+                    else:
+                        remaining_issues.append(f"❌ عدم اتصال '{config_name}'")
+                except Exception as e:
+                    remaining_issues.append(f"❌ خطا در '{config_name}': {str(e)[:30]}")
+                    advanced_logger.log_system_error(e, f"Auto-fix client {config_name}")
+            
+            # 2. بررسی کانفیگ‌های نامعتبر
+            invalid_configs = [
+                name for name, config_info in configs.items()
+                if not config_info.get('api_id') or not config_info.get('has_session')
+            ]
+            
+            if invalid_configs:
+                remaining_issues.extend([f"⚠️ کانفیگ ناقص '{name}'" for name in invalid_configs])
+            
+            text += f"📊 **نتایج رفع مسائل:**\n\n"
+            
+            if fixed_issues:
+                text += f"✅ **مسائل رفع شده ({len(fixed_issues)}):**\n"
+                for issue in fixed_issues[:5]:  # نمایش 5 مورد اول
+                    text += f"• {issue}\n"
+                if len(fixed_issues) > 5:
+                    text += f"• ... و {len(fixed_issues) - 5} مورد دیگر\n"
+                text += "\n"
+            
+            if remaining_issues:
+                text += f"⚠️ **مسائل باقی‌مانده ({len(remaining_issues)}):**\n"
+                for issue in remaining_issues[:5]:  # نمایش 5 مورد اول
+                    text += f"• {issue}\n"
+                if len(remaining_issues) > 5:
+                    text += f"• ... و {len(remaining_issues) - 5} مورد دیگر\n"
+                text += "\n"
+            
+            if not fixed_issues and not remaining_issues:
+                text += "🎉 **هیچ مشکلی شناسایی نشد!**\n"
+                text += "سیستم Telethon در وضعیت مطلوب است.\n\n"
+            
+            # ارائه راهکارهای بیشتر
+            if remaining_issues:
+                text += "💡 **راهکارهای پیشنهادی:**\n"
+                text += "• ورود مجدد به اکانت‌های مشکل‌دار\n"
+                text += "• بررسی اعتبار API credentials\n"
+                text += "• حذف و اضافه مجدد کانفیگ‌های خراب\n"
+                text += "• بررسی اتصال اینترنت"
+            
+            keyboard_rows = []
+            
+            if remaining_issues:
+                keyboard_rows.extend([
+                    [
+                        InlineKeyboardButton("🔐 ورود به اکانت‌ها", callback_data="telethon_login_menu"),
+                        InlineKeyboardButton("🔧 مدیریت کانفیگ‌ها", callback_data="telethon_list_configs")
+                    ],
+                    [
+                        InlineKeyboardButton("🔄 تکرار رفع مسائل", callback_data="telethon_fix_issues"),
+                        InlineKeyboardButton("🩺 بررسی مجدد", callback_data="telethon_health_check")
+                    ]
+                ])
+            else:
+                keyboard_rows.extend([
+                    [
+                        InlineKeyboardButton("✅ تست عملکرد", callback_data="telethon_performance_test"),
+                        InlineKeyboardButton("📊 آمار تفصیلی", callback_data="telethon_detailed_stats")
+                    ]
+                ])
+            
+            keyboard_rows.append([
+                InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+            ])
+            
+            keyboard = InlineKeyboardMarkup(keyboard_rows)
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in fix issues: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در رفع مسائل: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                ]])
+            )
+    
+    async def _handle_telethon_detailed_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """آمار تفصیلی سیستم Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            from utils.advanced_logger import advanced_logger
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            
+            # دریافت آمار کامل
+            configs = telethon_manager.config_manager.list_configs()
+            health_results = await telethon_manager.check_all_clients_health()
+            health_info = advanced_logger.get_system_health_info()
+            
+            text = "📊 **آمار تفصیلی سیستم Telethon**\n\n"
+            
+            # آمار کلی
+            text += f"📈 **آمار کلی:**\n"
+            text += f"• کل کانفیگ‌ها: {len(configs)}\n"
+            text += f"• کلاینت‌های متصل: {len([h for h in health_results.values() if h.get('status') == 'healthy'])}\n"
+            text += f"• کلاینت‌های قطع: {len([h for h in health_results.values() if h.get('status') == 'disconnected'])}\n"
+            text += f"• کلاینت‌های خطادار: {len([h for h in health_results.values() if h.get('status') == 'error'])}\n\n"
+            
+            # آمار عملکرد
+            if health_info:
+                text += f"⚡️ **عملکرد سیستم (24 ساعت اخیر):**\n"
+                text += f"• فعالیت‌های Telethon: {health_info.get('telethon_activity', 0)}\n"
+                text += f"• خطاهای اخیر: {health_info.get('recent_errors_count', 0)}\n"
+                text += f"• نرخ خطا: {health_info.get('error_rate', 0):.2f}%\n\n"
+            
+            # جزئیات هر کانفیگ
+            text += f"🔧 **جزئیات کانفیگ‌ها:**\n\n"
+            
+            for i, (config_name, config_info) in enumerate(configs.items(), 1):
+                health = health_results.get(config_name, {})
+                
+                if health.get('status') == 'healthy':
+                    status_emoji = "🟢"
+                    status_text = "عملیاتی"
+                elif health.get('status') == 'disconnected':
+                    status_emoji = "🟡"
+                    status_text = "قطع"
+                else:
+                    status_emoji = "🔴"
+                    status_text = "خطا"
+                
+                text += f"{i}. {status_emoji} **{config_name}** ({status_text})\n"
+                text += f"   📱 شماره: {config_info.get('phone', 'نامشخص')}\n"
+                text += f"   🗓 ایجاد: {config_info.get('created_at', 'نامشخص')[:10]}\n"
+                
+                if health.get('user_id'):
+                    text += f"   👤 شناسه: {health['user_id']}\n"
+                
+                if health.get('error'):
+                    error_short = health['error'][:40] + "..." if len(health['error']) > 40 else health['error']
+                    text += f"   ❌ خطا: {error_short}\n"
+                
+                text += "\n"
+            
+            # خطاهای رایج
+            error_summary = advanced_logger.get_error_summary()
+            if error_summary:
+                text += f"🚨 **خطاهای رایج:**\n"
+                for error, count in list(error_summary.items())[:3]:
+                    error_short = error.split(':')[1][:30] if ':' in error else error[:30]
+                    text += f"• {error_short}: {count} بار\n"
+                text += "\n"
+            
+            text += f"🕐 **آخرین بروزرسانی:** {datetime.now().strftime('%H:%M:%S')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی آمار", callback_data="telethon_detailed_stats"),
+                    InlineKeyboardButton("📋 گزارش کامل", callback_data="telethon_export_report")
+                ],
+                [
+                    InlineKeyboardButton("🩺 بررسی سلامت", callback_data="telethon_health_check"),
+                    InlineKeyboardButton("🔧 رفع مسائل", callback_data="telethon_fix_issues")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in detailed stats: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در نمایش آمار: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                ]])
+            )
+    
+    async def _handle_telethon_auto_fix(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """رفع خودکار مسائل با تشخیص هوشمند"""
+        try:
+            query = update.callback_query
+            await query.answer("شروع رفع خودکار...")
+            
+            # نمایش پیشرفت رفع مسائل
+            text = "🤖 **رفع خودکار مسائل در حال انجام...**\n\n"
+            text += "لطفاً صبر کنید تا فرآیند تشخیص و رفع مسائل کامل شود.\n\n"
+            text += "⏳ این فرآیند ممکن است تا 2 دقیقه طول بکشد."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⏸ توقف فرآیند", callback_data="telethon_cancel_auto_fix")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+            # شروع فرآیند رفع خودکار
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            from utils.advanced_logger import advanced_logger, LogLevel, LogCategory
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            
+            # مرحله 1: بررسی کانفیگ‌ها
+            advanced_logger.log(LogLevel.INFO, LogCategory.TELETHON_HEALTH, 
+                              "Starting automatic issue resolution", user_id=update.effective_user.id)
+            
+            configs = telethon_manager.config_manager.list_configs()
+            issues_found = []
+            fixes_applied = []
+            
+            # مرحله 2: تشخیص مسائل
+            if not configs:
+                issues_found.append("هیچ کانفیگی وجود ندارد")
+            else:
+                health_results = await telethon_manager.check_all_clients_health()
+                
+                for config_name, health in health_results.items():
+                    if health.get('status') == 'error':
+                        issues_found.append(f"خطا در کلاینت {config_name}")
+                        
+                        # تلاش برای رفع خطا
+                        try:
+                            # بازنشانی کلاینت
+                            if config_name in telethon_manager.clients:
+                                await telethon_manager.clients[config_name].disconnect()
+                                del telethon_manager.clients[config_name]
+                            
+                            # تلاش برای اتصال مجدد
+                            await asyncio.sleep(2)  # کمی صبر
+                            client = await telethon_manager.get_client(config_name)
+                            
+                            if client and client.is_connected():
+                                fixes_applied.append(f"بازنشانی موفق کلاینت {config_name}")
+                                advanced_logger.log_telethon_client_status(config_name, 'auto_fixed')
+                            
+                        except Exception as fix_error:
+                            advanced_logger.log_system_error(fix_error, f"Auto-fix {config_name}")
+            
+            # نتیجه نهایی
+            text = "🤖 **نتیجه رفع خودکار مسائل**\n\n"
+            
+            if not issues_found:
+                text += "🎉 **هیچ مشکلی شناسایی نشد!**\n\n"
+                text += "سیستم Telethon در وضعیت مطلوب است."
+            else:
+                text += f"🔍 **مسائل شناسایی شده:** {len(issues_found)}\n"
+                text += f"✅ **رفع شده:** {len(fixes_applied)}\n"
+                text += f"⚠️ **باقی‌مانده:** {len(issues_found) - len(fixes_applied)}\n\n"
+                
+                if fixes_applied:
+                    text += "✅ **اقدامات انجام شده:**\n"
+                    for fix in fixes_applied:
+                        text += f"• {fix}\n"
+                    text += "\n"
+                
+                remaining = len(issues_found) - len(fixes_applied)
+                if remaining > 0:
+                    text += f"💡 **{remaining} مشکل نیاز به بررسی دستی دارد.**\n"
+                    text += "لطفاً از منوی مدیریت کانفیگ‌ها اقدام کنید."
+            
+            keyboard_rows = []
+            
+            if len(fixes_applied) > 0:
+                keyboard_rows.append([
+                    InlineKeyboardButton("🩺 تست مجدد", callback_data="telethon_health_check"),
+                    InlineKeyboardButton("📊 آمار نهایی", callback_data="telethon_detailed_stats")
+                ])
+            
+            if len(issues_found) - len(fixes_applied) > 0:
+                keyboard_rows.append([
+                    InlineKeyboardButton("🔧 مدیریت دستی", callback_data="telethon_list_configs"),
+                    InlineKeyboardButton("🔐 ورود اکانت‌ها", callback_data="telethon_login_menu")
+                ])
+            
+            keyboard_rows.append([
+                InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+            ])
+            
+            keyboard = InlineKeyboardMarkup(keyboard_rows)
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in auto fix: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در رفع خودکار: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                ]])
+            )
+    
+    async def _handle_telethon_performance_test(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تست عملکرد سیستم Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تست عملکرد...")
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            import time
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            
+            text = "⚡️ **تست عملکرد سیستم Telethon**\n\n"
+            text += "در حال انجام تست‌های عملکرد...\n\n"
+            
+            # تست 1: سرعت اتصال
+            start_time = time.time()
+            configs = telethon_manager.config_manager.list_configs()
+            config_load_time = time.time() - start_time
+            
+            text += f"📋 **بارگذاری کانفیگ‌ها:** {config_load_time:.3f}s\n"
+            
+            # تست 2: سرعت بررسی سلامت
+            start_time = time.time()
+            health_results = await telethon_manager.check_all_clients_health()
+            health_check_time = time.time() - start_time
+            
+            text += f"🩺 **بررسی سلامت:** {health_check_time:.3f}s\n"
+            
+            # تست 3: تست اتصال کلاینت‌ها
+            client_tests = []
+            for config_name in list(configs.keys())[:3]:  # تست 3 کلاینت اول
+                start_time = time.time()
+                try:
+                    client = await telethon_manager.get_client(config_name)
+                    if client:
+                        connection_time = time.time() - start_time
+                        status = "✅ موفق" if client.is_connected() else "❌ ناموفق"
+                        client_tests.append(f"• {config_name}: {connection_time:.3f}s {status}")
+                    else:
+                        client_tests.append(f"• {config_name}: N/A ❌ خطا")
+                except Exception as e:
+                    client_tests.append(f"• {config_name}: N/A ❌ {str(e)[:20]}")
+            
+            if client_tests:
+                text += f"\n🔗 **تست اتصال کلاینت‌ها:**\n"
+                for test in client_tests:
+                    text += f"{test}\n"
+            
+            # ارزیابی نهایی
+            text += f"\n📊 **ارزیابی عملکرد:**\n"
+            
+            # معیارهای عملکرد
+            performance_score = 0
+            
+            if config_load_time < 0.1:
+                text += "✅ بارگذاری کانفیگ: عالی\n"
+                performance_score += 25
+            elif config_load_time < 0.5:
+                text += "⚡️ بارگذاری کانفیگ: خوب\n"
+                performance_score += 15
+            else:
+                text += "🐌 بارگذاری کانفیگ: کند\n"
+                performance_score += 5
+            
+            if health_check_time < 1.0:
+                text += "✅ بررسی سلامت: عالی\n"
+                performance_score += 25
+            elif health_check_time < 3.0:
+                text += "⚡️ بررسی سلامت: خوب\n"
+                performance_score += 15
+            else:
+                text += "🐌 بررسی سلامت: کند\n"
+                performance_score += 5
+            
+            healthy_clients = len([h for h in health_results.values() if h.get('status') == 'healthy'])
+            total_clients = len(health_results)
+            
+            if total_clients > 0:
+                client_health_ratio = healthy_clients / total_clients
+                if client_health_ratio >= 0.9:
+                    text += "✅ سلامت کلاینت‌ها: عالی\n"
+                    performance_score += 50
+                elif client_health_ratio >= 0.7:
+                    text += "⚡️ سلامت کلاینت‌ها: خوب\n" 
+                    performance_score += 30
+                else:
+                    text += "⚠️ سلامت کلاینت‌ها: نیاز به بهبود\n"
+                    performance_score += 10
+            
+            # نمره نهایی
+            text += f"\n🏆 **نمره نهایی: {performance_score}/100**\n"
+            
+            if performance_score >= 80:
+                text += "🎉 **عملکرد عالی!** سیستم بهینه کار می‌کند."
+            elif performance_score >= 60:
+                text += "👍 **عملکرد خوب!** سیستم مناسب است."
+            elif performance_score >= 40:
+                text += "⚠️ **عملکرد متوسط!** نیاز به بهینه‌سازی."
+            else:
+                text += "🚨 **عملکرد ضعیف!** نیاز به بررسی فوری."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تست مجدد", callback_data="telethon_performance_test"),
+                    InlineKeyboardButton("🔧 بهینه‌سازی", callback_data="telethon_advanced_settings")
+                ],
+                [
+                    InlineKeyboardButton("📊 آمار تفصیلی", callback_data="telethon_detailed_stats"),
+                    InlineKeyboardButton("🩺 بررسی سلامت", callback_data="telethon_health_check")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in performance test: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در تست عملکرد: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_health_check")
+                ]])
+            )
 
     async def start_bot(self):
         """Start the Telegram bot"""

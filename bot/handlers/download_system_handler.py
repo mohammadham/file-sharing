@@ -9,6 +9,7 @@ import aiohttp
 import asyncio
 import json
 import logging
+from typing import Dict, Any
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from datetime import datetime
@@ -156,6 +157,9 @@ class DownloadSystemHandler(BaseHandler):
             
             # بررسی وضعیت سیستم دانلود
             system_status = await self.get_system_status()
+            telethon_status = await self._check_telethon_status()
+            
+            # اگر سیستم دانلود در دسترس نیست
             if not system_status.get('ready', False):
                 await self._show_api_error_with_retry(
                     query, 
@@ -176,6 +180,13 @@ class DownloadSystemHandler(BaseHandler):
             
             result = await self.create_download_link_via_api(link_data)
             
+            # بررسی وضعیت Telethon برای نمایش هشدار در صورت لزوم
+            telethon_warning = ""
+            if not telethon_status.get('active', False):
+                telethon_warning = f"\n⚠️ **هشدار سیستم Telethon:**\n"
+                telethon_warning += f"🔴 {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
+                telethon_warning += f"💡 برای عملکرد بهتر، لطفاً وارد اکانت Telethon شوید.\n\n"
+            
             if result.get('success'):
                 text = f"🌊 **لینک دانلود استریم ایجاد شد**\n\n"
                 text += f"🔗 **کد لینک:** `{result['link_code']}`\n"
@@ -187,6 +198,7 @@ class DownloadSystemHandler(BaseHandler):
                 text += "• پشتیبانی فایل‌های بزرگ\n"
                 text += "• سرعت بالا\n"
                 text += "• مصرف کم منابع سرور"
+                text += telethon_warning
                 
                 keyboard = InlineKeyboardMarkup([
                     [
@@ -229,6 +241,8 @@ class DownloadSystemHandler(BaseHandler):
             
             # بررسی وضعیت سیستم دانلود
             system_status = await self.get_system_status()
+            telethon_status = await self._check_telethon_status()
+            
             if not system_status.get('ready', False):
                 await self._show_api_error_with_retry(
                     query, 
@@ -249,6 +263,13 @@ class DownloadSystemHandler(BaseHandler):
             
             result = await self.create_download_link_via_api(link_data)
             
+            # بررسی وضعیت Telethon برای نمایش هشدار در صورت لزوم
+            telethon_warning = ""
+            if not telethon_status.get('active', False):
+                telethon_warning = f"\n⚠️ **هشدار سیستم Telethon:**\n"
+                telethon_warning += f"🔴 {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
+                telethon_warning += f"💡 برای عملکرد بهتر، لطفاً وارد اکانت Telethon شوید.\n\n"
+            
             if result.get('success'):
                 text = f"⚡️ **لینک دانلود سریع ایجاد شد**\n\n"
                 text += f"🔗 **کد لینک:** `{result['link_code']}`\n"
@@ -260,6 +281,7 @@ class DownloadSystemHandler(BaseHandler):
                 text += "• دانلودهای بعدی فوری\n"
                 text += "• بهینه برای فایل‌های پرتکرار\n"
                 text += "• کاهش بار روی سرور تلگرام"
+                text += telethon_warning
                 
                 keyboard = InlineKeyboardMarkup([
                     [
@@ -697,6 +719,9 @@ class DownloadSystemHandler(BaseHandler):
             file_id = int(query.data.split('_')[3])
             user_id = update.effective_user.id
             
+            # بررسی وضعیت Telethon
+            telethon_status = await self._check_telethon_status()
+            
             # دریافت داده‌های session
             session = await self.db.get_user_session(user_id)
             temp_data = json.loads(session.get('temp_data', '{}'))
@@ -714,6 +739,13 @@ class DownloadSystemHandler(BaseHandler):
             }
             
             result = await self.create_download_link_via_api(link_data)
+            
+            # بررسی وضعیت Telethon برای نمایش هشدار در صورت لزوم
+            telethon_warning = ""
+            if not telethon_status.get('active', False):
+                telethon_warning = f"\n⚠️ **هشدار سیستم Telethon:**\n"
+                telethon_warning += f"🔴 {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
+                telethon_warning += f"💡 برای عملکرد بهتر، لطفاً وارد اکانت Telethon شوید.\n\n"
             
             # پاکسازی session
             await self.db.update_user_session(
@@ -737,6 +769,7 @@ class DownloadSystemHandler(BaseHandler):
                 text += f"• کنترل زمان انقضا\n"
                 text += f"• آمار تفصیلی\n"
                 text += f"• امکان غیرفعال‌سازی"
+                text += telethon_warning
                 
                 keyboard = InlineKeyboardMarkup([
                     [
@@ -1310,29 +1343,40 @@ class DownloadSystemHandler(BaseHandler):
             logger.error(f"Error getting download statistics: {e}")
             return {'success': False, 'error': str(e)}
     
-    async def _check_telethon_status(self) -> dict:
+    async def _check_telethon_status(self) -> Dict[str, Any]:
         """بررسی وضعیت سیستم Telethon"""
         try:
-            # Import here to avoid circular imports
-            from handlers.telethon_health_handler import TelethonHealthHandler
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
             
-            telethon_health_handler = TelethonHealthHandler(self.db)
-            status = await telethon_health_handler.emergency_status_check()
+            telethon_manager = AdvancedTelethonClientManager()
+            configs = telethon_manager.config_manager.list_configs()
+            
+            if not configs:
+                return {
+                    'active': False,
+                    'has_active_clients': False,
+                    'error': 'هیچ کانفیگ Telethon یافت نشد',
+                    'healthy_clients': 0,
+                    'total_clients': 0
+                }
+            
+            health_results = await telethon_manager.check_all_clients_health()
+            healthy_clients = len([h for h in health_results.values() if h.get('status') == 'healthy'])
+            total_clients = len(health_results)
             
             return {
-                'has_active_clients': status.get('has_active_clients', False),
-                'total_clients': status.get('total_clients', 0),
-                'healthy_clients': status.get('healthy_clients', 0),
-                'system_ready': status.get('system_ready', False),
-                'error': status.get('error')
+                'active': healthy_clients > 0,
+                'has_active_clients': healthy_clients > 0,
+                'healthy_clients': healthy_clients,
+                'total_clients': total_clients,
+                'error': None if healthy_clients > 0 else 'هیچ کلاینت فعالی وجود ندارد'
             }
             
         except Exception as e:
-            logger.error(f"Error checking Telethon status: {e}")
             return {
+                'active': False,
                 'has_active_clients': False,
-                'total_clients': 0,
+                'error': f'خطا در بررسی Telethon: {str(e)}',
                 'healthy_clients': 0,
-                'system_ready': False,
-                'error': str(e)
+                'total_clients': 0
             }
