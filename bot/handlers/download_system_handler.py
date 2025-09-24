@@ -89,17 +89,27 @@ class DownloadSystemHandler(BaseHandler):
                 await query.edit_message_text("فایل یافت نشد!")
                 return
             
-            from utils.helpers import format_file_size
+            # Check Telethon system status
+            telethon_status = await self._check_telethon_status()
             
-            from utils.helpers import escape_filename_for_markdown
+            from utils.helpers import format_file_size, escape_filename_for_markdown
             
             text = f"🔗 **مدیریت لینک‌های دانلود پیشرفته**\n\n"
             text += f"📄 **فایل:** {escape_filename_for_markdown(file.file_name)}\n"
             text += f"💾 **حجم:** {format_file_size(file.file_size)}\n"
             text += f"🏷 **نوع:** {file.file_type}\n\n"
-            text += "انتخاب کنید:"
             
-            keyboard = InlineKeyboardMarkup([
+            # Show Telethon status
+            if telethon_status['has_active_clients']:
+                text += f"🟢 **سیستم Telethon:** فعال ({telethon_status['healthy_clients']} کلاینت)\n\n"
+                text += "انتخاب کنید:"
+            else:
+                text += f"🔴 **سیستم Telethon:** غیرفعال\n"
+                text += f"⚠️ **هشدار:** لینک‌ها ایجاد می‌شوند اما ممکن است کار نکنند\n\n"
+                text += "💡 **برای عملکرد بهتر، ابتدا Telethon را فعال کنید**\n\n"
+                text += "انتخاب کنید:"
+            
+            keyboard_rows = [
                 [
                     InlineKeyboardButton("🌊 لینک دانلود استریم", 
                                        callback_data=f"create_stream_link_{file_id}"),
@@ -113,12 +123,22 @@ class DownloadSystemHandler(BaseHandler):
                 [
                     InlineKeyboardButton("📋 مشاهده لینک‌های موجود", 
                                        callback_data=f"view_file_links_{file_id}")
-                ],
-                [
-                    InlineKeyboardButton("🔙 بازگشت", 
-                                       callback_data=f"file_{file_id}")
                 ]
+            ]
+            
+            # Add Telethon management button if system is not ready
+            if not telethon_status['has_active_clients']:
+                keyboard_rows.append([
+                    InlineKeyboardButton("🔧 مدیریت Telethon", 
+                                       callback_data="telethon_management")
+                ])
+            
+            keyboard_rows.append([
+                InlineKeyboardButton("🔙 بازگشت", 
+                                   callback_data=f"file_{file_id}")
             ])
+            
+            keyboard = InlineKeyboardMarkup(keyboard_rows)
             
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
@@ -1289,3 +1309,30 @@ class DownloadSystemHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error getting download statistics: {e}")
             return {'success': False, 'error': str(e)}
+    
+    async def _check_telethon_status(self) -> dict:
+        """بررسی وضعیت سیستم Telethon"""
+        try:
+            # Import here to avoid circular imports
+            from handlers.telethon_health_handler import TelethonHealthHandler
+            
+            telethon_health_handler = TelethonHealthHandler(self.db)
+            status = await telethon_health_handler.emergency_status_check()
+            
+            return {
+                'has_active_clients': status.get('has_active_clients', False),
+                'total_clients': status.get('total_clients', 0),
+                'healthy_clients': status.get('healthy_clients', 0),
+                'system_ready': status.get('system_ready', False),
+                'error': status.get('error')
+            }
+            
+        except Exception as e:
+            logger.error(f"Error checking Telethon status: {e}")
+            return {
+                'has_active_clients': False,
+                'total_clients': 0,
+                'healthy_clients': 0,
+                'system_ready': False,
+                'error': str(e)
+            }

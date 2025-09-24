@@ -63,6 +63,22 @@ class BotMessageHandler(BaseHandler):
             elif session.action_state == 'searching':
                 await self.search_handler.process_search_query(update, context)
             
+            # Telethon configuration states
+            elif session.action_state == 'telethon_entering_phone':
+                from handlers.telethon_login_handler import TelethonLoginHandler
+                telethon_login_handler = TelethonLoginHandler(self.db)
+                await telethon_login_handler.handle_phone_input(update, context)
+            
+            elif session.action_state == 'telethon_entering_code':
+                from handlers.telethon_login_handler import TelethonLoginHandler
+                telethon_login_handler = TelethonLoginHandler(self.db)
+                await telethon_login_handler.handle_verification_code(update, context)
+            
+            elif session.action_state == 'telethon_entering_password':
+                from handlers.telethon_login_handler import TelethonLoginHandler
+                telethon_login_handler = TelethonLoginHandler(self.db)
+                await telethon_login_handler.handle_password_input(update, context)
+            
             else:
                 # Default state - show help or main menu
                 await self.show_help(update, context)
@@ -90,6 +106,13 @@ class BotMessageHandler(BaseHandler):
                 from handlers.category_edit_handler import CategoryEditHandler
                 category_edit_handler = CategoryEditHandler(self.db)
                 await category_edit_handler.process_thumbnail_upload(update, context)
+            
+            # Telethon config file upload
+            elif session.action_state == 'uploading_telethon_config':
+                from handlers.telethon_config_handler import TelethonConfigHandler
+                telethon_config_handler = TelethonConfigHandler(self.db)
+                await telethon_config_handler.handle_config_file_upload(update, context)
+            
             elif session.current_category and session.current_category > 0:
                 # If user has a valid current category, allow upload even in other states
                 logger.info(f"Allowing file upload in category {session.current_category} for state {session.action_state}")

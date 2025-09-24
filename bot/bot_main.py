@@ -74,6 +74,15 @@ class TelegramFileBot:
             admin_token="uVsXgmICyxa0mhPshBJZ1XtYpFFt-p5rLrdMvZnhv4c"
         )
         
+        # Initialize Telethon management handlers
+        from handlers.telethon_config_handler import TelethonConfigHandler
+        from handlers.telethon_login_handler import TelethonLoginHandler
+        from handlers.telethon_health_handler import TelethonHealthHandler
+        
+        self.telethon_config_handler = TelethonConfigHandler(self.db)
+        self.telethon_login_handler = TelethonLoginHandler(self.db)
+        self.telethon_health_handler = TelethonHealthHandler(self.db)
+        
         # Initialize actions
         self.stats_action = StatsAction(self.db)
         self.backup_action = BackupAction(self.db)
@@ -268,8 +277,53 @@ class TelegramFileBot:
                 await self.download_system_handler.handle_download_stats(update, context)
             elif callback_data == 'retry_api_connection':
                 await self.download_system_handler.handle_api_settings(update, context)
+            elif callback_data == 'telethon_management':
+                # Navigate to Telethon management
+                from handlers.telethon_config_handler import TelethonConfigHandler
+                telethon_handler = TelethonConfigHandler(self.db)
+                await telethon_handler.show_telethon_management_menu(update, context)
             elif callback_data == 'test_api_connection':
                 await self._handle_test_api_connection(update, context)
+            
+            # Telethon Management Operations
+            elif callback_data == 'telethon_management_menu':
+                await self.telethon_config_handler.show_telethon_management_menu(update, context)
+            elif callback_data == 'telethon_list_configs':
+                await self.telethon_config_handler.show_config_list(update, context)
+            elif callback_data == 'telethon_add_config':
+                await self.telethon_config_handler.show_add_config_menu(update, context)
+            elif callback_data == 'telethon_show_json_example':
+                await self.telethon_config_handler.show_json_example(update, context)
+            elif callback_data == 'telethon_upload_json':
+                await self.telethon_config_handler.start_json_upload(update, context)
+            elif callback_data.startswith('telethon_manage_config_'):
+                # TODO: Implement config management
+                await update.callback_query.answer("در حال توسعه...")
+            elif callback_data.startswith('telethon_delete_config_'):
+                # TODO: Implement config deletion
+                await update.callback_query.answer("در حال توسعه...")
+            
+            # Telethon Login Operations
+            elif callback_data == 'telethon_login_menu':
+                await self.telethon_login_handler.show_login_menu(update, context)
+            elif callback_data.startswith('telethon_start_login_'):
+                await self.telethon_login_handler.start_login_process(update, context)
+            elif callback_data.startswith('telethon_login_phone_'):
+                # Extract config_name and phone from callback data
+                parts = callback_data.split('_')[3:]
+                config_name = parts[0]
+                phone = '_'.join(parts[1:])
+                await self.telethon_login_handler.send_verification_code(update, context, config_name, phone)
+            elif callback_data.startswith('telethon_test_session_'):
+                await self.telethon_login_handler.test_session(update, context)
+            
+            # Telethon Health Check Operations
+            elif callback_data == 'telethon_health_check':
+                await self.telethon_health_handler.show_health_check(update, context)
+            elif callback_data == 'telethon_diagnose_issues':
+                await self.telethon_health_handler.show_detailed_diagnostics(update, context)
+            elif callback_data == 'telethon_system_status':
+                await self.telethon_health_handler.show_system_status(update, context)
             
             # NEW: Handle download all operations
             elif callback_data.startswith('download_all_category_'):

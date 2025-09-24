@@ -24,45 +24,9 @@ from core.models import (
     CacheEntry
 )
 from core.database import DatabaseManager
+from core.telethon_manager import AdvancedTelethonClientManager
 
 logger = logging.getLogger(__name__)
-
-
-class TelethonClientManager:
-    """Manage Telethon clients for download operations"""
-    
-    def __init__(self):
-        self.clients: Dict[str, TelegramClient] = {}
-        self.api_id = settings.TELETHON_API_ID
-        self.api_hash = settings.TELETHON_API_HASH
-        self.session_dir = Path(settings.TELETHON_SESSION_DIR)
-        self.session_dir.mkdir(parents=True, exist_ok=True)
-    
-    async def get_client(self, session_name: str = "download_client") -> TelegramClient:
-        """Get or create Telethon client"""
-        if session_name not in self.clients:
-            session_path = self.session_dir / f"{session_name}.session"
-            
-            client = TelegramClient(
-                str(session_path),
-                self.api_id,
-                self.api_hash,
-                device_model="Download System",
-                system_version="1.0",
-                app_version="1.0.0"
-            )
-            
-            await client.start()
-            self.clients[session_name] = client
-            logger.info(f"Telethon client '{session_name}' initialized")
-        
-        return self.clients[session_name]
-    
-    async def disconnect_all(self):
-        """Disconnect all clients"""
-        for client in self.clients.values():
-            await client.disconnect()
-        self.clients.clear()
 
 
 class CacheManager:
@@ -177,7 +141,7 @@ class DownloadManager:
     
     def __init__(self, database: DatabaseManager):
         self.db = database
-        self.telethon_manager = TelethonClientManager()
+        self.telethon_manager = AdvancedTelethonClientManager()
         self.cache_manager = CacheManager(database)
         self.active_downloads: Dict[str, DownloadSession] = {}
     
@@ -315,8 +279,15 @@ class DownloadManager:
         chunk_size = chunk_size or settings.CHUNK_SIZE
         
         try:
-            # Get Telethon client
-            client = await self.telethon_manager.get_client()
+            # Get best available Telethon client
+            client = self.telethon_manager.get_best_available_client()
+            
+            if not client:
+                # Try to get any available client
+                client = await self.telethon_manager.get_client("default")
+                
+                if not client:
+                    raise Exception("No active Telethon clients available. Please configure and login to a Telethon client.")
             
             # Get file from storage channel
             channel_id = settings.STORAGE_CHANNEL_ID
