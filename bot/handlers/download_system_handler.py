@@ -16,6 +16,7 @@ from datetime import datetime
 
 from handlers.base_handler import BaseHandler
 from utils.keyboard_builder import KeyboardBuilder
+from utils.telethon_fallback_manager import telethon_fallback_manager
 
 logger = logging.getLogger(__name__)
 

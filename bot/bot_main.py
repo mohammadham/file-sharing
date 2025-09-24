@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Add bot directory to path
@@ -279,8 +280,18 @@ class TelegramFileBot:
                 await self.download_system_handler.system_cleanup(update, context)
             elif callback_data == 'system_settings':
                 await self.download_system_handler.handle_system_settings(update, context)
+            elif callback_data == 'speed_settings':
+                await self._handle_speed_settings(update, context)
+            elif callback_data.startswith('set_speed_'):
+                await self._handle_set_speed(update, context)
             elif callback_data == 'token_management':
                 await self.download_system_handler.handle_token_management(update, context)
+            elif callback_data == 'generate_new_token':
+                await self._handle_generate_new_token(update, context)
+            elif callback_data == 'view_all_tokens':
+                await self._handle_view_all_tokens(update, context)
+            elif callback_data.startswith('confirm_new_token_'):
+                await self._handle_confirm_new_token(update, context)
             elif callback_data == 'api_settings':
                 await self.download_system_handler.handle_api_settings(update, context)
             elif callback_data == 'download_stats':
@@ -294,6 +305,8 @@ class TelegramFileBot:
                 await telethon_handler.show_telethon_management_menu(update, context)
             elif callback_data == 'test_api_connection':
                 await self._handle_test_api_connection(update, context)
+            elif callback_data == 'api_statistics':
+                await self._handle_api_statistics(update, context)
             
             # Telethon Management Operations
             elif callback_data == 'telethon_management_menu':
@@ -2316,34 +2329,57 @@ class TelegramFileBot:
             )
     
     async def _handle_test_api_connection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle API connection test"""
+        """تست اتصال API"""
         try:
             query = update.callback_query
             await query.answer("در حال تست اتصال...")
             
-            # Test download system API connection
-            result = await self.download_system_handler.get_system_status()
+            # تست اتصال به سیستم دانلود
+            system_status = await self.download_system_handler.get_system_status()
+            telethon_status = await self.download_system_handler._check_telethon_status()
             
-            if result.get('ready', False):
-                text = "✅ **تست اتصال موفق**\n\n"
-                text += f"🌐 سرور: در دسترس\n"
-                text += f"📊 وضعیت: {result.get('status', 'نامشخص')}\n"
-                text += f"🔄 نسخه: {result.get('version', 'نامشخص')}\n"
-                text += f"⚡️ پینگ: عادی\n\n"
-                text += "🎉 سیستم آماده استفاده است!"
+            text = "🔍 **نتایج تست اتصال API**\n\n"
+            
+            # تست API سیستم دانلود
+            if system_status.get('ready', False):
+                text += "✅ **API سیستم دانلود:** متصل\n"
+                text += f"   📡 نسخه: {system_status.get('version', 'نامشخص')}\n"
+                text += f"   ⚡️ پاسخ: {system_status.get('ping', 'نامشخص')} ms\n"
             else:
-                text = "❌ **تست اتصال ناموفق**\n\n"
-                text += f"🚫 خطا: {result.get('error', 'نامشخص')}\n"
-                text += f"🔍 علت: عدم دسترسی به API\n\n"
-                text += "💡 **راهکارها:**\n"
-                text += "• بررسی اتصال اینترنت\n"
-                text += "• راه‌اندازی سرور دانلود\n"
-                text += "• تأیید تنظیمات API"
+                text += "❌ **API سیستم دانلود:** قطع\n"
+                text += f"   🔍 خطا: {system_status.get('error', 'نامشخص')}\n"
+            
+            text += "\n"
+            
+            # تست سیستم Telethon
+            if telethon_status.get('active', False):
+                text += f"✅ **سیستم Telethon:** فعال\n"
+                text += f"   👥 کلاینت‌های سالم: {telethon_status['healthy_clients']}/{telethon_status['total_clients']}\n"
+            else:
+                text += "❌ **سیستم Telethon:** غیرفعال\n"
+                text += f"   ⚠️ مسئله: {telethon_status.get('error', 'نامشخص')}\n"
+            
+            text += "\n"
+            
+            # خلاصه وضعیت
+            if system_status.get('ready', False) and telethon_status.get('active', False):
+                text += "🎉 **خلاصه:** تمام سیستم‌ها عملکرد مطلوب\n"
+                text += "✅ آماده دریافت درخواست دانلود"
+            elif system_status.get('ready', False):
+                text += "⚠️ **خلاصه:** API فعال، Telethon نیاز به بررسی\n"
+                text += "📥 دانلود محدود امکان‌پذیر است"
+            else:
+                text += "❌ **خلاصه:** سیستم نیاز به بررسی دارد\n"
+                text += "🔧 لطفاً تنظیمات را بررسی کنید"
             
             keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🔄 تست مجدد", callback_data="test_api_connection"),
-                    InlineKeyboardButton("⚙️ تنظیمات", callback_data="api_settings")
+                    InlineKeyboardButton("📊 آمار تفصیلی", callback_data="api_statistics")
+                ],
+                [
+                    InlineKeyboardButton("🔧 تنظیمات API", callback_data="api_settings"),
+                    InlineKeyboardButton("🩺 تشخیص مشکل", callback_data="diagnose_api_issue")
                 ],
                 [
                     InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
@@ -2353,12 +2389,79 @@ class TelegramFileBot:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
-            logger.error(f"Error in test API connection: {e}")
+            logger.error(f"Error testing API connection: {e}")
             await query.edit_message_text(
-                f"❌ خطا در تست اتصال: {str(e)}",
+                f"❌ **خطا در تست API**\n\nعلت: {str(e)}\n\nلطفاً دوباره تلاش کنید.",
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
-                ]])
+                ]]),
+                parse_mode='Markdown'
+            )
+
+    async def _handle_api_statistics(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش آمار API"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # دریافت آمار از API
+            metrics = await self.download_system_handler.get_real_time_metrics()
+            system_status = await self.download_system_handler.get_system_status()
+            
+            text = "📊 **آمار تفصیلی API**\n\n"
+            
+            # آمار درخواست‌ها
+            text += "🌐 **درخواست‌های API:**\n"
+            text += f"• فعال: {metrics.get('active_requests', 0)}\n"
+            text += f"• امروز: {metrics.get('daily_requests', 0):,}\n"
+            text += f"• موفق: {metrics.get('successful_requests', 0):,}\n"
+            text += f"• خطا: {metrics.get('failed_requests', 0):,}\n"
+            
+            # محاسبه نرخ موفقیت
+            total_reqs = metrics.get('successful_requests', 0) + metrics.get('failed_requests', 0)
+            success_rate = (metrics.get('successful_requests', 0) / total_reqs * 100) if total_reqs > 0 else 100
+            text += f"• نرخ موفقیت: {success_rate:.1f}%\n\n"
+            
+            # آمار عملکرد
+            text += "⚡️ **عملکرد:**\n"
+            text += f"• زمان پاسخ میانگین: {metrics.get('avg_response_time', 0):.2f} ثانیه\n"
+            text += f"• سرعت پردازش: {metrics.get('processing_speed', 0):.1f} req/s\n"
+            text += f"• استفاده از حافظه: {metrics.get('memory_usage', '0%')}\n"
+            text += f"• استفاده از CPU: {metrics.get('cpu_usage', '0%')}\n\n"
+            
+            # آمار دانلود
+            text += "📥 **دانلودها:**\n"
+            text += f"• فعال: {metrics.get('active_downloads', 0)}\n"
+            text += f"• کامل شده امروز: {metrics.get('completed_downloads', 0)}\n"
+            text += f"• حجم منتقل شده: {metrics.get('bytes_transferred', '0 MB')}\n"
+            text += f"• سرعت میانگین: {metrics.get('avg_download_speed', 0):.1f} MB/s\n\n"
+            
+            text += f"🕐 **آخرین بروزرسانی:** {datetime.now().strftime('%H:%M:%S')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="api_statistics"),
+                    InlineKeyboardButton("📈 نمودار", callback_data="api_charts")
+                ],
+                [
+                    InlineKeyboardButton("📋 گزارش کامل", callback_data="export_api_stats"),
+                    InlineKeyboardButton("⚙️ تنظیمات", callback_data="api_performance_settings")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error showing API statistics: {e}")
+            await query.edit_message_text(
+                f"❌ **خطا در دریافت آمار**\n\nعلت: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]]),
+                parse_mode='Markdown'
             )
     
     # _handle_telethon_confirm_delete method is implemented below
@@ -3099,6 +3202,144 @@ class TelegramFileBot:
                 ]])
             )
     
+    async def _handle_confirm_clear_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید پاک کردن لاگ‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال پاک کردن لاگ‌ها...")
+            
+            from utils.advanced_logger import advanced_logger, LogLevel, LogCategory
+            import os
+            from pathlib import Path
+            
+            # پاک کردن فایل‌های لاگ
+            log_files_cleared = 0
+            errors = []
+            
+            try:
+                # پاک کردن لاگ‌های حافظه
+                advanced_logger.recent_logs.clear()
+                advanced_logger.error_counts.clear()
+                
+                # پاک کردن فایل‌های لاگ فیزیکی
+                log_dir = Path("/app/bot/logs")
+                if log_dir.exists():
+                    for log_file in log_dir.glob("*.log"):
+                        try:
+                            # پاک کردن محتوای فایل به جای حذف کامل
+                            with open(log_file, 'w', encoding='utf-8') as f:
+                                f.write(f"# Log file cleared at {datetime.now().isoformat()}\n")
+                            log_files_cleared += 1
+                        except Exception as e:
+                            errors.append(f"خطا در پاک کردن {log_file.name}: {str(e)[:30]}")
+                
+                text = "✅ **لاگ‌ها با موفقیت پاک شدند**\n\n"
+                text += f"🗑 فایل‌های پاک شده: {log_files_cleared}\n"
+                text += f"📝 حافظه موقت: پاک شد\n"
+                text += f"📊 آمار خطاها: بازنشانی شد\n"
+                
+                if errors:
+                    text += f"\n⚠️ **خطاها ({len(errors)}):**\n"
+                    for error in errors[:3]:
+                        text += f"• {error}\n"
+                
+                text += f"\n🕐 زمان پاک‌سازی: {datetime.now().strftime('%H:%M:%S')}"
+                
+            except Exception as e:
+                text = f"❌ **خطا در پاک کردن لاگ‌ها**\n\n"
+                text += f"علت: {str(e)}\n\n"
+                text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 مشاهده وضعیت جدید", callback_data="telethon_view_logs"),
+                    InlineKeyboardButton("📊 بررسی سیستم", callback_data="telethon_system_status")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error confirming clear logs: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در پاک کردن لاگ‌ها: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_view_logs")
+                ]])
+            )
+
+    async def _handle_confirm_clear_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید پاک کردن لاگ‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال پاک کردن لاگ‌ها...")
+            
+            from utils.advanced_logger import advanced_logger, LogLevel, LogCategory
+            import os
+            from pathlib import Path
+            
+            # پاک کردن فایل‌های لاگ
+            log_files_cleared = 0
+            errors = []
+            
+            try:
+                # پاک کردن لاگ‌های حافظه
+                advanced_logger.recent_logs.clear()
+                advanced_logger.error_counts.clear()
+                
+                # پاک کردن فایل‌های لاگ فیزیکی
+                log_dir = Path("/app/bot/logs")
+                if log_dir.exists():
+                    for log_file in log_dir.glob("*.log"):
+                        try:
+                            # پاک کردن محتوای فایل به جای حذف کامل
+                            with open(log_file, 'w', encoding='utf-8') as f:
+                                f.write(f"# Log file cleared at {datetime.now().isoformat()}\n")
+                            log_files_cleared += 1
+                        except Exception as e:
+                            errors.append(f"خطا در پاک کردن {log_file.name}: {str(e)[:30]}")
+                
+                text = "✅ **لاگ‌ها با موفقیت پاک شدند**\n\n"
+                text += f"🗑 فایل‌های پاک شده: {log_files_cleared}\n"
+                text += f"📝 حافظه موقت: پاک شد\n"
+                text += f"📊 آمار خطاها: بازنشانی شد\n"
+                
+                if errors:
+                    text += f"\n⚠️ **خطاها ({len(errors)}):**\n"
+                    for error in errors[:3]:
+                        text += f"• {error}\n"
+                
+                text += f"\n🕐 زمان پاک‌سازی: {datetime.now().strftime('%H:%M:%S')}"
+                
+            except Exception as e:
+                text = f"❌ **خطا در پاک کردن لاگ‌ها**\n\n"
+                text += f"علت: {str(e)}\n\n"
+                text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 مشاهده وضعیت جدید", callback_data="telethon_view_logs"),
+                    InlineKeyboardButton("📊 بررسی سیستم", callback_data="telethon_system_status")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error confirming clear logs: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در پاک کردن لاگ‌ها: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_view_logs")
+                ]])
+            )
+
     async def _handle_telethon_performance_test(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """تست عملکرد سیستم Telethon"""
         try:

@@ -321,10 +321,14 @@ class AdvancedLogger:
     
     def get_system_health_info(self) -> Dict[str, Any]:
         """اطلاعات سلامت سیستم بر اساس لاگ‌ها"""
+        from datetime import datetime, timedelta
+        
+        # محاسبه زمان 1 ساعت قبل
+        one_hour_ago = datetime.now() - timedelta(hours=1)
+        
         recent_errors = [log for log in self.recent_logs 
                         if log['level'] in ['ERROR', 'CRITICAL'] 
-                        and datetime.fromisoformat(log['timestamp']) > 
-                        datetime.now().replace(hour=datetime.now().hour-1)]  # آخرین ساعت
+                        and datetime.fromisoformat(log['timestamp']) > one_hour_ago]
         
         telethon_logs = [log for log in self.recent_logs 
                         if log['category'].startswith('TELETHON')]
@@ -339,6 +343,136 @@ class AdvancedLogger:
             'total_logs_today': len(self.recent_logs),
             'error_rate': len(recent_errors) / max(len(self.recent_logs), 1) * 100,
             'top_errors': list(self.error_counts.keys())[:5]
+        }
+    
+    async def log_telethon_error(self, config_name: str, error: Exception, context: Dict[str, Any] = None):
+        """لاگ‌گیری خطاهای Telethon"""
+        message = f"Telethon client error in '{config_name}': {str(error)}"
+        
+        error_details = {
+            'error_type': type(error).__name__,
+            'error_message': str(error),
+            'config_name': config_name
+        }
+        
+        self.log(
+            level=LogLevel.ERROR,
+            category=LogCategory.TELETHON_CLIENT,
+            message=message,
+            config_name=config_name,
+            error_details=error_details,
+            context=context
+        )
+    
+    async def log_connection_attempt(self, config_name: str, success: bool, retry_count: int = 0):
+        """لاگ‌گیری تلاش‌های اتصال"""
+        level = LogLevel.INFO if success else LogLevel.WARNING
+        message = f"Connection attempt for '{config_name}': {'Success' if success else 'Failed'}"
+        
+        if retry_count > 0:
+            message += f" (Retry #{retry_count})"
+        
+        context = {
+            'retry_count': retry_count,
+            'connection_success': success
+        }
+        
+        self.log(
+            level=level,
+            category=LogCategory.TELETHON_CLIENT,
+            message=message,
+            config_name=config_name,
+            context=context
+        )
+    
+    async def analyze_error_patterns(self) -> Dict[str, Any]:
+        """تحلیل الگوهای خطا"""
+        from collections import Counter
+        
+        # جمع‌آوری خطاهای اخیر
+        recent_errors = [log for log in self.recent_logs if log['level'] in ['ERROR', 'CRITICAL']]
+        
+        # دسته‌بندی خطاها
+        error_categories = Counter([log['category'] for log in recent_errors])
+        error_types = Counter([
+            log['error_details']['error_type'] if log.get('error_details') and 'error_type' in log['error_details'] else 'Unknown'
+            for log in recent_errors
+        ])
+        
+        # خطاهای مربوط به Telethon
+        telethon_errors = [log for log in recent_errors if 'TELETHON' in log['category']]
+        
+        return {
+            'total_errors': len(recent_errors),
+            'error_categories': dict(error_categories.most_common()),
+            'error_types': dict(error_types.most_common()),
+            'telethon_error_count': len(telethon_errors),
+            'most_frequent_errors': list(self.error_counts.keys())[:10]
+        }
+    
+    async def export_logs_json(self, filter_criteria: Dict[str, Any] = None) -> str:
+        """صدور لاگ‌ها به فرمت JSON"""
+        import tempfile
+        import json
+        from datetime import datetime
+        
+        logs_to_export = self.recent_logs.copy()
+        
+        # اعمال فیلتر
+        if filter_criteria:
+            if 'category' in filter_criteria:
+                logs_to_export = [log for log in logs_to_export 
+                                if log['category'] == filter_criteria['category']]
+            
+            if 'level' in filter_criteria:
+                logs_to_export = [log for log in logs_to_export 
+                                if log['level'] == filter_criteria['level']]
+        
+        # آماده‌سازی داده‌های صدور
+        export_data = {
+            'export_timestamp': datetime.now().isoformat(),
+            'total_logs': len(logs_to_export),
+            'filter_applied': filter_criteria or {},
+            'logs': logs_to_export,
+            'error_summary': self.get_error_summary(),
+            'system_health': self.get_system_health_info()
+        }
+        
+        # ایجاد فایل موقت
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+            json.dump(export_data, f, ensure_ascii=False, indent=2)
+            return f.name
+    
+    async def cleanup_old_logs(self, days_to_keep: int = 30):
+        """پاک‌سازی لاگ‌های قدیمی"""
+        from datetime import datetime, timedelta
+        import os
+        
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+        
+        # پاک‌سازی حافظه موقت
+        self.recent_logs = [
+            log for log in self.recent_logs 
+            if datetime.fromisoformat(log['timestamp']) > cutoff_date
+        ]
+        
+        # پاک‌سازی فایل‌های لاگ قدیمی
+        cleaned_files = []
+        for log_file in self.log_dir.glob("*.log"):
+            try:
+                stat = os.stat(log_file)
+                file_date = datetime.fromtimestamp(stat.st_mtime)
+                
+                if file_date < cutoff_date:
+                    log_file.unlink()
+                    cleaned_files.append(log_file.name)
+            except Exception as e:
+                self.log_system_error(e, f"cleanup_old_logs for {log_file}")
+        
+        return {
+            'memory_logs_cleaned': len([log for log in self.recent_logs if datetime.fromisoformat(log['timestamp']) <= cutoff_date]),
+            'files_cleaned': cleaned_files,
+            'cutoff_date': cutoff_date.isoformat()
         }
 
 # نمونه سراسری
