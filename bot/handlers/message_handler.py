@@ -79,6 +79,12 @@ class BotMessageHandler(BaseHandler):
                 telethon_login_handler = TelethonLoginHandler(self.db)
                 await telethon_login_handler.handle_password_input(update, context)
             
+            # Telethon manual config creation states
+            elif session.action_state == 'creating_telethon_config_manual':
+                from handlers.telethon_config_handler import TelethonConfigHandler
+                telethon_config_handler = TelethonConfigHandler(self.db)
+                await telethon_config_handler.handle_manual_config_input(update, context)
+            
             else:
                 # Default state - show help or main menu
                 await self.show_help(update, context)

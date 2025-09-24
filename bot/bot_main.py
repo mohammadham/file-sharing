@@ -6,6 +6,7 @@ Main Bot File - Modular Telegram File Bot
 """
 
 import asyncio
+import json
 import logging
 import sys
 from pathlib import Path
@@ -296,12 +297,16 @@ class TelegramFileBot:
                 await self.telethon_config_handler.show_json_example(update, context)
             elif callback_data == 'telethon_upload_json':
                 await self.telethon_config_handler.start_json_upload(update, context)
+            elif callback_data == 'telethon_manual_create':
+                await self.telethon_config_handler.start_manual_creation(update, context)
+            elif callback_data == 'telethon_skip_phone':
+                await self._handle_telethon_skip_phone(update, context)
+            elif callback_data.startswith('telethon_confirm_delete_'):
+                await self._handle_telethon_confirm_delete(update, context)
             elif callback_data.startswith('telethon_manage_config_'):
-                # TODO: Implement config management
-                await update.callback_query.answer("در حال توسعه...")
+                await self.telethon_config_handler.manage_config(update, context)
             elif callback_data.startswith('telethon_delete_config_'):
-                # TODO: Implement config deletion
-                await update.callback_query.answer("در حال توسعه...")
+                await self.telethon_config_handler.delete_config(update, context)
             
             # Telethon Login Operations
             elif callback_data == 'telethon_login_menu':
@@ -1662,6 +1667,74 @@ class TelegramFileBot:
                 "test_api_connection",
                 "api_settings"
             )
+    
+    async def _handle_telethon_skip_phone(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش رد کردن شماره تلفن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            user_id = update.effective_user.id
+            session = await self.db.get_user_session(user_id)
+            
+            if session.get('action_state') != 'creating_telethon_config_manual':
+                await query.answer("❌ عملیات نامعتبر!")
+                return
+            
+            temp_data = json.loads(session.get('temp_data', '{}'))
+            temp_data['phone'] = ''
+            
+            # ایجاد کانفیگ نهایی
+            await self.telethon_config_handler._create_final_config(update, context, temp_data)
+            
+        except Exception as e:
+            logger.error(f"Error in skip phone: {e}")
+    
+    async def _handle_telethon_confirm_delete(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش تأیید حذف کانفیگ"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج نام کانفیگ
+            callback_data = query.data
+            config_name = callback_data.replace('telethon_confirm_delete_', '')
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            success = telethon_manager.config_manager.delete_config(config_name)
+            
+            if success:
+                text = f"✅ **کانفیگ '{config_name}' با موفقیت حذف شد**\n\n"
+                text += f"🗑 تمام session ها و تنظیمات مرتبط حذف شدند."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 مشاهده کانفیگ‌ها", callback_data="telethon_list_configs"),
+                        InlineKeyboardButton("➕ افزودن کانفیگ", callback_data="telethon_add_config")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در حذف کانفیگ '{config_name}'**\n\n"
+                text += f"لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"telethon_confirm_delete_{config_name}"),
+                        InlineKeyboardButton("📋 لیست کانفیگ‌ها", callback_data="telethon_list_configs")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in confirm delete config: {e}")
+            await query.answer("❌ خطا در حذف کانفیگ!")
+
     async def start_bot(self):
         """Start the Telegram bot"""
         try:
