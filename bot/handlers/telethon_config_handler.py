@@ -51,8 +51,11 @@ class TelethonConfigHandler(BaseHandler):
                     InlineKeyboardButton("🩺 تست کلاینت‌ها", callback_data="telethon_health_check")
                 ],
                 [
-                    InlineKeyboardButton("⚙️ تنظیمات پیشرفته", callback_data="telethon_advanced_settings"),
+                    InlineKeyboardButton("📋 مشاهده لاگ‌ها", callback_data="telethon_view_logs"),
                     InlineKeyboardButton("📊 وضعیت سیستم", callback_data="telethon_system_status")
+                ],
+                [
+                    InlineKeyboardButton("⚙️ تنظیمات پیشرفته", callback_data="telethon_advanced_settings")
                 ],
                 [
                     InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")

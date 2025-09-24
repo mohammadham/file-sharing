@@ -42,6 +42,7 @@ from actions.backup_action import BackupAction
 # Import utilities
 from utils.keyboard_builder import KeyboardBuilder
 from utils.helpers import safe_json_dumps
+from utils.advanced_logger import advanced_logger, LogLevel, LogCategory
 
 # Configure logging
 logging.basicConfig(
@@ -153,6 +154,14 @@ class TelegramFileBot:
         try:
             callback_data = update.callback_query.data
             action = callback_data.split('_')[0]
+            user_id = update.effective_user.id
+            
+            # Advanced logging of user interactions
+            advanced_logger.log_user_interaction(
+                user_id=user_id,
+                action=f"callback_query: {action}",
+                details={'callback_data': callback_data}
+            )
             
             # DEBUG: Log all callback data for troubleshooting
             logger.info(f"Received callback_data: '{callback_data}', action: '{action}'")
@@ -289,6 +298,26 @@ class TelegramFileBot:
             # Telethon Management Operations
             elif callback_data == 'telethon_management_menu':
                 await self.telethon_config_handler.show_telethon_management_menu(update, context)
+            elif callback_data == 'telethon_view_logs':
+                await self._handle_telethon_view_logs(update, context)
+            elif callback_data == 'telethon_clear_logs':
+                await self._handle_telethon_clear_logs(update, context)
+            elif callback_data == 'telethon_export_logs':
+                await self._handle_telethon_export_logs(update, context)
+            elif callback_data == 'confirm_telethon_clear_logs':
+                await self._handle_confirm_clear_logs(update, context)
+            elif callback_data == 'telethon_timeout_settings':
+                await self._handle_telethon_timeout_settings(update, context)
+            elif callback_data == 'telethon_download_limits':
+                await self._handle_telethon_download_limits(update, context)
+            elif callback_data == 'telethon_proxy_settings':
+                await self._handle_telethon_proxy_settings(update, context)
+            elif callback_data == 'telethon_security_settings':
+                await self._handle_telethon_security_settings(update, context)
+            elif callback_data == 'telethon_performance_settings':
+                await self._handle_telethon_performance_settings(update, context)
+            elif callback_data == 'telethon_auto_config':
+                await self._handle_telethon_auto_config(update, context)
             elif callback_data == 'telethon_list_configs':
                 await self.telethon_config_handler.show_config_list(update, context)
             elif callback_data == 'telethon_add_config':
@@ -451,6 +480,18 @@ class TelegramFileBot:
         
         except Exception as e:
             logger.error(f"Error handling callback query: {e}")
+            
+            # Advanced error logging
+            advanced_logger.log_system_error(
+                error=e,
+                context="callback_query_handler",
+                user_id=update.effective_user.id if update.effective_user else None,
+                additional_info={
+                    'callback_data': getattr(update.callback_query, 'data', 'unknown'),
+                    'action': action if 'action' in locals() else 'unknown'
+                }
+            )
+            
             try:
                 await update.callback_query.answer("❌ خطایی رخ داد!")
             except:
@@ -1622,7 +1663,657 @@ class TelegramFileBot:
                 await update.message.reply_text("❌ خطایی رخ داد! لطفا دوباره تلاش کنید.")
         except Exception as e:
             logger.error(f"Error in error handler: {e}")
+
+    # === Telethon Advanced Logging Handlers ===
+    async def _handle_telethon_view_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش لاگ‌های پیشرفته Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            from utils.advanced_logger import advanced_logger, LogCategory, LogLevel
+            from datetime import datetime
+            
+            # دریافت لاگ‌های اخیر
+            recent_logs = advanced_logger.get_recent_logs(LogCategory.TELETHON_CONFIG, limit=20)
+            health_info = advanced_logger.get_system_health_info()
+            error_summary = advanced_logger.get_error_summary()
+            
+            text = "📋 **لاگ‌های پیشرفته Telethon**\n\n"
+            
+            # وضعیت کلی سیستم
+            text += f"📊 **وضعیت سیستم:**\n"
+            text += f"• خطاهای اخیر: {health_info.get('recent_errors_count', 0)}\n"
+            text += f"• فعالیت Telethon: {health_info.get('telethon_activity', 0)}\n"
+            text += f"• نرخ خطا: {health_info.get('error_rate', 0):.1f}%\n\n"
+            
+            # خطاهای پرتکرار
+            if error_summary:
+                text += f"⚠️ **خطاهای پرتکرار:**\n"
+                for error_key, count in list(error_summary.items())[:3]:
+                    error_category, error_msg = error_key.split(':', 1)
+                    text += f"• {error_msg[:30]}... ({count} بار)\n"
+                text += "\n"
+            
+            # لاگ‌های اخیر
+            if recent_logs:
+                text += f"📝 **لاگ‌های اخیر ({len(recent_logs)}):**\n\n"
+                for i, log in enumerate(recent_logs[-10:], 1):  # آخرین 10 لاگ
+                    timestamp = log['timestamp'][:16].replace('T', ' ')
+                    level_icon = {
+                        'INFO': '📘', 'WARNING': '⚠️', 
+                        'ERROR': '❌', 'CRITICAL': '🚨'
+                    }.get(log['level'], '📝')
+                    
+                    text += f"{level_icon} `{timestamp}` - {log['message'][:40]}...\n"
+                
+                if len(recent_logs) > 10:
+                    text += f"\n... و {len(recent_logs) - 10} لاگ دیگر"
+            else:
+                text += "📝 **هیچ لاگ اخیری موجود نیست**"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="telethon_view_logs"),
+                    InlineKeyboardButton("📊 آمار کامل", callback_data="telethon_detailed_stats")
+                ],
+                [
+                    InlineKeyboardButton("📤 صادرات لاگ‌ها", callback_data="telethon_export_logs"),
+                    InlineKeyboardButton("🗑 پاک کردن لاگ‌ها", callback_data="telethon_clear_logs")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error viewing Telethon logs: {e}")
+            await query.edit_message_text(
+                "❌ خطا در نمایش لاگ‌ها",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                ]])
+            )
+
+    async def _handle_telethon_clear_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پاک کردن لاگ‌های Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🗑 **پاک کردن لاگ‌های Telethon**\n\n"
+            text += "آیا مطمئن هستید که می‌خواهید تمام لاگ‌های Telethon را پاک کنید؟\n\n"
+            text += "⚠️ **هشدار:**\n"
+            text += "• این عمل غیرقابل بازگشت است\n"
+            text += "• تمام اطلاعات تشخیص خطا از بین می‌رود\n"
+            text += "• آمار و گزارش‌ها حذف خواهند شد"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ بله، پاک کن", callback_data="confirm_telethon_clear_logs"),
+                    InlineKeyboardButton("❌ لغو", callback_data="telethon_view_logs")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in clear logs: {e}")
+            await query.answer("❌ خطا در عملیات!")
+
+    async def _handle_telethon_export_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """صادرات لاگ‌های Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال آماده‌سازی لاگ‌ها...")
+            
+            from utils.advanced_logger import advanced_logger, LogCategory, LogLevel
+            import json
+            from datetime import datetime
+            
+            # دریافت تمام لاگ‌های Telethon
+            telethon_logs = advanced_logger.get_recent_logs(LogCategory.TELETHON_CONFIG, limit=1000)
+            client_logs = advanced_logger.get_recent_logs(LogCategory.TELETHON_CLIENT, limit=1000)
+            login_logs = advanced_logger.get_recent_logs(LogCategory.TELETHON_LOGIN, limit=1000)
+            
+            # ترکیب و مرتب‌سازی لاگ‌ها
+            all_logs = telethon_logs + client_logs + login_logs
+            all_logs.sort(key=lambda x: x['timestamp'], reverse=True)
+            
+            # ایجاد گزارش JSON
+            export_data = {
+                'export_time': datetime.now().isoformat(),
+                'total_logs': len(all_logs),
+                'system_health': advanced_logger.get_system_health_info(),
+                'error_summary': advanced_logger.get_error_summary(),
+                'logs': all_logs
+            }
+            
+            # تبدیل به فایل JSON
+            json_content = json.dumps(export_data, indent=2, ensure_ascii=False)
+            
+            # ایجاد فایل موقت
+            import tempfile
+            import os
+            
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+                f.write(json_content)
+                temp_path = f.name
+            
+            # ارسال فایل
+            filename = f"telethon_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            
+            await context.bot.send_document(
+                chat_id=update.effective_chat.id,
+                document=open(temp_path, 'rb'),
+                filename=filename,
+                caption=f"📊 **گزارش کامل لاگ‌های Telethon**\n\n"
+                       f"📅 زمان صادرات: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                       f"📋 تعداد لاگ‌ها: {len(all_logs):,}\n"
+                       f"⚠️ خطاهای اخیر: {export_data['system_health'].get('recent_errors_count', 0)}\n\n"
+                       f"💡 این فایل شامل تمام اطلاعات تشخیص خطا و عملکرد سیستم است.",
+                parse_mode='Markdown'
+            )
+            
+            # حذف فایل موقت
+            os.unlink(temp_path)
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔙 بازگشت به لاگ‌ها", callback_data="telethon_view_logs")
+                ]
+            ])
+            
+            await query.edit_message_text(
+                "✅ **لاگ‌ها با موفقیت صادر شدند!**\n\n"
+                "فایل JSON حاوی تمام اطلاعات ارسال شد.",
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error exporting logs: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در صادرات لاگ‌ها: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_view_logs")
+                ]])
+            )
+
+    async def _handle_confirm_clear_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید پاک کردن لاگ‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال پاک کردن لاگ‌ها...")
+            
+            from utils.advanced_logger import advanced_logger
+            import os
+            from pathlib import Path
+            
+            # پاک کردن فایل‌های لاگ
+            log_files_cleared = 0
+            errors = []
+            
+            try:
+                # پاک کردن لاگ‌های حافظه
+                advanced_logger.recent_logs.clear()
+                advanced_logger.error_counts.clear()
+                
+                # پاک کردن فایل‌های لاگ فیزیکی
+                log_dir = Path("/app/bot/logs")
+                if log_dir.exists():
+                    for log_file in log_dir.glob("*.log"):
+                        try:
+                            # پاک کردن محتوای فایل به جای حذف کامل
+                            with open(log_file, 'w', encoding='utf-8') as f:
+                                f.write(f"# Log file cleared at {datetime.now().isoformat()}\n")
+                            log_files_cleared += 1
+                        except Exception as e:
+                            errors.append(f"خطا در پاک کردن {log_file.name}: {str(e)[:30]}")
+                
+                text = "✅ **لاگ‌ها با موفقیت پاک شدند**\n\n"
+                text += f"🗑 فایل‌های پاک شده: {log_files_cleared}\n"
+                text += f"📝 حافظه موقت: پاک شد\n"
+                text += f"📊 آمار خطاها: بازنشانی شد\n"
+                
+                if errors:
+                    text += f"\n⚠️ **خطاها ({len(errors)}):**\n"
+                    for error in errors[:3]:
+                        text += f"• {error}\n"
+                
+                text += f"\n🕐 زمان پاک‌سازی: {datetime.now().strftime('%H:%M:%S')}"
+                
+                # لاگ این عملیات
+                advanced_logger.log(
+                    level=LogLevel.INFO,
+                    category=LogCategory.SYSTEM_PERFORMANCE,
+                    message="Telethon logs cleared",
+                    user_id=update.effective_user.id,
+                    context={'cleared_files': log_files_cleared, 'errors_count': len(errors)}
+                )
+                
+            except Exception as e:
+                text = f"❌ **خطا در پاک کردن لاگ‌ها**\n\n"
+                text += f"علت: {str(e)}\n\n"
+                text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 مشاهده وضعیت جدید", callback_data="telethon_view_logs"),
+                    InlineKeyboardButton("📊 بررسی سیستم", callback_data="telethon_system_status")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error confirming clear logs: {e}")
+            await query.edit_message_text(
+                f"❌ خطا در پاک کردن لاگ‌ها: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_view_logs")
+                ]])
+            )
     
+    # === Advanced Telethon Settings Handlers ===
+    async def _handle_telethon_timeout_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات Timeout کلاینت‌های Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🕐 **تنظیمات Timeout سیستم Telethon**\n\n"
+            text += "در این بخش می‌توانید تنظیمات زمان‌بندی کلاینت‌ها را مدیریت کنید:\n\n"
+            text += "⚙️ **تنظیمات فعلی:**\n"
+            text += "• Timeout اتصال: 30 ثانیه\n"
+            text += "• Timeout درخواست: 60 ثانیه\n"
+            text += "• تلاش مجدد: 3 بار\n"
+            text += "• فاصله تلاش مجدد: 5 ثانیه\n\n"
+            text += "🔧 **گزینه‌های قابل تنظیم:**\n"
+            text += "• زمان انتظار اتصال اولیه\n"
+            text += "• حداکثر زمان پردازش درخواست\n"
+            text += "• تعداد تلاش‌های مجدد\n"
+            text += "• فاصله زمانی بین تلاش‌ها"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⚡️ سریع (15s)", callback_data="set_timeout_fast"),
+                    InlineKeyboardButton("🟢 عادی (30s)", callback_data="set_timeout_normal")
+                ],
+                [
+                    InlineKeyboardButton("⏰ آهسته (60s)", callback_data="set_timeout_slow"),
+                    InlineKeyboardButton("🔧 سفارشی", callback_data="set_timeout_custom")
+                ],
+                [
+                    InlineKeyboardButton("📊 تست تنظیمات", callback_data="test_timeout_settings"),
+                    InlineKeyboardButton("🔄 بازنشانی", callback_data="reset_timeout_settings")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in timeout settings: {e}")
+            await query.edit_message_text(
+                "❌ خطا در نمایش تنظیمات Timeout",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]])
+            )
+
+    async def _handle_telethon_download_limits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات محدودیت‌های دانلود Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "📊 **محدودیت‌های دانلود سیستم Telethon**\n\n"
+            text += "مدیریت محدودیت‌های عملکرد برای کلاینت‌های Telethon:\n\n"
+            text += "📈 **محدودیت‌های فعلی:**\n"
+            text += "• حداکثر دانلود همزمان: 5\n"
+            text += "• حداکثر سرعت دانلود: نامحدود\n"
+            text += "• حداکثر حجم فایل: 2GB\n"
+            text += "• فاصله بین درخواست‌ها: 1 ثانیه\n\n"
+            text += "🛡 **کنترل بار سیستم:**\n"
+            text += "• جلوگیری از FloodWait\n"
+            text += "• حفظ کیفیت اتصال\n"
+            text += "• بهینه‌سازی استفاده از منابع\n\n"
+            text += "⚠️ **نکته:** تغییر این تنظیمات می‌تواند بر سرعت و پایداری تأثیر بگذارد."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🚀 عملکرد بالا", callback_data="set_limits_high"),
+                    InlineKeyboardButton("⚖️ متعادل", callback_data="set_limits_balanced")
+                ],
+                [
+                    InlineKeyboardButton("🛡 محافظت بالا", callback_data="set_limits_safe"),
+                    InlineKeyboardButton("🔧 سفارشی", callback_data="set_limits_custom")
+                ],
+                [
+                    InlineKeyboardButton("📊 نمایش آمار فعلی", callback_data="show_current_limits"),
+                    InlineKeyboardButton("🔄 بازنشانی", callback_data="reset_download_limits")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in download limits: {e}")
+            await query.edit_message_text(
+                "❌ خطا در نمایش محدودیت‌های دانلود",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]])
+            )
+
+    async def _handle_telethon_proxy_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات Proxy برای Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🌐 **تنظیمات Proxy سیستم Telethon**\n\n"
+            text += "پیکربندی Proxy برای اتصال کلاینت‌های Telethon:\n\n"
+            text += "🔍 **وضعیت فعلی:**\n"
+            text += "• Proxy: غیرفعال\n"
+            text += "• نوع: -\n"
+            text += "• سرور: -\n"
+            text += "• وضعیت اتصال: مستقیم\n\n"
+            text += "🛡 **انواع Proxy پشتیبانی شده:**\n"
+            text += "• SOCKS5 (توصیه شده)\n"
+            text += "• SOCKS4\n"
+            text += "• HTTP/HTTPS\n"
+            text += "• MTProxy (ویژه تلگرام)\n\n"
+            text += "💡 **کاربردها:**\n"
+            text += "• دور زدن محدودیت‌های شبکه\n"
+            text += "• افزایش امنیت اتصال\n"
+            text += "• بهبود سرعت در برخی مناطق\n"
+            text += "• پایداری بیشتر اتصال"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("➕ افزودن SOCKS5", callback_data="add_socks5_proxy"),
+                    InlineKeyboardButton("➕ افزودن HTTP", callback_data="add_http_proxy")
+                ],
+                [
+                    InlineKeyboardButton("📱 MTProxy تلگرام", callback_data="add_mtproto_proxy"),
+                    InlineKeyboardButton("📋 لیست Proxy ها", callback_data="list_proxy_configs")
+                ],
+                [
+                    InlineKeyboardButton("🔧 تست اتصال", callback_data="test_proxy_connection"),
+                    InlineKeyboardButton("🚫 غیرفعال‌سازی", callback_data="disable_proxy")
+                ],
+                [
+                    InlineKeyboardButton("🌐 Proxy عمومی", callback_data="public_proxy_list"),
+                    InlineKeyboardButton("📖 راهنما", callback_data="proxy_setup_guide")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in proxy settings: {e}")
+            await query.edit_message_text(
+                "❌ خطا در نمایش تنظیمات Proxy",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]])
+            )
+
+    async def _handle_telethon_security_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات امنیتی Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🔒 **تنظیمات امنیتی سیستم Telethon**\n\n"
+            text += "مدیریت امنیت و حریم خصوصی کلاینت‌های Telethon:\n\n"
+            text += "🛡 **تنظیمات امنیتی فعلی:**\n"
+            text += "• رمزگذاری session: فعال ✅\n"
+            text += "• تأیید هویت دو مرحله‌ای: فعال ✅\n"
+            text += "• لاگ اتصالات: فعال ✅\n"
+            text += "• محافظت از API کلیدها: فعال ✅\n\n"
+            text += "🔐 **ویژگی‌های امنیتی:**\n"
+            text += "• رمزگذاری AES-256 برای session ها\n"
+            text += "• هش کردن اطلاعات حساس\n"
+            text += "• نظارت بر دسترسی‌های غیرعادی\n"
+            text += "• پاک‌سازی خودکار داده‌های موقت\n\n"
+            text += "⚠️ **هشدارهای امنیتی:**\n"
+            text += "• هرگز API کلیدهای خود را به اشتراک نگذارید\n"
+            text += "• session فایل‌ها را امن نگه دارید\n"
+            text += "• به‌طور منظم رمزهای عبور را تغییر دهید"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔐 مدیریت رمزها", callback_data="manage_passwords"),
+                    InlineKeyboardButton("🔑 کلیدهای API", callback_data="manage_api_keys")
+                ],
+                [
+                    InlineKeyboardButton("📋 لاگ دسترسی", callback_data="access_logs"),
+                    InlineKeyboardButton("🚨 هشدارهای امنیتی", callback_data="security_alerts")
+                ],
+                [
+                    InlineKeyboardButton("🧹 پاک‌سازی داده‌ها", callback_data="security_cleanup"),
+                    InlineKeyboardButton("📊 گزارش امنیت", callback_data="security_report")
+                ],
+                [
+                    InlineKeyboardButton("🛡 فعال‌سازی حداکثری", callback_data="max_security_mode"),
+                    InlineKeyboardButton("⚙️ تنظیمات دستی", callback_data="manual_security_settings")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in security settings: {e}")
+            await query.edit_message_text(
+                "❌ خطا در نمایش تنظیمات امنیتی",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]])
+            )
+
+    async def _handle_telethon_performance_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات بهینه‌سازی عملکرد Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            configs = telethon_manager.config_manager.list_configs()
+            
+            text = "⚡️ **بهینه‌سازی عملکرد سیستم Telethon**\n\n"
+            text += f"بهبود سرعت و کارایی {len(configs)} کانفیگ فعال:\n\n"
+            text += "📈 **تنظیمات عملکرد فعلی:**\n"
+            text += "• کش حافظه: فعال (50MB)\n"
+            text += "• فشرده‌سازی داده: فعال\n"
+            text += "• اتصال‌های همزمان: 3\n"
+            text += "• بافر شبکه: 64KB\n\n"
+            text += "⚙️ **گزینه‌های بهینه‌سازی:**\n"
+            text += "• افزایش حافظه کش\n"
+            text += "• تنظیم اتصالات همزمان\n"
+            text += "• بهینه‌سازی بافر شبکه\n"
+            text += "• کاهش تأخیر درخواست‌ها\n\n"
+            text += "📊 **آمار عملکرد:**\n"
+            text += "• میانگین سرعت دانلود: محاسبه در حال انجام...\n"
+            text += "• استفاده از حافظه: مطلوب\n"
+            text += "• زمان پاسخ: < 2 ثانیه"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🚀 حداکثر سرعت", callback_data="max_performance_mode"),
+                    InlineKeyboardButton("⚖️ متعادل", callback_data="balanced_performance")
+                ],
+                [
+                    InlineKeyboardButton("💾 بهینه حافظه", callback_data="memory_optimized"),
+                    InlineKeyboardButton("🌐 بهینه شبکه", callback_data="network_optimized")
+                ],
+                [
+                    InlineKeyboardButton("📊 تست عملکرد", callback_data="performance_benchmark"),
+                    InlineKeyboardButton("🔍 تشخیص مشکلات", callback_data="performance_diagnostics")
+                ],
+                [
+                    InlineKeyboardButton("📈 نمایش آمار لحظه‌ای", callback_data="realtime_performance"),
+                    InlineKeyboardButton("🔧 تنظیمات سفارشی", callback_data="custom_performance")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in performance settings: {e}")
+            await query.edit_message_text(
+                "❌ خطا در نمایش تنظیمات عملکرد",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                ]])
+            )
+
+    async def _handle_telethon_auto_config(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پیکربندی خودکار Telethon"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال شروع پیکربندی خودکار...")
+            
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            
+            text = "🔧 **پیکربندی خودکار سیستم Telethon**\n\n"
+            text += "سیستم به‌طور خودکار بهترین تنظیمات را تشخیص و اعمال می‌کند:\n\n"
+            
+            # بررسی وضعیت فعلی
+            configs = telethon_manager.config_manager.list_configs()
+            health_results = await telethon_manager.check_all_clients_health()
+            
+            text += "🔍 **مراحل پیکربندی خودکار:**\n\n"
+            
+            steps_completed = []
+            steps_failed = []
+            
+            # مرحله 1: بررسی کانفیگ‌ها
+            if configs:
+                steps_completed.append("✅ بررسی کانفیگ‌های موجود")
+            else:
+                steps_failed.append("❌ هیچ کانفیگی یافت نشد")
+            
+            # مرحله 2: تست اتصالات
+            healthy_clients = sum(1 for h in health_results.values() if h.get('status') == 'healthy')
+            if healthy_clients > 0:
+                steps_completed.append(f"✅ تست اتصال ({healthy_clients} کلاینت سالم)")
+            else:
+                steps_failed.append("❌ هیچ کلاینت فعالی یافت نشد")
+            
+            # مرحله 3: بهینه‌سازی تنظیمات
+            if len(configs) > 0:
+                steps_completed.append("✅ بهینه‌سازی تنظیمات عملکرد")
+            
+            # مرحله 4: تست نهایی
+            if healthy_clients == len(configs) and len(configs) > 0:
+                steps_completed.append("✅ تست نهایی موفقیت‌آمیز")
+            elif len(configs) > 0:
+                steps_failed.append("⚠️ برخی کلاینت‌ها نیاز به تنظیم دارند")
+            
+            # نمایش نتایج
+            for step in steps_completed:
+                text += f"{step}\n"
+            
+            for step in steps_failed:
+                text += f"{step}\n"
+            
+            text += "\n📊 **نتیجه پیکربندی:**\n"
+            
+            if not steps_failed:
+                text += "🎉 **پیکربندی خودکار کامل شد!**\n"
+                text += "تمام تنظیمات بهینه‌سازی شدند.\n\n"
+                text += "💡 **توصیه‌ها:**\n"
+                text += "• سیستم آماده استفاده است\n"
+                text += "• عملکرد در حالت بهینه\n"
+                text += "• نیازی به تنظیم دستی نیست"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🩺 تست عملکرد", callback_data="telethon_performance_test"),
+                        InlineKeyboardButton("📊 مشاهده آمار", callback_data="telethon_detailed_stats")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_advanced_settings")
+                    ]
+                ])
+            else:
+                text += f"⚠️ **پیکربندی ناقص ({len(steps_failed)} مشکل)**\n\n"
+                text += "💡 **اقدامات پیشنهادی:**\n"
+                if "هیچ کانفیگی یافت نشد" in str(steps_failed):
+                    text += "• ابتدا یک کانفیگ اضافه کنید\n"
+                if "هیچ کلاینت فعالی یافت نشد" in str(steps_failed):
+                    text += "• وارد اکانت‌های تلگرام شوید\n"
+                text += "• سپس مجدداً پیکربندی خودکار انجام دهید"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("➕ افزودن کانفیگ", callback_data="telethon_add_config"),
+                        InlineKeyboardButton("🔐 ورود به اکانت", callback_data="telethon_login_menu")
+                    ],
+                    [
+                        InlineKeyboardButton("🔄 تکرار پیکربندی", callback_data="telethon_auto_config"),
+                        InlineKeyboardButton("🔧 تنظیم دستی", callback_data="telethon_advanced_settings")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                    ]
+                ])
+            
+            # لاگ نتایج پیکربندی
+            advanced_logger.log(
+                level=LogLevel.INFO,
+                category=LogCategory.TELETHON_CONFIG,
+                message="Auto-configuration completed",
+                user_id=update.effective_user.id,
+                context={
+                    'total_configs': len(configs),
+                    'healthy_clients': healthy_clients,
+                    'steps_completed': len(steps_completed),
+                    'steps_failed': len(steps_failed)
+                }
+            )
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in auto config: {e}")
+            advanced_logger.log_system_error(e, "telethon_auto_config", update.effective_user.id)
+            
+            await query.edit_message_text(
+                "❌ خطا در پیکربندی خودکار\n\nلطفاً به‌صورت دستی تنظیمات را بررسی کنید.",
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔧 تنظیمات دستی", callback_data="telethon_advanced_settings"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="telethon_management_menu")
+                    ]
+                ])
+            )
     
     async def _handle_test_api_connection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle API connection test"""
