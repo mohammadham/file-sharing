@@ -36,12 +36,12 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     
     # Telegram Settings (from bot)
-    BOT_TOKEN: str = Field(env="BOT_TOKEN")
-    STORAGE_CHANNEL_ID: int = Field(env="STORAGE_CHANNEL_ID")
+    BOT_TOKEN: str = Field(default="",env="BOT_TOKEN")
+    STORAGE_CHANNEL_ID: int = Field(default=0,env="STORAGE_CHANNEL_ID")
     
     # Telethon Settings
-    TELETHON_API_ID: int = Field(env="TELETHON_API_ID")
-    TELETHON_API_HASH: str = Field(env="TELETHON_API_HASH")
+    TELETHON_API_ID: int = Field(default=0,env="TELETHON_API_ID")
+    TELETHON_API_HASH: str = Field(default="",env="TELETHON_API_HASH")
     TELETHON_SESSION_DIR: str = Field(default="./sessions", env="TELETHON_SESSION_DIR")
     
     # File Download Settings

@@ -13,7 +13,13 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from handlers.base_handler import BaseHandler
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 
+# Add root app directory to path for download_system imports
+sys.path.append(str(Path(__file__).parent.parent))
 logger = logging.getLogger(__name__)
 
 

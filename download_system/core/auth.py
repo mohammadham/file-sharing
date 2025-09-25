@@ -13,6 +13,10 @@ from typing import Optional, List, Dict, Any
 import jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 from core.models import Token, TokenType
 from core.database import DatabaseManager
 

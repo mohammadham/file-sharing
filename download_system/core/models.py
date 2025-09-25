@@ -10,7 +10,10 @@ from enum import Enum
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import uuid
-
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 
 class TokenType(str, Enum):
     """Token types"""

@@ -11,6 +11,13 @@ import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
+
+# Add root app directory to path for download_system imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 from handlers.base_handler import BaseHandler
 from utils.keyboard_builder import KeyboardBuilder

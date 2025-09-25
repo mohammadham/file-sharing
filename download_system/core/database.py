@@ -12,6 +12,10 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from config.settings import settings
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 from core.models import Token, DownloadLink, DownloadSession, CacheEntry
 
 logger = logging.getLogger(__name__)

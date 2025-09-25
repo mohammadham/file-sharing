@@ -17,7 +17,10 @@ from typing import Optional, Dict, Any, AsyncGenerator
 from telethon import TelegramClient
 from telethon.tl.types import DocumentAttributeFilename, Document
 from telethon.errors import FloodWaitError
-
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 from config.settings import settings
 from core.models import (
     DownloadLink, DownloadSession, DownloadType, DownloadStatus,

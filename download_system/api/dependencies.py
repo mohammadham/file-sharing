@@ -6,6 +6,10 @@ FastAPI Dependencies
 """
 
 from fastapi import Request, HTTPException, status
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 from core.database import DatabaseManager
 from core.download_manager import DownloadManager
 from core.auth import AuthManager

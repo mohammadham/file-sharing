@@ -17,6 +17,13 @@ from datetime import datetime
 from handlers.base_handler import BaseHandler
 from utils.keyboard_builder import KeyboardBuilder
 from utils.telethon_fallback_manager import telethon_fallback_manager
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
+
+# Add root app directory to path for download_system imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 logger = logging.getLogger(__name__)
 

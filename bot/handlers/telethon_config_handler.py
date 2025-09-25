@@ -15,6 +15,12 @@ from pathlib import Path
 
 from handlers.base_handler import BaseHandler
 from utils.keyboard_builder import KeyboardBuilder
+import sys
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
+
+# Add root app directory to path for download_system imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +82,7 @@ class TelethonConfigHandler(BaseHandler):
             # دریافت لیست کانفیگ‌ها از سیستم دانلود
             try:
                 import sys
-                sys.path.append('/app')
+                # sys.path.append('/app')
                 from download_system.core.telethon_manager import AdvancedTelethonClientManager
                 
                 telethon_manager = AdvancedTelethonClientManager()

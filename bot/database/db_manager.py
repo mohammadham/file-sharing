@@ -12,7 +12,13 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 import shutil
 from datetime import datetime
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 
+# # Add root app directory to path for bot imports
+# sys.path.append(str(Path(__file__).parent.parent))
 from config.settings import DB_PATH, BACKUP_PATH
 from models.database_models import Category, File, UserSession, Link
 

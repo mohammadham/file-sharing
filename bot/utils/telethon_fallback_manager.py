@@ -11,7 +11,13 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from utils.advanced_logger import advanced_logger, LogLevel, LogCategory
+import sys
+from pathlib import Path
+# Add bot directory to path
+sys.path.append(str(Path(__file__).parent))
 
+# Add root app directory to path for download_system imports
+sys.path.append(str(Path(__file__).parent.parent))
 logger = logging.getLogger(__name__)
 
 
