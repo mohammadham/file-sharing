@@ -29,6 +29,141 @@ class DownloadSystemHandler(BaseHandler):
         self.api_url = download_api_url
         self.admin_token = admin_token
         self.headers = {"Authorization": f"Bearer {admin_token}"}
+    async def handle_api_statistics(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش آمار API"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # دریافت آمار از API
+            metrics = await self.download_system_handler.get_real_time_metrics()
+            system_status = await self.download_system_handler.get_system_status()
+            
+            text = "📊 **آمار تفصیلی API**\n\n"
+            
+            # آمار درخواست‌ها
+            text += "🌐 **درخواست‌های API:**\n"
+            text += f"• فعال: {metrics.get('active_requests', 0)}\n"
+            text += f"• امروز: {metrics.get('daily_requests', 0):,}\n"
+            text += f"• موفق: {metrics.get('successful_requests', 0):,}\n"
+            text += f"• خطا: {metrics.get('failed_requests', 0):,}\n"
+            
+            # محاسبه نرخ موفقیت
+            total_reqs = metrics.get('successful_requests', 0) + metrics.get('failed_requests', 0)
+            success_rate = (metrics.get('successful_requests', 0) / total_reqs * 100) if total_reqs > 0 else 100
+            text += f"• نرخ موفقیت: {success_rate:.1f}%\n\n"
+            
+            # آمار عملکرد
+            text += "⚡️ **عملکرد:**\n"
+            text += f"• زمان پاسخ میانگین: {metrics.get('avg_response_time', 0):.2f} ثانیه\n"
+            text += f"• سرعت پردازش: {metrics.get('processing_speed', 0):.1f} req/s\n"
+            text += f"• استفاده از حافظه: {metrics.get('memory_usage', '0%')}\n"
+            text += f"• استفاده از CPU: {metrics.get('cpu_usage', '0%')}\n\n"
+            
+            # آمار دانلود
+            text += "📥 **دانلودها:**\n"
+            text += f"• فعال: {metrics.get('active_downloads', 0)}\n"
+            text += f"• کامل شده امروز: {metrics.get('completed_downloads', 0)}\n"
+            text += f"• حجم منتقل شده: {metrics.get('bytes_transferred', '0 MB')}\n"
+            text += f"• سرعت میانگین: {metrics.get('avg_download_speed', 0):.1f} MB/s\n\n"
+            
+            text += f"🕐 **آخرین بروزرسانی:** {datetime.now().strftime('%H:%M:%S')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="api_statistics"),
+                    InlineKeyboardButton("📈 نمودار", callback_data="api_charts")
+                ],
+                [
+                    InlineKeyboardButton("📋 گزارش کامل", callback_data="export_api_stats"),
+                    InlineKeyboardButton("⚙️ تنظیمات", callback_data="api_performance_settings")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error showing API statistics: {e}")
+            await query.edit_message_text(
+                f"❌ **خطا در دریافت آمار**\n\nعلت: {str(e)}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]]),
+                parse_mode='Markdown'
+            )
+    
+    async def handle_test_api_connection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تست اتصال API"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تست اتصال...")
+            
+            # تست اتصال به سیستم دانلود
+            system_status = await self.download_system_handler.get_system_status()
+            telethon_status = await self.download_system_handler._check_telethon_status()
+            
+            text = "🔍 **نتایج تست اتصال API**\n\n"
+            
+            # تست API سیستم دانلود
+            if system_status.get('ready', False):
+                text += "✅ **API سیستم دانلود:** متصل\n"
+                text += f"   📡 نسخه: {system_status.get('version', 'نامشخص')}\n"
+                text += f"   ⚡️ پاسخ: {system_status.get('ping', 'نامشخص')} ms\n"
+            else:
+                text += "❌ **API سیستم دانلود:** قطع\n"
+                text += f"   🔍 خطا: {system_status.get('error', 'نامشخص')}\n"
+            
+            text += "\n"
+            
+            # تست سیستم Telethon
+            if telethon_status.get('active', False):
+                text += f"✅ **سیستم Telethon:** فعال\n"
+                text += f"   👥 کلاینت‌های سالم: {telethon_status['healthy_clients']}/{telethon_status['total_clients']}\n"
+            else:
+                text += "❌ **سیستم Telethon:** غیرفعال\n"
+                text += f"   ⚠️ مسئله: {telethon_status.get('error', 'نامشخص')}\n"
+            
+            text += "\n"
+            
+            # خلاصه وضعیت
+            if system_status.get('ready', False) and telethon_status.get('active', False):
+                text += "🎉 **خلاصه:** تمام سیستم‌ها عملکرد مطلوب\n"
+                text += "✅ آماده دریافت درخواست دانلود"
+            elif system_status.get('ready', False):
+                text += "⚠️ **خلاصه:** API فعال، Telethon نیاز به بررسی\n"
+                text += "📥 دانلود محدود امکان‌پذیر است"
+            else:
+                text += "❌ **خلاصه:** سیستم نیاز به بررسی دارد\n"
+                text += "🔧 لطفاً تنظیمات را بررسی کنید"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تست مجدد", callback_data="test_api_connection"),
+                    InlineKeyboardButton("📊 آمار تفصیلی", callback_data="api_statistics")
+                ],
+                [
+                    InlineKeyboardButton("🔧 تنظیمات API", callback_data="api_settings"),
+                    InlineKeyboardButton("🩺 تشخیص مشکل", callback_data="diagnose_api_issue")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error testing API connection: {e}")
+            await query.edit_message_text(
+                f"❌ **خطا در تست API**\n\nعلت: {str(e)}\n\nلطفاً دوباره تلاش کنید.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]]),
+                parse_mode='Markdown'
+            )
     
     async def show_system_control(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """نمایش پنل کنترل سیستم دانلود"""
@@ -1381,3 +1516,340 @@ class DownloadSystemHandler(BaseHandler):
                 'healthy_clients': 0,
                 'total_clients': 0
             }
+    
+    # توابع ناقص که باید اضافه شوند
+    async def handle_speed_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات سرعت سیستم دانلود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # دریافت تنظیمات فعلی سرعت
+            current_settings = await self.get_speed_settings()
+            
+            text = "⚡️ **تنظیمات سرعت دانلود**\n\n"
+            text += f"📊 **تنظیمات فعلی:**\n"
+            text += f"• حداکثر سرعت: {current_settings.get('max_speed', 'نامحدود')} MB/s\n"
+            text += f"• تعداد اتصالات همزمان: {current_settings.get('max_connections', 4)}\n"
+            text += f"• اندازه بافر: {current_settings.get('buffer_size', '64KB')}\n\n"
+            text += "🎯 **انتخاب سرعت جدید:**"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🚀 نامحدود", callback_data="set_speed_unlimited"),
+                    InlineKeyboardButton("⚡️ 100 MB/s", callback_data="set_speed_100")
+                ],
+                [
+                    InlineKeyboardButton("🏃 50 MB/s", callback_data="set_speed_50"),
+                    InlineKeyboardButton("🚶 25 MB/s", callback_data="set_speed_25")
+                ],
+                [
+                    InlineKeyboardButton("🐌 10 MB/s", callback_data="set_speed_10"),
+                    InlineKeyboardButton("🔧 سفارشی", callback_data="set_speed_custom")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="system_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_speed(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم سرعت دانلود"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update, "در حال تنظیم سرعت...")
+            
+            speed_type = query.data.split('_')[-1]  # unlimited, 100, 50, 25, 10, custom
+            
+            if speed_type == "unlimited":
+                speed_limit = None
+                speed_text = "نامحدود"
+            elif speed_type == "custom":
+                # برای سفارشی، کاربر باید عدد وارد کند
+                text = "🔧 **تنظیم سرعت سفارشی**\n\n"
+                text += "لطفاً سرعت مورد نظر را بر حسب MB/s وارد کنید:\n"
+                text += "(مثال: 75)"
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("❌ لغو", callback_data="speed_settings")
+                ]])
+                
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+                
+                # تنظیم state برای دریافت input
+                user_id = update.effective_user.id
+                await self.update_user_session(
+                    user_id,
+                    action_state='setting_custom_speed'
+                )
+                return
+            else:
+                speed_limit = int(speed_type)
+                speed_text = f"{speed_limit} MB/s"
+            
+            # تنظیم سرعت از طریق API
+            result = await self.set_speed_limit(speed_limit)
+            
+            if result.get('success'):
+                text = f"✅ **سرعت دانلود تنظیم شد**\n\n"
+                text += f"⚡️ **سرعت جدید:** {speed_text}\n"
+                text += f"📊 **تأثیر:** تمام دانلودهای جدید\n\n"
+                text += "💡 **توجه:** دانلودهای در حال انجام تحت تأثیر قرار نمی‌گیرند."
+            else:
+                text = f"❌ **خطا در تنظیم سرعت**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تغییر سرعت", callback_data="speed_settings"),
+                    InlineKeyboardButton("📊 تست سرعت", callback_data="test_speed")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="system_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_generate_new_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تولید توکن جدید"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "🔐 **تولید توکن جدید**\n\n"
+            text += "⚠️ **هشدار مهم:**\n"
+            text += "• تولید توکن جدید، توکن فعلی را باطل می‌کند\n"
+            text += "• تمام اتصالات فعال قطع خواهند شد\n"
+            text += "• باید توکن جدید را در تنظیمات سیستم به‌روزرسانی کنید\n\n"
+            text += "🔧 **انواع توکن:**\n"
+            text += "• **مدیر کل:** دسترسی کامل به سیستم\n"
+            text += "• **مدیر محدود:** دسترسی به بخش‌های خاص\n"
+            text += "• **کاربر:** دسترسی پایه\n\n"
+            text += "آیا مطمئن هستید؟"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔐 مدیر کل", callback_data="confirm_new_token_admin"),
+                    InlineKeyboardButton("⚙️ مدیر محدود", callback_data="confirm_new_token_limited")
+                ],
+                [
+                    InlineKeyboardButton("👤 کاربر", callback_data="confirm_new_token_user")
+                ],
+                [
+                    InlineKeyboardButton("❌ لغو", callback_data="token_management")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_view_all_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مشاهده همه توکن‌ها"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # دریافت لیست توکن‌ها از API
+            tokens_data = await self.get_all_tokens()
+            
+            text = "📋 **لیست توکن‌های فعال**\n\n"
+            
+            if tokens_data.get('success'):
+                tokens = tokens_data.get('tokens', [])
+                
+                if tokens:
+                    for i, token in enumerate(tokens, 1):
+                        status_icon = "🟢" if token.get('is_active') else "🔴"
+                        type_icon = {
+                            'admin': '🔐',
+                            'limited': '⚙️', 
+                            'user': '👤'
+                        }.get(token.get('type'), '🔑')
+                        
+                        text += f"{i}. {type_icon} **{token.get('name', f'توکن {i}')}** {status_icon}\n"
+                        text += f"   🏷 نوع: {token.get('type', 'نامشخص')}\n"
+                        text += f"   📅 ایجاد: {token.get('created_at', 'نامشخص')[:16]}\n"
+                        text += f"   🔑 کد: `{token.get('token', '')[:20]}...`\n"
+                        if token.get('expires_at'):
+                            text += f"   ⏰ انقضا: {token.get('expires_at')[:16]}\n"
+                        text += f"   📊 استفاده: {token.get('usage_count', 0)} بار\n\n"
+                else:
+                    text += "❌ هیچ توکن فعالی یافت نشد!"
+            else:
+                text += f"❌ خطا در دریافت توکن‌ها\n\n"
+                text += f"علت: {tokens_data.get('error', 'نامشخص')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="view_all_tokens"),
+                    InlineKeyboardButton("➕ توکن جدید", callback_data="generate_new_token")
+                ],
+                [
+                    InlineKeyboardButton("🗑 حذف توکن", callback_data="delete_tokens"),
+                    InlineKeyboardButton("⏰ تنظیم انقضا", callback_data="set_token_expiry")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_management")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_new_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید تولید توکن جدید"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update, "در حال تولید توکن...")
+            
+            token_type = query.data.split('_')[-1]  # admin, limited, user
+            
+            # تولید توکن جدید از طریق API
+            result = await self.generate_token(token_type)
+            
+            if result.get('success'):
+                new_token = result.get('token')
+                token_id = result.get('token_id')
+                
+                text = f"✅ **توکن جدید تولید شد**\n\n"
+                text += f"🔐 **نوع توکن:** {token_type.title()}\n"
+                text += f"🆔 **شناسه:** `{token_id}`\n"
+                text += f"🔑 **توکن:**\n`{new_token}`\n\n"
+                text += "⚠️ **نکات مهم:**\n"
+                text += "• این توکن را در جایی امن ذخیره کنید\n"
+                text += "• توکن قدیمی غیرفعال شده است\n"
+                text += "• تنظیمات سیستم را به‌روزرسانی کنید\n\n"
+                text += f"📊 **دسترسی‌ها:**\n"
+                
+                if token_type == 'admin':
+                    text += "• دسترسی کامل به تمام عملیات\n"
+                    text += "• مدیریت کاربران و توکن‌ها\n"
+                    text += "• تنظیمات سیستم\n"
+                elif token_type == 'limited':
+                    text += "• دسترسی به عملیات محدود\n"
+                    text += "• ایجاد و مدیریت لینک‌ها\n"
+                    text += "• مشاهده آمار\n"
+                else:  # user
+                    text += "• دسترسی پایه\n"
+                    text += "• ایجاد لینک دانلود\n"
+                    text += "• مشاهده آمار شخصی\n"
+                
+                # به‌روزرسانی توکن داخلی اگر admin باشد
+                if token_type == 'admin':
+                    self.admin_token = new_token
+                    self.headers = {"Authorization": f"Bearer {new_token}"}
+                
+            else:
+                text = f"❌ **خطا در تولید توکن**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📋 کپی توکن", callback_data=f"copy_token_{result.get('token_id', '')}"),
+                    InlineKeyboardButton("📊 جزئیات توکن", callback_data=f"token_details_{result.get('token_id', '')}")
+                ] if result.get('success') else [],
+                [
+                    InlineKeyboardButton("🔄 تولید مجدد", callback_data="generate_new_token"),
+                    InlineKeyboardButton("📋 مشاهده همه", callback_data="view_all_tokens")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_management")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    # متدهای کمکی برای API calls
+    async def get_speed_settings(self) -> dict:
+        """دریافت تنظیمات سرعت فعلی"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/settings/speed",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    else:
+                        return {'max_speed': 'نامشخص', 'max_connections': 4, 'buffer_size': '64KB'}
+        except Exception as e:
+            logger.error(f"Error getting speed settings: {e}")
+            return {'max_speed': 'نامشخص', 'max_connections': 4, 'buffer_size': '64KB'}
+    
+    async def set_speed_limit(self, speed_limit: int = None) -> dict:
+        """تنظیم محدودیت سرعت"""
+        try:
+            data = {'max_speed': speed_limit}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.api_url}/api/settings/speed",
+                    headers=self.headers,
+                    json=data
+                ) as response:
+                    if response.status == 200:
+                        return {'success': True}
+                    else:
+                        error_data = await response.json()
+                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
+        except Exception as e:
+            logger.error(f"Error setting speed limit: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_all_tokens(self) -> dict:
+        """دریافت همه توکن‌ها"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', [])}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting all tokens: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def generate_token(self, token_type: str) -> dict:
+        """تولید توکن جدید"""
+        try:
+            data = {'type': token_type}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.api_url}/api/admin/tokens/generate",
+                    headers=self.headers,
+                    json=data
+                ) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return {
+                            'success': True,
+                            'token': result.get('token'),
+                            'token_id': result.get('token_id')
+                        }
+                    else:
+                        error_data = await response.json()
+                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
+        except Exception as e:
+            logger.error(f"Error generating token: {e}")
+            return {'success': False, 'error': str(e)}
