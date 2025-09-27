@@ -1,0 +1,13 @@
+{
+  "api_id": 123456,
+  "api_hash": "12345678912345678912345678912332",
+  "session_string": "",
+  "phone": "+989123456789",
+  "name": "123",
+  "device_model": "Download System",
+  "system_version": "1.0",
+  "app_version": "1.0.0",
+  "lang_code": "fa",
+  "created_at": "2025-09-25T19:47:58.487299",
+  "is_active": true
+}

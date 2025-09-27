@@ -1719,11 +1719,11 @@ class TelethonManagementHandler(BaseHandler):
             user_id = update.effective_user.id
             session = await self.db.get_user_session(user_id)
             
-            if session.get('action_state') != 'creating_telethon_config_manual':
+            if session.action_state != 'creating_telethon_config_manual':
                 await query.answer("❌ عملیات نامعتبر!")
                 return
             
-            temp_data = json.loads(session.get('temp_data', '{}'))
+            temp_data = json.loads(session.temp_data or '{}')
             temp_data['phone'] = ''
             
             # ایجاد کانفیگ نهایی

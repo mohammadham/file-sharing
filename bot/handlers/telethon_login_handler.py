@@ -161,7 +161,7 @@ class TelethonLoginHandler(BaseHandler):
             user_id = update.effective_user.id
             session = await self.db.get_user_session(user_id)
             
-            if session.get('action_state') != 'telethon_entering_phone':
+            if session.action_state != 'telethon_entering_phone':
                 return
             
             phone = update.message.text.strip()
@@ -174,7 +174,7 @@ class TelethonLoginHandler(BaseHandler):
                 )
                 return
             
-            temp_data = json.loads(session.get('temp_data', '{}'))
+            temp_data = json.loads(session.temp_data or '{}')
             config_name = temp_data.get('config_name')
             
             if not config_name:
@@ -250,7 +250,7 @@ class TelethonLoginHandler(BaseHandler):
             user_id = update.effective_user.id
             session = await self.db.get_user_session(user_id)
             
-            if session.get('action_state') != 'telethon_entering_code':
+            if session.action_state != 'telethon_entering_code':
                 return
             
             code = update.message.text.strip()
@@ -262,7 +262,7 @@ class TelethonLoginHandler(BaseHandler):
                 )
                 return
             
-            temp_data = json.loads(session.get('temp_data', '{}'))
+            temp_data = json.loads(session.temp_data or '{}')
             config_name = temp_data.get('config_name')
             phone = temp_data.get('phone')
             phone_code_hash = temp_data.get('phone_code_hash')
@@ -342,11 +342,11 @@ class TelethonLoginHandler(BaseHandler):
             user_id = update.effective_user.id
             session = await self.db.get_user_session(user_id)
             
-            if session.get('action_state') != 'telethon_entering_password':
+            if session.action_state != 'telethon_entering_password':
                 return
             
             password = update.message.text.strip()
-            temp_data = json.loads(session.get('temp_data', '{}'))
+            temp_data = json.loads(session.temp_data or '{}')
             
             config_name = temp_data.get('config_name')
             phone = temp_data.get('phone')

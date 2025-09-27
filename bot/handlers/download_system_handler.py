@@ -867,7 +867,7 @@ class DownloadSystemHandler(BaseHandler):
             
             # دریافت داده‌های session
             session = await self.db.get_user_session(user_id)
-            temp_data = json.loads(session.get('temp_data', '{}'))
+            temp_data = json.loads(session.temp_data or '{}')
             
             if temp_data.get('file_id') != file_id:
                 await query.edit_message_text("❌ خطا در داده‌های session!")

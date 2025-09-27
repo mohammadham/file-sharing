@@ -293,7 +293,7 @@ class TelethonConfigHandler(BaseHandler):
             session = await self.db.get_user_session(user_id)
             
             # بررسی وضعیت کاربر
-            if session.get('action_state') != 'uploading_telethon_config':
+            if session.action_state != 'uploading_telethon_config':
                 return
             
             # بررسی فایل
@@ -353,7 +353,7 @@ class TelethonConfigHandler(BaseHandler):
                     
                     keyboard = InlineKeyboardMarkup([
                         [
-                            InlineKeyboardButton("🔐 ورود به اکانت", callback_data=f"telethon_login_{config_name}"),
+                            InlineKeyboardButton("🔐 ورود به اکانت", callback_data=f"telethon_start_login_{config_name}"),
                             InlineKeyboardButton("📋 مشاهده کانفیگ‌ها", callback_data="telethon_list_configs")
                         ],
                         [
@@ -440,7 +440,7 @@ class TelethonConfigHandler(BaseHandler):
                 ])
             else:
                 keyboard_rows.append([
-                    InlineKeyboardButton("🔐 ورود به اکانت", callback_data=f"telethon_login_{config_name}")
+                    InlineKeyboardButton("🔐 ورود به اکانت", callback_data=f"telethon_start_login_{config_name}")
                 ])
             
             keyboard_rows.extend([
@@ -534,10 +534,10 @@ class TelethonConfigHandler(BaseHandler):
             user_id = update.effective_user.id
             session = await self.db.get_user_session(user_id)
             
-            if session.get('action_state') != 'creating_telethon_config_manual':
+            if session.action_state != 'creating_telethon_config_manual':
                 return
             
-            temp_data = json.loads(session.get('temp_data', '{}'))
+            temp_data = json.loads(session.temp_data or '{}')
             step = temp_data.get('step')
             user_input = update.message.text.strip()
             
@@ -668,6 +668,29 @@ class TelethonConfigHandler(BaseHandler):
             parse_mode='Markdown'
         )
     
+    async def handle_skip_phone(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش رد کردن شماره تلفن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            user_id = update.effective_user.id
+            session = await self.db.get_user_session(user_id)
+            
+            if session.action_state != 'creating_telethon_config_manual':
+                await query.edit_message_text("❌ عملیات نامعتبر!")
+                return
+            
+            temp_data = json.loads(session.temp_data or '{}')
+            temp_data['phone'] = ''  # شماره خالی برای skip
+            
+            # ایجاد کانفیگ نهایی
+            await self._create_final_config_from_callback(query, context, temp_data)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_skip_phone: {e}")
+            await query.edit_message_text("❌ خطایی رخ داد!")
+
     async def _handle_config_phone_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE, phone: str, temp_data: dict):
         """پردازش شماره تلفن کانفیگ"""
         # اعتبارسنجی شماره (اگر وارد شده باشد)
@@ -717,7 +740,7 @@ class TelethonConfigHandler(BaseHandler):
                 
                 keyboard = InlineKeyboardMarkup([
                     [
-                        InlineKeyboardButton("🔐 ورود به اکانت", callback_data=f"telethon_login_{config_data['name']}"),
+                        InlineKeyboardButton("🔐 ورود به اکانت", callback_data=f"telethon_start_login_{config_data['name']}"),
                         InlineKeyboardButton("📋 مشاهده کانفیگ‌ها", callback_data="telethon_list_configs")
                     ],
                     [
@@ -743,5 +766,68 @@ class TelethonConfigHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error creating final config: {e}")
             await update.message.reply_text(
+                "❌ خطا در ایجاد کانفیگ. لطفاً دوباره تلاش کنید."
+            )
+    
+    async def _create_final_config_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE, config_data: dict):
+        """ایجاد کانفیگ نهایی از callback query"""
+        try:
+            user_id = query.from_user.id
+            
+            # آماده‌سازی داده‌های کانفیگ
+            final_config = {
+                'api_id': config_data['api_id'],
+                'api_hash': config_data['api_hash'],
+                'name': config_data['name'],
+                'phone': config_data.get('phone', ''),
+                'device_model': 'Download System',
+                'system_version': '1.0',
+                'app_version': '1.0.0',
+                'lang_code': 'fa',
+                'is_active': True
+            }
+            
+            # ذخیره کانفیگ
+            from download_system.core.telethon_manager import AdvancedTelethonClientManager
+            
+            telethon_manager = AdvancedTelethonClientManager()
+            success = telethon_manager.config_manager.save_config(config_data['name'], final_config)
+            
+            if success:
+                # ریست وضعیت کاربر
+                await self.db.update_user_session(
+                    user_id,
+                    action_state='browsing',
+                    temp_data=None
+                )
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔐 ورود به اکانت", callback_data=f"telethon_start_login_{config_data['name']}"),
+                        InlineKeyboardButton("📋 مشاهده کانفیگ‌ها", callback_data="telethon_list_configs")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")
+                    ]
+                ])
+                
+                await query.edit_message_text(
+                    f"✅ **کانفیگ '{config_data['name']}' با موفقیت ایجاد شد!**\n\n"
+                    f"🔧 **مشخصات:**\n"
+                    f"• نام: {config_data['name']}\n"
+                    f"• API ID: {config_data['api_id']}\n"
+                    f"• شماره: {config_data.get('phone', 'وارد نشده')}\n\n"
+                    f"💡 **مرحله بعد:** برای استفاده از این کانفیگ، ابتدا وارد اکانت تلگرام شوید.",
+                    reply_markup=keyboard,
+                    parse_mode='Markdown'
+                )
+            else:
+                await query.edit_message_text(
+                    "❌ خطا در ذخیره کانفیگ. لطفاً دوباره تلاش کنید."
+                )
+                
+        except Exception as e:
+            logger.error(f"Error creating final config from callback: {e}")
+            await query.edit_message_text(
                 "❌ خطا در ایجاد کانفیگ. لطفاً دوباره تلاش کنید."
             )

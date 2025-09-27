@@ -23,7 +23,10 @@ import sys
 from pathlib import Path
 # Add bot directory to path
 sys.path.append(str(Path(__file__).parent))
-from config.settings import settings
+try:
+    from config.settings import settings
+except ImportError:
+    from download_system.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

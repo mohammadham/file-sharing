@@ -354,7 +354,7 @@ class TelegramFileBot:
             elif callback_data == 'telethon_manual_create':
                 await self.telethon_config_handler.start_manual_creation(update, context)
             elif callback_data == 'telethon_skip_phone':
-                await self.telethon_config_handler._handle_config_phone_input(update, context, "", {})
+                await self.telethon_config_handler.handle_skip_phone(update, context)
             elif callback_data.startswith('telethon_confirm_delete_'):
                 await self.telethon_management_handler.telethon_confirm_delete(update, context)
             elif callback_data.startswith('telethon_manage_config_'):

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     
     # API Settings
     API_HOST: str = Field(default="0.0.0.0", env="API_HOST")
-    API_PORT: int = Field(default=8000, env="API_PORT")
+    API_PORT: int = Field(default=8001, env="API_PORT")
     API_PREFIX: str = "/api"
     
     # Security
