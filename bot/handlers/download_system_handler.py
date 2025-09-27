@@ -315,9 +315,11 @@ class DownloadSystemHandler(BaseHandler):
             # بررسی وضعیت Telethon برای نمایش هشدار در صورت لزوم
             telethon_warning = ""
             if not telethon_status.get('active', False):
-                telethon_warning = f"\n⚠️ **هشدار سیستم Telethon:**\n"
-                telethon_warning += f"🔴 {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
-                telethon_warning += f"💡 برای عملکرد بهتر، لطفاً وارد اکانت Telethon شوید.\n\n"
+                telethon_warning = f"\n⚠️ **وضعیت سیستم Telethon:**\n"
+                telethon_warning += f"🔴 **مشکل:** {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
+                telethon_warning += f"📊 **آمار:** {telethon_status.get('healthy_clients', 0)} فعال از {telethon_status.get('total_clients', 0)} کلاینت\n"
+                telethon_warning += f"💡 **راهکار:** برای عملکرد بهتر، ابتدا Telethon را از منوی مدیریت فعال کنید.\n"
+                telethon_warning += f"🔧 **توجه:** لینک ایجاد شده تا زمان فعال‌سازی Telethon ممکن است کار نکند.\n\n"
             
             if result.get('success'):
                 text = f"🌊 **لینک دانلود استریم ایجاد شد**\n\n"
@@ -395,9 +397,11 @@ class DownloadSystemHandler(BaseHandler):
             # بررسی وضعیت Telethon برای نمایش هشدار در صورت لزوم
             telethon_warning = ""
             if not telethon_status.get('active', False):
-                telethon_warning = f"\n⚠️ **هشدار سیستم Telethon:**\n"
-                telethon_warning += f"🔴 {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
-                telethon_warning += f"💡 برای عملکرد بهتر، لطفاً وارد اکانت Telethon شوید.\n\n"
+                telethon_warning = f"\n⚠️ **وضعیت سیستم Telethon:**\n"
+                telethon_warning += f"🔴 **مشکل:** {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
+                telethon_warning += f"📊 **آمار:** {telethon_status.get('healthy_clients', 0)} فعال از {telethon_status.get('total_clients', 0)} کلاینت\n"
+                telethon_warning += f"💡 **راهکار:** برای عملکرد بهتر، ابتدا Telethon را از منوی مدیریت فعال کنید.\n"
+                telethon_warning += f"🔧 **توجه:** لینک ایجاد شده تا زمان فعال‌سازی Telethon ممکن است کار نکند.\n\n"
             
             if result.get('success'):
                 text = f"⚡️ **لینک دانلود سریع ایجاد شد**\n\n"
@@ -575,8 +579,9 @@ class DownloadSystemHandler(BaseHandler):
                 ) as response:
                     if response.status == 200:
                         result = await response.json()
-                        # همیشه موفقیت‌آمیز برگردان، حتی اگر API مشکل داشته باشد
-                        if result.get('success', True):
+                        # اگر API موفق بود، success اضافه کن
+                        if 'error' not in result and 'link_code' in result:
+                            result['success'] = True
                             return result
                         else:
                             # ایجاد لینک فیک با هشدار
@@ -910,9 +915,11 @@ class DownloadSystemHandler(BaseHandler):
             # بررسی وضعیت Telethon برای نمایش هشدار در صورت لزوم
             telethon_warning = ""
             if not telethon_status.get('active', False):
-                telethon_warning = f"\n⚠️ **هشدار سیستم Telethon:**\n"
-                telethon_warning += f"🔴 {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
-                telethon_warning += f"💡 برای عملکرد بهتر، لطفاً وارد اکانت Telethon شوید.\n\n"
+                telethon_warning = f"\n⚠️ **وضعیت سیستم Telethon:**\n"
+                telethon_warning += f"🔴 **مشکل:** {telethon_status.get('error', 'سیستم Telethon فعال نیست')}\n"
+                telethon_warning += f"📊 **آمار:** {telethon_status.get('healthy_clients', 0)} فعال از {telethon_status.get('total_clients', 0)} کلاینت\n"
+                telethon_warning += f"💡 **راهکار:** برای عملکرد بهتر، ابتدا Telethon را از منوی مدیریت فعال کنید.\n"
+                telethon_warning += f"🔧 **توجه:** لینک ایجاد شده تا زمان فعال‌سازی Telethon ممکن است کار نکند.\n\n"
             
             # پاکسازی session
             await self.db.update_user_session(
