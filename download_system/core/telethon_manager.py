@@ -249,12 +249,23 @@ class AdvancedTelethonClientManager:
                 lang_code=config.lang_code
             )
             
-            await client.start()
+            # اتصال بدون ورود تعاملی - فقط برای session های موجود
+            await client.connect()
             
-            # ذخیره session string اگر جدید است
+            # بررسی اینکه آیا وارد شده یا نه
+            if not await client.is_user_authorized():
+                logger.warning(f"Client {config_name} is not authorized. Need to login first.")
+                self._update_client_status(config_name, "unauthorized", "Need to login first")
+                await client.disconnect()
+                return None
+            
+            # ذخیره session string اگر جدید است و وارد شده باشد
             if not config.session_string and hasattr(client.session, 'save'):
-                session_string = client.session.save()
-                self.config_manager.update_session_string(config_name, session_string)
+                try:
+                    session_string = client.session.save()
+                    self.config_manager.update_session_string(config_name, session_string)
+                except Exception as e:
+                    logger.error(f"Error saving session for {config_name}: {e}")
             
             self.clients[config_name] = client
             self._update_client_status(config_name, "connected", None)
@@ -282,6 +293,51 @@ class AdvancedTelethonClientManager:
             'last_check': datetime.now().isoformat(),
             'connected': status == "connected"
         }
+    
+    async def login_client_interactive(self, config_name: str, phone: str = None) -> bool:
+        """ورود تعاملی به کلاینت - فقط برای استفاده در ربات"""
+        try:
+            config = self.config_manager.get_config(config_name)
+            if not config or not config.is_valid():
+                logger.error(f"No valid config found for: {config_name}")
+                return False
+            
+            # استفاده از شماره تلفن موجود یا ورودی
+            phone_number = phone or config.phone
+            if not phone_number:
+                logger.error(f"No phone number available for {config_name}")
+                return False
+            
+            # ایجاد کلاینت موقت برای ورود
+            session_path = Path(settings.TELETHON_SESSION_DIR) / f"{config_name}.session"
+            client = TelegramClient(
+                str(session_path),
+                config.api_id,
+                config.api_hash,
+                device_model=config.device_model,
+                system_version=config.system_version,
+                app_version=config.app_version,
+                lang_code=config.lang_code
+            )
+            
+            # شروع فرآیند ورود تعاملی
+            await client.start(phone=phone_number)
+            
+            # ذخیره session string
+            if hasattr(client.session, 'save'):
+                session_string = client.session.save()
+                self.config_manager.update_session_string(config_name, session_string)
+            
+            await client.disconnect()
+            self._update_client_status(config_name, "authorized", None)
+            
+            logger.info(f"Successfully logged in client: {config_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error during interactive login for {config_name}: {e}")
+            self._update_client_status(config_name, "login_error", str(e))
+            return False
     
     async def check_all_clients_health(self) -> Dict[str, dict]:
         """بررسی سلامت تمام کلاینت‌ها"""

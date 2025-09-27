@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # Redis Cache
     REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     
+    # CORS Settings
+    CORS_ORIGINS: str = Field(default="*", env="CORS_ORIGINS")
+    
     # Telegram Settings (from bot)
     BOT_TOKEN: str = Field(default="",env="BOT_TOKEN")
     STORAGE_CHANNEL_ID: int = Field(default=0,env="STORAGE_CHANNEL_ID")
@@ -70,6 +73,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = 'utf-8'
         case_sensitive = True
+        extra = "ignore"  # اجازه فیلدهای اضافی
 
 
 # Global settings instance
