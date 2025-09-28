@@ -269,124 +269,6 @@ class TokenManagementHandler(BaseHandler):
             logger.error(f"Error in show_token_list: {e}")
             await self.handle_error(update, context, e)
     
-    # Helper Methods
-    
-    def _get_token_type_name(self, token_type: str) -> str:
-        """دریافت نام فارسی نوع توکن"""
-        type_names = {
-            'admin': 'مدیر کل',
-            'limited': 'مدیر محدود', 
-            'user': 'کاربر',
-            'api': 'API',
-            'service': 'سرویس'
-        }
-        return type_names.get(token_type, 'نامشخص')
-    
-    def _get_token_type_icon(self, token_type: str) -> str:
-        """دریافت آیکون نوع توکن"""
-        type_icons = {
-            'admin': '🛡',
-            'limited': '⚙️',
-            'user': '👤',
-            'api': '🔑',
-            'service': '🔧'
-        }
-        return type_icons.get(token_type, '🔑')
-    
-    def _get_token_permissions(self, token_type: str) -> List[str]:
-        """دریافت لیست دسترسی‌های توکن"""
-        permissions = {
-            'admin': [
-                'دسترسی کامل به تمام عملیات',
-                'مدیریت کاربران و توکن‌ها',
-                'تنظیمات سیستم',
-                'گزارش‌گیری پیشرفته',
-                'نظارت بر سیستم',
-                'پاکسازی و نگهداری'
-            ],
-            'limited': [
-                'ایجاد و مدیریت لینک‌های دانلود',
-                'مشاهده آمار شخصی',
-                'دانلود فایل‌ها',
-                'مدیریت محدود کاربران'
-            ],
-            'user': [
-                'ایجاد لینک دانلود',
-                'مشاهده آمار محدود',
-                'دانلود فایل‌های شخصی'
-            ]
-        }
-        return permissions.get(token_type, ['دسترسی پایه'])
-    
-    # API Methods
-    
-    async def get_token_statistics(self) -> Dict[str, Any]:
-        """دریافت آمار توکن‌ها"""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.api_url}/api/admin/tokens/stats",
-                    headers=self.headers
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return {'success': True, 'data': data}
-                    else:
-                        return {'success': False, 'error': f'HTTP {response.status}'}
-        except Exception as e:
-            logger.error(f"Error getting token statistics: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    async def get_all_tokens(self) -> Dict[str, Any]:
-        """دریافت همه توکن‌ها"""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.api_url}/api/admin/tokens",
-                    headers=self.headers
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if isinstance(data, list):
-                            return {'success': True, 'tokens': data}
-                        else:
-                            return {'success': True, 'tokens': data.get('tokens', [])}
-                    else:
-                        return {'success': False, 'error': f'HTTP {response.status}'}
-        except Exception as e:
-            logger.error(f"Error getting all tokens: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    async def create_api_token(self, token_type: str, name: str = None, expires_in_days: int = None) -> Dict[str, Any]:
-        """تولید توکن جدید"""
-        try:
-            data = {
-                'type': token_type,
-                'name': name or f'توکن {token_type} - {datetime.now().strftime("%Y%m%d_%H%M")}'
-            }
-            
-            if expires_in_days:
-                data['expires_at'] = (datetime.now() + timedelta(days=expires_in_days)).isoformat()
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.api_url}/api/auth/token/create",
-                    headers=self.headers,
-                    json=data
-                ) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        return {
-                            'success': True,
-                            'data': result
-                        }
-                    else:
-                        error_data = await response.json()
-                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
-        except Exception as e:
-            logger.error(f"Error creating API token: {e}")
-            return {'success': False, 'error': str(e)}
-    
     async def show_permissions_manager(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """نمایش مدیریت دسترسی‌ها"""
         try:
@@ -525,3 +407,638 @@ class TokenManagementHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error in show_cleanup_options: {e}")
             await self.handle_error(update, context, e)
+    
+    # متدهای جدید برای تکمیل توکن منیجر
+    
+    async def handle_deactivate_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش گزینه‌های غیرفعال‌سازی توکن‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🔒 **غیرفعال‌سازی توکن‌ها**\n\n"
+            text += "لطفاً نوع غیرفعال‌سازی را انتخاب کنید:\n\n"
+            
+            text += "• **غیرفعال‌سازی تک:** غیرفعال کردن یک توکن خاص\n"
+            text += "• **غیرفعال‌سازی دسته‌ای:** غیرفعال کردن چندین توکن به صورت همزمان\n"
+            text += "• **غیرفعال‌سازی منقضی‌ها:** غیرفعال کردن همه توکن‌های منقضی شده\n"
+            text += "• **غیرفعال‌سازی مشکوک:** غیرفعال کردن توکن‌های با فعالیت مشکوک"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔒 غیرفعال‌سازی تک", callback_data="deactivate_single_token"),
+                    InlineKeyboardButton("📦 غیرفعال‌سازی دسته‌ای", callback_data="deactivate_bulk_tokens")
+                ],
+                [
+                    InlineKeyboardButton("⏰ غیرفعال‌سازی منقضی‌ها", callback_data="deactivate_expired_tokens"),
+                    InlineKeyboardButton("⚠️ غیرفعال‌سازی مشکوک", callback_data="deactivate_suspicious_tokens")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_deactivate_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_token_expiry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش گزینه‌های تنظیم انقضای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "⏰ **تنظیم انقضای توکن**\n\n"
+            text += "لطفاً نوع تنظیم انقضا را انتخاب کنید:\n\n"
+            
+            text += "• **انقضای پیش‌فرض:** تنظیم زمان انقضای پیش‌فرض برای توکن‌های جدید\n"
+            text += "• **انقضای دسته‌ای:** تنظیم انقضا برای چندین توکن به صورت همزمان\n"
+            text += "• **انقضای سفارشی:** تنظیم انقضای سفارشی برای یک توکن خاص"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⏰ انقضای پیش‌فرض", callback_data="set_default_expiry"),
+                    InlineKeyboardButton("📦 انقضای دسته‌ای", callback_data="set_bulk_expiry")
+                ],
+                [
+                    InlineKeyboardButton("🎯 انقضای سفارشی", callback_data="set_custom_expiry")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_token_expiry: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_current_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن فعلی"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال غیرفعال‌سازی توکن...")
+            
+            # دریافت توکن فعلی از session
+            user_id = update.effective_user.id
+            session = await self.db.get_user_session(user_id)
+            
+            if not session or not session.get('current_token_id'):
+                await query.edit_message_text(
+                    "❌ **خطا:** هیچ توکن فعلی یافت نشد.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]])
+                )
+                return
+            
+            token_id = session.get('current_token_id')
+            
+            # غیرفعال‌سازی توکن از طریق API
+            result = await self.deactivate_token(token_id)
+            
+            if result.get('success'):
+                text = f"✅ **توکن غیرفعال شد**\n\n"
+                text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+                text += f"📅 **زمان غیرفعال‌سازی:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                text += "⚠️ این توکن دیگر قابل استفاده نیست."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens"),
+                        InlineKeyboardButton("➕ توکن جدید", callback_data="create_new_token")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در غیرفعال‌سازی توکن**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data="deactivate_current_token"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_deactivate_current_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_expired_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن‌های منقضی شده"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال غیرفعال‌سازی توکن‌های منقضی...")
+            
+            # غیرفعال‌سازی توکن‌های منقضی از طریق API
+            result = await self.deactivate_expired_tokens()
+            
+            if result.get('success'):
+                count = result.get('count', 0)
+                text = f"✅ **توکن‌های منقضی غیرفعال شدند**\n\n"
+                text += f"📊 **تعداد توکن‌های غیرفعال شده:** {count}\n"
+                text += f"📅 **زمان اجرا:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                text += "✅ تمام توکن‌های منقضی با موفقیت غیرفعال شدند."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens"),
+                        InlineKeyboardButton("🔄 بروزرسانی", callback_data="deactivate_expired_tokens")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در غیرفعال‌سازی توکن‌های منقضی**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data="deactivate_expired_tokens"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_deactivate_expired_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_user_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن‌های کاربر"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "👤 **غیرفعال‌سازی توکن‌های کاربر**\n\n"
+            text += "لطفاً شناسه کاربر را وارد کنید:\n\n"
+            text += "• برای غیرفعال‌سازی توکن‌های یک کاربر خاص\n"
+            text += "• شناسه کاربر باید عددی باشد\n"
+            text += "• می‌توانید از لیست کاربران انتخاب کنید"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📋 لیست کاربران", callback_data="list_users"),
+                    InlineKeyboardButton("🔍 جستجوی کاربر", callback_data="search_user")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_deactivate_user_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_suspicious_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن‌های مشکوک"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال بررسی توکن‌های مشکوک...")
+            
+            # دریافت توکن‌های مشکوک از طریق API
+            result = await self.get_suspicious_tokens()
+            
+            if result.get('success') and result.get('tokens'):
+                tokens = result.get('tokens', [])
+                
+                text = f"⚠️ **توکن‌های مشکوک شناسایی شدند**\n\n"
+                text += f"📊 **تعداد:** {len(tokens)} توکن\n\n"
+                
+                for i, token in enumerate(tokens, 1):
+                    text += f"{i}. 🔍 **توکن مشکوک**\n"
+                    text += f"   🆔 شناسه: `{token.get('token_id', 'N/A')}`\n"
+                    text += f"   🏷 نوع: {self._get_token_type_name(token.get('type', 'user'))}\n"
+                    text += f"   ⚠️ دلیل: {token.get('suspicion_reason', 'نامشخص')}\n"
+                    text += f"   📊 استفاده: {token.get('usage_count', 0)} بار\n\n"
+                
+                text += "آیا می‌خواهید این توکن‌ها را غیرفعال کنید؟"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ غیرفعال‌سازی همه", callback_data="confirm_deactivate_suspicious"),
+                        InlineKeyboardButton("🔍 بررسی دقیق‌تر", callback_data="inspect_suspicious_tokens")
+                    ],
+                    [
+                        InlineKeyboardButton("❌ انصراف", callback_data="token_dashboard")
+                    ]
+                ])
+            else:
+                text = "✅ **هیچ توکن مشکوکی یافت نشد**\n\n"
+                text += "تمام توکن‌ها در حالت عادی هستند."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 بررسی مجدد", callback_data="deactivate_suspicious_tokens"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_deactivate_suspicious_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_expiry_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم انقضای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج اطلاعات از callback_data
+            callback_data = query.data
+            parts = callback_data.split('_')
+            
+            if len(parts) < 4:
+                await query.edit_message_text(
+                    "❌ **خطا:** اطلاعات ناقص است.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]])
+                )
+                return
+            
+            action = parts[3]  # default, bulk, custom
+            token_id = parts[4] if len(parts) > 4 else None
+            
+            text = f"⏰ **تنظیم انقضای توکن**\n\n"
+            
+            if action == 'default':
+                text += "لطفاً مدت زمان انقضای پیش‌فرض را انتخاب کنید:\n\n"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("1 روز", callback_data=f"set_default_expiry_1"),
+                        InlineKeyboardButton("7 روز", callback_data=f"set_default_expiry_7")
+                    ],
+                    [
+                        InlineKeyboardButton("30 روز", callback_data=f"set_default_expiry_30"),
+                        InlineKeyboardButton("90 روز", callback_data=f"set_default_expiry_90")
+                    ],
+                    [
+                        InlineKeyboardButton("نامحدود", callback_data=f"set_default_expiry_0"),
+                        InlineKeyboardButton("سفارشی", callback_data=f"set_default_expiry_custom")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            elif action == 'bulk':
+                text += "لطفاً مدت زمان انقضای دسته‌ای را انتخاب کنید:\n\n"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("1 روز", callback_data=f"set_bulk_expiry_1"),
+                        InlineKeyboardButton("7 روز", callback_data=f"set_bulk_expiry_7")
+                    ],
+                    [
+                        InlineKeyboardButton("30 روز", callback_data=f"set_bulk_expiry_30"),
+                        InlineKeyboardButton("90 روز", callback_data=f"set_bulk_expiry_90")
+                    ],
+                    [
+                        InlineKeyboardButton("نامحدود", callback_data=f"set_bulk_expiry_0"),
+                        InlineKeyboardButton("سفارشی", callback_data=f"set_bulk_expiry_custom")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            elif action == 'custom' and token_id:
+                text += f"لطفاً مدت زمان انقضای توکن `{token_id}` را انتخاب کنید:\n\n"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("1 روز", callback_data=f"set_custom_expiry_{token_id}_1"),
+                        InlineKeyboardButton("7 روز", callback_data=f"set_custom_expiry_{token_id}_7")
+                    ],
+                    [
+                        InlineKeyboardButton("30 روز", callback_data=f"set_custom_expiry_{token_id}_30"),
+                        InlineKeyboardButton("90 روز", callback_data=f"set_custom_expiry_{token_id}_90")
+                    ],
+                    [
+                        InlineKeyboardButton("نامحدود", callback_data=f"set_custom_expiry_{token_id}_0"),
+                        InlineKeyboardButton("سفارشی", callback_data=f"set_custom_expiry_{token_id}_custom")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            else:
+                text = "❌ **خطا:** درخواست نامعتبر است."
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_expiry_action: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_new_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید ایجاد توکن جدید"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تأیید ایجاد توکن...")
+            
+            # استخراج اطلاعات از callback_data
+            callback_data = query.data
+            parts = callback_data.split('_')
+            
+            if len(parts) < 4:
+                await query.edit_message_text(
+                    "❌ **خطا:** اطلاعات ناقص است.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]])
+                )
+                return
+            
+            token_type = parts[3]  # admin, limited, user
+            
+            # دریافت اطلاعات توکن از session
+            user_id = update.effective_user.id
+            session = await self.db.get_user_session(user_id)
+            
+            if not session or not session.get('temp_data'):
+                await query.edit_message_text(
+                    "❌ **خطا:** اطلاعات جلسه یافت نشد.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]])
+                )
+                return
+            
+            temp_data = json.loads(session.get('temp_data', '{}'))
+            
+            # ایجاد توکن از طریق API
+            result = await self.create_api_token(
+                token_type=token_type,
+                name=temp_data.get('name', f'توکن {token_type}'),
+                expires_in_days=temp_data.get('expires_in_days')
+            )
+            
+            if result.get('success'):
+                token_data = result.get('data', {})
+                
+                text = f"✅ **توکن جدید با موفقیت ایجاد شد**\n\n"
+                text += f"🔐 **نوع:** {self._get_token_type_name(token_type)}\n"
+                text += f"🆔 **شناسه:** `{token_data.get('token_id', 'N/A')}`\n"
+                text += f"📝 **نام:** {token_data.get('name', 'بدون نام')}\n"
+                text += f"📅 **تاریخ ایجاد:** {token_data.get('created_at', 'نامشخص')[:16]}\n"
+                
+                if token_data.get('expires_at'):
+                    text += f"⏰ **انقضا:** {token_data.get('expires_at')[:16]}\n"
+                else:
+                    text += f"♾ **انقضا:** بدون محدودیت\n"
+                
+                text += f"\n🔑 **توکن:**\n`{token_data.get('token', '')}`\n\n"
+                
+                text += "⚠️ **نکات مهم:**\n"
+                text += "• این توکن را در جایی امن ذخیره کنید\n"
+                text += "• مراقب عدم انتشار عمومی آن باشید\n"
+                text += "• در صورت فراموشی قابل بازیابی نیست\n"
+                text += "• می‌توانید هر زمان آن را غیرفعال کنید\n\n"
+                
+                text += f"📊 **دسترسی‌های این توکن:**\n"
+                permissions = self._get_token_permissions(token_type)
+                for perm in permissions:
+                    text += f"• {perm}\n"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 کپی توکن", callback_data=f"copy_token_{token_data.get('token_id', '')}"),
+                        InlineKeyboardButton("📊 جزئیات", callback_data=f"token_details_{token_data.get('token_id', '')}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔄 تولید مجدد", callback_data="create_new_token"),
+                        InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در ایجاد توکن**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"create_token_{token_type}"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_new_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    # متدهای کمکی
+    
+    def _get_token_type_name(self, token_type: str) -> str:
+        """دریافت نام فارسی نوع توکن"""
+        type_names = {
+            'admin': 'مدیر کل',
+            'limited': 'مدیر محدود', 
+            'user': 'کاربر',
+            'api': 'API',
+            'service': 'سرویس'
+        }
+        return type_names.get(token_type, 'نامشخص')
+    
+    def _get_token_type_icon(self, token_type: str) -> str:
+        """دریافت آیکون نوع توکن"""
+        type_icons = {
+            'admin': '🛡',
+            'limited': '⚙️',
+            'user': '👤',
+            'api': '🔑',
+            'service': '🔧'
+        }
+        return type_icons.get(token_type, '🔑')
+    
+    def _get_token_permissions(self, token_type: str) -> List[str]:
+        """دریافت لیست دسترسی‌های توکن"""
+        permissions = {
+            'admin': [
+                'دسترسی کامل به تمام عملیات',
+                'مدیریت کاربران و توکن‌ها',
+                'تنظیمات سیستم',
+                'گزارش‌گیری پیشرفته',
+                'نظارت بر سیستم',
+                'پاکسازی و نگهداری'
+            ],
+            'limited': [
+                'ایجاد و مدیریت لینک‌های دانلود',
+                'مشاهده آمار شخصی',
+                'دانلود فایل‌ها',
+                'مدیریت محدود کاربران'
+            ],
+            'user': [
+                'ایجاد لینک دانلود',
+                'مشاهده آمار محدود',
+                'دانلود فایل‌های شخصی'
+            ]
+        }
+        return permissions.get(token_type, ['دسترسی پایه'])
+    
+    # متدهای API
+    
+    async def get_token_statistics(self) -> Dict[str, Any]:
+        """دریافت آمار توکن‌ها"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/stats",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'data': data}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting token statistics: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_all_tokens(self) -> Dict[str, Any]:
+        """دریافت همه توکن‌ها"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if isinstance(data, list):
+                            return {'success': True, 'tokens': data}
+                        else:
+                            return {'success': True, 'tokens': data.get('tokens', [])}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting all tokens: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def create_api_token(self, token_type: str, name: str = None, expires_in_days: int = None) -> Dict[str, Any]:
+        """تولید توکن جدید"""
+        try:
+            data = {
+                'type': token_type,
+                'name': name or f'توکن {token_type} - {datetime.now().strftime("%Y%m%d_%H%M")}'
+            }
+            
+            if expires_in_days:
+                data['expires_at'] = (datetime.now() + timedelta(days=expires_in_days)).isoformat()
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.api_url}/api/auth/token/create",
+                    headers=self.headers,
+                    json=data
+                ) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return {
+                            'success': True,
+                            'data': result
+                        }
+                    else:
+                        error_data = await response.json()
+                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
+        except Exception as e:
+            logger.error(f"Error creating API token: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def deactivate_token(self, token_id: str) -> Dict[str, Any]:
+        """غیرفعال‌سازی یک توکن"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.api_url}/api/admin/tokens/{token_id}/deactivate",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        return {'success': True}
+                    else:
+                        error_data = await response.json()
+                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
+        except Exception as e:
+            logger.error(f"Error deactivating token: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def deactivate_expired_tokens(self) -> Dict[str, Any]:
+        """غیرفعال‌سازی توکن‌های منقضی شده"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.api_url}/api/admin/tokens/deactivate-expired",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'count': data.get('count', 0)}
+                    else:
+                        error_data = await response.json()
+                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
+        except Exception as e:
+            logger.error(f"Error deactivating expired tokens: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_suspicious_tokens(self) -> Dict[str, Any]:
+        """دریافت توکن‌های مشکوک"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/suspicious",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', [])}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting suspicious tokens: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def set_token_expiry(self, token_id: str, expires_in_days: int) -> Dict[str, Any]:
+        """تنظیم انقضای توکن"""
+        try:
+            data = {
+                'expires_in_days': expires_in_days
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.api_url}/api/admin/tokens/{token_id}/set-expiry",
+                    headers=self.headers,
+                    json=data
+                ) as response:
+                    if response.status == 200:
+                        return {'success': True}
+                    else:
+                        error_data = await response.json()
+                        return {'success': False, 'error': error_data.get('error', 'خطای نامشخص')}
+        except Exception as e:
+            logger.error(f"Error setting token expiry: {e}")
+            return {'success': False, 'error': str(e)}
