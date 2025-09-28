@@ -335,6 +335,74 @@ class TelegramFileBot:
             elif callback_data == 'view_all_download_links' or callback_data.startswith('view_all_download_links_'):
                 await self.download_system_handler.view_all_download_links(update, context)
             
+            # API Settings Callbacks
+            elif callback_data == 'advanced_api_settings':
+                await self.download_system_handler.handle_advanced_api_settings(update, context)
+            elif callback_data == 'api_logs':
+                await self.download_system_handler.handle_api_logs(update, context)
+            elif callback_data == 'diagnose_api_issue':
+                await self.download_system_handler.handle_diagnose_api_issue(update, context)
+            
+            # Token Management Callbacks
+            elif callback_data == 'deactivate_tokens':
+                await self.download_system_handler.handle_deactivate_tokens(update, context)
+            elif callback_data == 'set_token_expiry':
+                await self.download_system_handler.handle_set_token_expiry(update, context)
+            
+            # Download Stats Callbacks
+            elif callback_data == 'detailed_download_stats':
+                await self.download_system_handler.handle_detailed_download_stats(update, context)
+            elif callback_data == 'stats_chart':
+                await self.download_system_handler.handle_stats_chart(update, context)
+            elif callback_data == 'export_stats_pdf':
+                await self.download_system_handler.handle_export_stats_pdf(update, context)
+            
+            # Additional API Settings Callbacks
+            elif callback_data == 'set_api_timeout':
+                await self.download_system_handler.handle_set_api_timeout(update, context)
+            elif callback_data == 'set_api_retry':
+                await self.download_system_handler.handle_set_api_retry(update, context)
+            elif callback_data == 'set_buffer_size':
+                await self.download_system_handler.handle_set_buffer_size(update, context)
+            elif callback_data == 'set_log_level':
+                await self.download_system_handler.handle_set_log_level(update, context)
+            elif callback_data == 'download_api_logs':
+                await self.download_system_handler.handle_download_api_logs(update, context)
+            elif callback_data == 'clear_api_logs':
+                await self.download_system_handler.handle_clear_api_logs(update, context)
+            elif callback_data == 'search_api_logs':
+                await self.download_system_handler.handle_search_api_logs(update, context)
+            elif callback_data == 'auto_fix_api':
+                await self.download_system_handler.handle_auto_fix_api(update, context)
+            elif callback_data == 'contact_support':
+                await self.download_system_handler.handle_contact_support(update, context)
+            
+            # Additional Token Management Callbacks
+            elif callback_data == 'deactivate_current_token':
+                await self.download_system_handler.handle_deactivate_current_token(update, context)
+            elif callback_data == 'deactivate_expired_tokens':
+                await self.download_system_handler.handle_deactivate_expired_tokens(update, context)
+            elif callback_data == 'deactivate_user_tokens':
+                await self.download_system_handler.handle_deactivate_user_tokens(update, context)
+            elif callback_data == 'deactivate_suspicious_tokens':
+                await self.download_system_handler.handle_deactivate_suspicious_tokens(update, context)
+            elif callback_data.startswith('set_expiry_'):
+                await self.download_system_handler.handle_set_expiry_action(update, context)
+            
+            # Additional Stats Callbacks
+            elif callback_data == 'daily_chart':
+                await self.download_system_handler.handle_daily_chart(update, context)
+            elif callback_data == 'monthly_chart':
+                await self.download_system_handler.handle_monthly_chart(update, context)
+            elif callback_data == 'download_chart':
+                await self.download_system_handler.handle_download_chart(update, context)
+            elif callback_data == 'download_pdf_report':
+                await self.download_system_handler.handle_download_pdf_report(update, context)
+            elif callback_data == 'email_pdf_report':
+                await self.download_system_handler.handle_email_pdf_report(update, context)
+            elif callback_data == 'report_settings':
+                await self.download_system_handler.handle_report_settings(update, context)
+            
             # Telethon Management Operations
             elif callback_data == 'telethon_management_menu':
                 await self.telethon_config_handler.show_telethon_management_menu(update, context)

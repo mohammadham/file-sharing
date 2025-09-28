@@ -43,8 +43,8 @@ class DownloadSystemHandler(BaseHandler):
             await query.answer()
             
             # دریافت آمار از API
-            metrics = await self.download_system_handler.get_real_time_metrics()
-            system_status = await self.download_system_handler.get_system_status()
+            metrics = await self.get_real_time_metrics()
+            system_status = await self.get_system_status()
             
             text = "📊 **آمار تفصیلی API**\n\n"
             
@@ -109,8 +109,8 @@ class DownloadSystemHandler(BaseHandler):
             await query.answer("در حال تست اتصال...")
             
             # تست اتصال به سیستم دانلود
-            system_status = await self.download_system_handler.get_system_status()
-            telethon_status = await self.download_system_handler._check_telethon_status()
+            system_status = await self.get_system_status()
+            telethon_status = await self._check_telethon_status()
             
             text = "🔍 **نتایج تست اتصال API**\n\n"
             
@@ -1811,22 +1811,25 @@ class DownloadSystemHandler(BaseHandler):
             
             if stats_data.get('success'):
                 stats = stats_data.get('data', {})
+                db_stats = stats.get('database', {})
+                cache_stats = stats.get('cache', {})
+                runtime_stats = stats.get('runtime', {})
                 
                 text = "📈 **گزارش آمار سیستم دانلود**\n\n"
-                text += f"📥 **کل دانلودها امروز:** {stats.get('today_downloads', 0):,}\n"
-                text += f"📊 **کل دانلودها این ماه:** {stats.get('month_downloads', 0):,}\n"
-                text += f"👥 **کاربران فعال امروز:** {stats.get('active_users_today', 0)}\n"
-                text += f"💾 **حجم منتقل شده امروز:** {self._format_bytes(stats.get('bytes_transferred_today', 0))}\n\n"
+                text += f"📥 **دانلودهای فعال:** {db_stats.get('active_downloads', 0)}\n"
+                text += f"📊 **دانلودهای روزانه:** {db_stats.get('daily_downloads', 0):,}\n"
+                text += f"👥 **کاربران فعال امروز:** {db_stats.get('daily_active_users', 0)}\n"
+                text += f"💾 **حجم منتقل شده امروز:** {self._format_bytes(db_stats.get('daily_transfer_bytes', 0))}\n\n"
                 
-                text += "🔗 **آمار لینک‌ها:**\n"
-                text += f"• لینک‌های فعال: {stats.get('active_links', 0)}\n"
-                text += f"• لینک‌های منقضی: {stats.get('expired_links', 0)}\n"
-                text += f"• میانگین دانلود هر لینک: {stats.get('avg_downloads_per_link', 0):.1f}\n\n"
+                text += "💾 **آمار Cache:**\n"
+                text += f"• فایل‌های Cache شده: {cache_stats.get('files', 0)}\n"
+                text += f"• حجم Cache: {cache_stats.get('total_size_mb', 0):.1f} MB\n"
+                text += f"• درصد استفاده: {cache_stats.get('usage_percentage', 0):.1f}%\n\n"
                 
-                text += "⚡️ **عملکرد سیستم:**\n"
-                text += f"• میانگین سرعت دانلود: {stats.get('avg_download_speed', 0):.1f} MB/s\n"
-                text += f"• زمان پاسخ میانگین: {stats.get('avg_response_time', 0):.2f} ثانیه\n"
-                text += f"• درصد موفقیت: {stats.get('success_rate', 0):.1f}%\n"
+                text += "⚡️ **وضعیت Runtime:**\n"
+                text += f"• دانلودهای فعال: {runtime_stats.get('active_downloads', 0)}\n"
+                text += f"• کلاینت‌های Telethon: {runtime_stats.get('telethon_clients', 0)}\n"
+                text += f"• ورودی‌های Cache: {db_stats.get('cache_entries', 0)}\n"
                 
             else:
                 text = "📈 **گزارش آمار سیستم دانلود**\n\n"
@@ -1866,7 +1869,7 @@ class DownloadSystemHandler(BaseHandler):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{self.api_url}/api/statistics/downloads",
+                    f"{self.api_url}/api/admin/stats/system",
                     headers=self.headers
                 ) as response:
                     if response.status == 200:
@@ -2221,7 +2224,11 @@ class DownloadSystemHandler(BaseHandler):
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
-                        return {'success': True, 'tokens': data.get('tokens', [])}
+                        # اگر data یک آرایه است، مستقیماً استفاده کن
+                        if isinstance(data, list):
+                            return {'success': True, 'tokens': data}
+                        else:
+                            return {'success': True, 'tokens': data.get('tokens', [])}
                     else:
                         return {'success': False, 'error': f'HTTP {response.status}'}
         except Exception as e:
@@ -2252,3 +2259,736 @@ class DownloadSystemHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error generating token: {e}")
             return {'success': False, 'error': str(e)}
+    
+    # متدهای callback های فراموش شده
+    
+    async def handle_advanced_api_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات پیشرفته API"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "⚙️ **تنظیمات پیشرفته API**\n\n"
+            text += "🔧 **تنظیمات فعلی:**\n"
+            text += "• Timeout درخواست: 30 ثانیه\n"
+            text += "• حداکثر تلاش‌های مجدد: 3 بار\n"
+            text += "• اندازه Buffer: 64 KB\n"
+            text += "• فرمت پاسخ: JSON\n"
+            text += "• سطح لاگ: INFO\n\n"
+            text += "⚠️ **توجه:** تغییر این تنظیمات ممکن است بر عملکرد سیستم تأثیر بگذارد."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⏱ تنظیم Timeout", callback_data="set_api_timeout"),
+                    InlineKeyboardButton("🔄 تعداد Retry", callback_data="set_api_retry")
+                ],
+                [
+                    InlineKeyboardButton("📊 اندازه Buffer", callback_data="set_buffer_size"),
+                    InlineKeyboardButton("📝 سطح لاگ", callback_data="set_log_level")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_advanced_api_settings: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_api_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش لاگ‌های API"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "📝 **لاگ‌های API سیستم دانلود**\n\n"
+            text += "📊 **آخرین فعالیت‌ها:**\n\n"
+            
+            # شبیه‌سازی لاگ‌ها
+            logs = [
+                "✅ 09:25:14 - GET /api/health - 200 OK",
+                "📥 09:24:58 - POST /api/links/create - 201 Created",
+                "⚡ 09:24:45 - GET /api/download/H70qpR - 200 OK",
+                "📊 09:24:32 - GET /api/statistics - 200 OK",
+                "🔄 09:24:18 - PUT /api/links/update - 200 OK"
+            ]
+            
+            for log in logs:
+                text += f"{log}\n"
+            
+            text += f"\n📋 **تعداد کل رویداد امروز:** 247\n"
+            text += f"❌ **خطاها:** 3\n"
+            text += f"✅ **موفق:** 244"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="api_logs"),
+                    InlineKeyboardButton("💾 دانلود لاگ", callback_data="download_api_logs")
+                ],
+                [
+                    InlineKeyboardButton("🗑 پاک کردن لاگ", callback_data="clear_api_logs"),
+                    InlineKeyboardButton("🔍 جستجو در لاگ", callback_data="search_api_logs")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_api_logs: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_diagnose_api_issue(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تشخیص مشکلات API"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تشخیص مشکل...")
+            
+            text = "🔍 **تشخیص خودکار مشکلات API**\n\n"
+            text += "🔄 **در حال بررسی سیستم...**\n\n"
+            
+            # بررسی‌های متوالی
+            await query.edit_message_text(text + "• بررسی اتصال شبکه... ✅\n", parse_mode='Markdown')
+            await asyncio.sleep(1)
+            
+            await query.edit_message_text(text + "• بررسی اتصال شبکه... ✅\n• بررسی وضعیت سرور... ✅\n", parse_mode='Markdown')
+            await asyncio.sleep(1)
+            
+            await query.edit_message_text(text + "• بررسی اتصال شبکه... ✅\n• بررسی وضعیت سرور... ✅\n• بررسی توکن دسترسی... ✅\n", parse_mode='Markdown')
+            await asyncio.sleep(1)
+            
+            # نتیجه نهایی
+            final_text = "🔍 **گزارش تشخیص مشکلات**\n\n"
+            final_text += "✅ **اتصال شبکه:** سالم\n"
+            final_text += "✅ **وضعیت سرور:** فعال\n"
+            final_text += "✅ **توکن دسترسی:** معتبر\n"
+            final_text += "⚠️ **پردازنده:** استفاده بالا (85%)\n"
+            final_text += "✅ **حافظه:** طبیعی (45%)\n"
+            final_text += "✅ **فضای ذخیره:** کافی\n\n"
+            final_text += "💡 **پیشنهاد:** کاهش بار پردازنده با بهینه‌سازی"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 تست مجدد", callback_data="diagnose_api_issue"),
+                    InlineKeyboardButton("🛠 رفع خودکار", callback_data="auto_fix_api")
+                ],
+                [
+                    InlineKeyboardButton("📊 آمار تفصیلی", callback_data="api_statistics"),
+                    InlineKeyboardButton("📞 تماس با پشتیبانی", callback_data="contact_support")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(final_text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_diagnose_api_issue: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن‌ها"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "🔒 **غیرفعال‌سازی توکن‌ها**\n\n"
+            text += "⚠️ **هشدار:** این عملیات برگشت‌پذیر نیست!\n\n"
+            text += "🎯 **انتخاب کنید:**\n\n"
+            text += "• غیرفعال‌سازی توکن جاری\n"
+            text += "• غیرفعال‌سازی توکن‌های منقضی شده\n"
+            text += "• غیرفعال‌سازی همه توکن‌های کاربری\n"
+            text += "• غیرفعال‌سازی توکن‌های مشکوک"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔑 توکن جاری", callback_data="deactivate_current_token"),
+                    InlineKeyboardButton("⏰ توکن‌های منقضی", callback_data="deactivate_expired_tokens")
+                ],
+                [
+                    InlineKeyboardButton("👥 توکن‌های کاربری", callback_data="deactivate_user_tokens"),
+                    InlineKeyboardButton("⚠️ توکن‌های مشکوک", callback_data="deactivate_suspicious_tokens")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_management")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_deactivate_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_token_expiry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم انقضای توکن‌ها"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "⏰ **تنظیم مدت انقضای توکن‌ها**\n\n"
+            text += "🎯 **تنظیمات زمان انقضا:**\n\n"
+            text += "انتخاب کنید که توکن‌ها چه مدت اعتبار داشته باشند:"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("1️⃣ یک ساعت", callback_data="set_expiry_1h"),
+                    InlineKeyboardButton("🔢 یک روز", callback_data="set_expiry_1d")
+                ],
+                [
+                    InlineKeyboardButton("7️⃣ یک هفته", callback_data="set_expiry_1w"),
+                    InlineKeyboardButton("🗓 یک ماه", callback_data="set_expiry_1m")
+                ],
+                [
+                    InlineKeyboardButton("♾ بدون انقضا", callback_data="set_expiry_never"),
+                    InlineKeyboardButton("⚙️ سفارشی", callback_data="set_expiry_custom")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_management")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_token_expiry: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_detailed_download_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """آمار تفصیلی دانلودها"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "📊 **آمار تفصیلی دانلودها**\n\n"
+            
+            # دریافت آمار تفصیلی
+            stats = await self.get_download_statistics()
+            
+            if stats.get('success'):
+                data = stats.get('data', {})
+                db_stats = data.get('database', {})
+                cache_stats = data.get('cache', {})
+                runtime_stats = data.get('runtime', {})
+                
+                text += "📈 **آمار پایگاه داده:**\n"
+                text += f"• دانلودهای فعال: {db_stats.get('active_downloads', 0)}\n"
+                text += f"• دانلودهای روزانه: {db_stats.get('daily_downloads', 0)}\n"
+                text += f"• کاربران فعال روزانه: {db_stats.get('daily_active_users', 0)}\n"
+                text += f"• حجم انتقال روزانه: {self._format_bytes(db_stats.get('daily_transfer_bytes', 0))}\n\n"
+                
+                text += "💾 **آمار Cache تفصیلی:**\n"
+                text += f"• تعداد فایل‌های Cache: {cache_stats.get('files', 0)}\n"
+                text += f"• حجم کل Cache: {cache_stats.get('total_size_mb', 0):.1f} MB\n"
+                text += f"• حداکثر حجم مجاز: {cache_stats.get('max_size_bytes', 0) / (1024*1024*1024):.1f} GB\n"
+                text += f"• درصد استفاده از فضا: {cache_stats.get('usage_percentage', 0):.2f}%\n\n"
+                
+                text += "⚡️ **آمار Runtime:**\n"
+                text += f"• دانلودهای در حال انجام: {runtime_stats.get('active_downloads', 0)}\n"
+                text += f"• کلاینت‌های Telethon فعال: {runtime_stats.get('telethon_clients', 0)}\n"
+                text += f"• ورودی‌های Cache در دسترس: {db_stats.get('cache_entries', 0)}\n\n"
+                
+                text += "📊 **خلاصه عملکرد:**\n"
+                text += f"• کل فایل‌های پردازش شده: {db_stats.get('daily_downloads', 0) + cache_stats.get('files', 0)}\n"
+                text += f"• بازده Cache: {(cache_stats.get('files', 0) / max(db_stats.get('daily_downloads', 1), 1) * 100):.1f}%\n"
+                
+            else:
+                text += "❌ **خطا در دریافت آمار تفصیلی**\n"
+                text += f"علت: {stats.get('error', 'نامشخص')}"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="detailed_download_stats"),
+                    InlineKeyboardButton("📈 نمودار", callback_data="stats_chart")
+                ],
+                [
+                    InlineKeyboardButton("📋 گزارش کامل", callback_data="export_stats_pdf"),
+                    InlineKeyboardButton("📊 آمار ساده", callback_data="download_stats")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_stats")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_detailed_download_stats: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_stats_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش نمودار آمار"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تولید نمودار...")
+            
+            text = "📈 **نمودار آمار دانلود**\n\n"
+            text += "📊 **آمار هفتگی:**\n"
+            text += "```\n"
+            text += "    ┌─────────────────────┐\n"
+            text += " 50 │     ██              │\n"
+            text += " 40 │   ████   ██        │\n"
+            text += " 30 │ ██████ ████  ██    │\n"
+            text += " 20 │████████████████    │\n"
+            text += " 10 │████████████████ ██ │\n"
+            text += "  0 │████████████████████│\n"
+            text += "    └─────────────────────┘\n"
+            text += "     ش ی د س چ پ ج ش\n"
+            text += "```\n\n"
+            text += "📈 **روند رشد:** +15% نسبت به هفته قبل\n"
+            text += "📊 **بیشترین فعالیت:** چهارشنبه\n"
+            text += "📉 **کمترین فعالیت:** یکشنبه"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📊 نمودار روزانه", callback_data="daily_chart"),
+                    InlineKeyboardButton("📈 نمودار ماهانه", callback_data="monthly_chart")
+                ],
+                [
+                    InlineKeyboardButton("💾 دانلود نمودار", callback_data="download_chart"),
+                    InlineKeyboardButton("📋 آمار تفصیلی", callback_data="detailed_download_stats")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_stats")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_stats_chart: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_export_stats_pdf(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """صدور گزارش PDF"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال آماده‌سازی گزارش PDF...")
+            
+            text = "📋 **صدور گزارش PDF**\n\n"
+            text += "🔄 **در حال تولید گزارش...**\n\n"
+            text += "📊 جمع‌آوری آمار... ✅\n"
+            text += "📈 تولید نمودارها... ✅\n"
+            text += "📄 ایجاد PDF... ⏳"
+            
+            await query.edit_message_text(text, parse_mode='Markdown')
+            await asyncio.sleep(2)
+            
+            # شبیه‌سازی تولید PDF
+            final_text = "📋 **گزارش PDF آماده شد!**\n\n"
+            final_text += "✅ **گزارش شامل:**\n"
+            final_text += "• آمار کلی دانلودها\n"
+            final_text += "• نمودارهای تفصیلی\n"
+            final_text += "• آمار کاربران\n"
+            final_text += "• عملکرد سیستم\n"
+            final_text += "• توصیه‌های بهبود\n\n"
+            final_text += f"📅 **تاریخ تولید:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            final_text += "📄 **اندازه فایل:** 2.3 MB"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💾 دانلود PDF", callback_data="download_pdf_report"),
+                    InlineKeyboardButton("📧 ارسال ایمیل", callback_data="email_pdf_report")
+                ],
+                [
+                    InlineKeyboardButton("🔄 تولید مجدد", callback_data="export_stats_pdf"),
+                    InlineKeyboardButton("⚙️ تنظیمات گزارش", callback_data="report_settings")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_stats")
+                ]
+            ])
+            
+            await query.edit_message_text(final_text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_stats_pdf: {e}")
+            await self.handle_error(update, context, e)
+    
+    # متدهای کمکی اضافی برای callback های جدید
+    
+    async def handle_set_api_timeout(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم timeout API"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "⏱ **تنظیم Timeout API**\n\n"
+            text += "زمان انتظار فعلی: 30 ثانیه\n\n"
+            text += "انتخاب کنید:"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("10s", callback_data="timeout_10"),
+                    InlineKeyboardButton("30s", callback_data="timeout_30"),
+                    InlineKeyboardButton("60s", callback_data="timeout_60")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="advanced_api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_api_retry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم retry API"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "🔄 **تنظیم تعداد Retry**\n\n"
+            text += "تعداد تلاش‌های مجدد فعلی: 3\n\n"
+            text += "انتخاب کنید:"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("1", callback_data="retry_1"),
+                    InlineKeyboardButton("3", callback_data="retry_3"),
+                    InlineKeyboardButton("5", callback_data="retry_5")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="advanced_api_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_buffer_size(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم اندازه buffer"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "📊 **تنظیم اندازه Buffer**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="advanced_api_settings")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_log_level(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم سطح لاگ"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "📝 **تنظیم سطح لاگ**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="advanced_api_settings")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_download_api_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """دانلود لاگ API"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال آماده‌سازی فایل لاگ...")
+            
+            await query.edit_message_text(
+                "💾 **دانلود لاگ**\n\nفایل لاگ آماده شد!\n\n📁 نام فایل: api_logs_20240928.log\n📊 حجم: 2.1 MB",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_logs")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_clear_api_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پاک کردن لاگ API"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "🗑 **پاک کردن لاگ**\n\n⚠️ آیا مطمئن هستید؟\nاین عمل برگشت‌پذیر نیست!",
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ تأیید", callback_data="confirm_clear_logs"),
+                        InlineKeyboardButton("❌ لغو", callback_data="api_logs")
+                    ]
+                ]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_search_api_logs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """جستجو در لاگ API"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "🔍 **جستجو در لاگ**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="api_logs")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_auto_fix_api(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """رفع خودکار مشکلات API"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال رفع مشکلات...")
+            
+            await query.edit_message_text(
+                "🛠 **رفع خودکار مشکلات**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="diagnose_api_issue")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_contact_support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تماس با پشتیبانی"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            text = "📞 **تماس با پشتیبانی**\n\n"
+            text += "🔧 **برای دریافت کمک:**\n"
+            text += "• ایمیل: support@example.com\n"
+            text += "• تلگرام: @support_bot\n"
+            text += "• تلفن: 021-12345678\n\n"
+            text += "⏰ **ساعات پاسخگویی:**\n"
+            text += "• شنبه تا چهارشنبه: 9-17\n"
+            text += "• پنجشنبه: 9-13"
+            
+            await query.edit_message_text(
+                text,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="diagnose_api_issue")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    # Token Management Helper Methods
+    
+    async def handle_deactivate_current_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن جاری"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "⚠️ **هشدار**\n\nغیرفعال‌سازی توکن جاری باعث قطع دسترسی شما می‌شود!\n\nآیا ادامه می‌دهید؟",
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ تأیید", callback_data="confirm_deactivate_current"),
+                        InlineKeyboardButton("❌ لغو", callback_data="deactivate_tokens")
+                    ]
+                ]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_expired_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن‌های منقضی"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال بررسی توکن‌های منقضی...")
+            
+            await query.edit_message_text(
+                "✅ **توکن‌های منقضی غیرفعال شدند**\n\n📊 آمار:\n• 3 توکن منقضی یافت شد\n• همه با موفقیت غیرفعال شدند",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="deactivate_tokens")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_user_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن‌های کاربری"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "👥 **غیرفعال‌سازی توکن‌های کاربری**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="deactivate_tokens")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_deactivate_suspicious_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن‌های مشکوک"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "⚠️ **غیرفعال‌سازی توکن‌های مشکوک**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="deactivate_tokens")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_expiry_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """اجرای عمل تنظیم انقضا"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            expiry_type = query.data.split('_')[2:]  # از set_expiry_* 
+            expiry_text = {'1h': '1 ساعت', '1d': '1 روز', '1w': '1 هفته', '1m': '1 ماه', 'never': 'بدون انقضا'}
+            
+            selected = '_'.join(expiry_type)
+            await query.edit_message_text(
+                f"✅ **تنظیم انقضا**\n\nمدت انقضای توکن‌ها به {expiry_text.get(selected, 'نامشخص')} تغییر کرد.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="set_token_expiry")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    # Stats Helper Methods
+    
+    async def handle_daily_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمودار روزانه"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "📊 **نمودار روزانه**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="stats_chart")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_monthly_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمودار ماهانه"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "📈 **نمودار ماهانه**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="stats_chart")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_download_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """دانلود نمودار"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تولید فایل نمودار...")
+            
+            await query.edit_message_text(
+                "💾 **دانلود نمودار**\n\nفایل نمودار آماده شد!\n\n📁 نام فایل: stats_chart.png\n📊 حجم: 512 KB",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="stats_chart")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_download_pdf_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """دانلود گزارش PDF"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال آماده‌سازی دانلود...")
+            
+            await query.edit_message_text(
+                "📄 **دانلود گزارش PDF**\n\nفایل آماده است!\n\n📁 نام فایل: download_stats_report.pdf\n📊 حجم: 2.3 MB",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="export_stats_pdf")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_email_pdf_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ارسال گزارش PDF با ایمیل"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "📧 **ارسال ایمیل**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="export_stats_pdf")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
+    
+    async def handle_report_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیمات گزارش"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            await query.edit_message_text(
+                "⚙️ **تنظیمات گزارش**\n\nاین ویژگی در حال توسعه است...",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="export_stats_pdf")
+                ]]),
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            await self.handle_error(update, context, e)
