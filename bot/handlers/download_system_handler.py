@@ -197,19 +197,22 @@ class DownloadSystemHandler(BaseHandler):
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("📊 نظارت لحظه‌ای", callback_data="system_monitoring"),
-                    InlineKeyboardButton("🔧 تنظیمات سیستم", callback_data="system_settings")
+                    InlineKeyboardButton("📋 تمام لینک‌های من", callback_data="view_all_download_links"),
+                    InlineKeyboardButton("📊 نظارت لحظه‌ای", callback_data="system_monitoring")
                 ],
                 [
-                    InlineKeyboardButton("🧹 پاکسازی Cache", callback_data="system_cleanup"),
-                    InlineKeyboardButton("📈 گزارش آمار", callback_data="download_stats")
+                    InlineKeyboardButton("🔧 تنظیمات سیستم", callback_data="system_settings"),
+                    InlineKeyboardButton("🧹 پاکسازی Cache", callback_data="system_cleanup")
                 ],
                 [
-                    InlineKeyboardButton("🔗 مدیریت توکن‌ها", callback_data="token_management"),
-                    InlineKeyboardButton("⚙️ تنظیمات API", callback_data="api_settings")
+                    InlineKeyboardButton("📈 گزارش آمار", callback_data="download_stats"),
+                    InlineKeyboardButton("🔗 مدیریت توکن‌ها", callback_data="token_management")
                 ],
                 [
-                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="download_system_control"),
+                    InlineKeyboardButton("⚙️ تنظیمات API", callback_data="api_settings"),
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="download_system_control")
+                ],
+                [
                     InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")
                 ]
             ])
@@ -266,7 +269,9 @@ class DownloadSystemHandler(BaseHandler):
                 ],
                 [
                     InlineKeyboardButton("📋 مشاهده لینک‌های موجود", 
-                                       callback_data=f"view_file_links_{file_id}")
+                                       callback_data=f"view_file_links_{file_id}"),
+                    InlineKeyboardButton("📄 تمام لینک‌های من", 
+                                       callback_data="view_all_download_links")
                 ]
             ]
             
@@ -690,59 +695,115 @@ class DownloadSystemHandler(BaseHandler):
             
             from utils.helpers import escape_filename_for_markdown
             
-            text = f"📋 **لینک‌های دانلود**\n\n"
-            text += f"📄 **فایل:** {escape_filename_for_markdown(file.file_name)}\n\n"
+            text = f"📋 *لینک‌های دانلود*\n\n"
+            text += f"📄 *فایل:* {escape_filename_for_markdown(file.file_name)}\n\n"
             
-            if links_data.get('success') and links_data.get('links'):
-                links = links_data['links']
-                text += f"🔗 **لینک‌های فعال:** {len(links)}\n\n"
+            keyboard_rows = []
+            
+            # بررسی بهتر response structure
+            links = []
+            if isinstance(links_data, dict):
+                if links_data.get('success', True) and 'links' in links_data:
+                    links = links_data['links']
+                elif 'links' in links_data:
+                    links = links_data['links']
+            
+            if links and len(links) > 0:
+                text += f"🔗 *لینک‌های فعال:* {len(links)}\n\n"
                 
                 for i, link in enumerate(links[:5], 1):  # نمایش 5 لینک اول
-                    status_icon = "🟢" if link.get('is_active') else "🔴"
+                    # بررسی structure لینک
+                    is_active = link.get('is_active', True)
+                    is_expired = link.get('is_expired', False)
+                    download_type = link.get('download_type', link.get('type', 'fast'))
+                    link_code = link.get('link_code', link.get('code', ''))
+                    
+                    status_icon = "🟢" if is_active and not is_expired else "🔴"
                     link_type_icons = {
                         'stream': '🌊',
                         'fast': '⚡️',
                         'restricted': '⚙️'
                     }
-                    type_icon = link_type_icons.get(link.get('type', 'unknown'), '🔗')
+                    type_icon = link_type_icons.get(download_type, '🔗')
                     
-                    text += f"{i}. {type_icon} **{link.get('type', 'نامشخص').title()}** {status_icon}\n"
-                    text += f"   📊 دانلودها: {link.get('downloads', 0)}/{link.get('max_downloads', '∞')}\n"
-                    text += f"   ⏰ ایجاد: {link.get('created_at', 'نامشخص')[:16]}\n"
-                    if link.get('expires_at'):
-                        text += f"   🕐 انقضا: {link.get('expires_at')[:16]}\n"
-                    text += "\n"
+                    # نام نوع لینک
+                    type_names = {
+                        'stream': 'استریم',
+                        'fast': 'سریع',
+                        'restricted': 'محدود'
+                    }
+                    type_name = type_names.get(download_type, 'عمومی')
+                    
+                    text += f"{i}. {type_icon} *{type_name}* {status_icon}\n"
+                    text += f"   📊 دانلودها: {link.get('download_count', 0)}/{link.get('max_downloads') or '∞'}\n"
+                    
+                    # تاریخ ایجاد
+                    created_at = link.get('created_at', '')
+                    if created_at:
+                        text += f"   ⏰ ایجاد: {str(created_at)[:16]}\n"
+                    
+                    # تاریخ انقضا
+                    expires_at = link.get('expires_at')
+                    if expires_at:
+                        text += f"   🕐 انقضا: {str(expires_at)[:16]}\n"
+                    else:
+                        text += f"   ♾️ انقضا: بدون محدودیت\n"
+                    
+                    text += f"   🔗 کد: `{link_code}`\n\n"
+                    
+                    # دکمه‌های مدیریت برای هر لینک
+                    link_buttons = []
+                    
+                    # دکمه کپی
+                    link_buttons.append(
+                        InlineKeyboardButton(
+                            f"📋 کپی {type_name}", 
+                            callback_data=f"copy_link_{link_code}"
+                        )
+                    )
+                    
+                    # دکمه آمار
+                    link_buttons.append(
+                        InlineKeyboardButton(
+                            f"📊 آمار", 
+                            callback_data=f"download_link_stats_{link_code}"
+                        )
+                    )
+                    
+                    keyboard_rows.append(link_buttons)
+                    
+                    # دکمه‌های عملیات (غیرفعال‌سازی و حذف)
+                    action_buttons = []
+                    
+                    if is_active and not is_expired:
+                        action_buttons.append(
+                            InlineKeyboardButton(
+                                f"🔒 غیرفعال‌سازی", 
+                                callback_data=f"deactivate_link_{link_code}"
+                            )
+                        )
+                    
+                    action_buttons.append(
+                        InlineKeyboardButton(
+                            f"🗑 حذف", 
+                            callback_data=f"delete_download_link_{link_code}"
+                        )
+                    )
+                    
+                    keyboard_rows.append(action_buttons)
+                    
+                    # فاصله بین لینک‌ها
+                    if i < min(len(links), 5):
+                        keyboard_rows.append([
+                            InlineKeyboardButton("─────────", callback_data="page_info")
+                        ])
                 
                 if len(links) > 5:
                     text += f"... و {len(links) - 5} لینک دیگر"
                 
-                keyboard_rows = []
-                
-                # دکمه‌های مدیریت لینک‌ها
-                for link in links[:3]:  # نمایش دکمه برای 3 لینک اول
-                    keyboard_rows.append([
-                        InlineKeyboardButton(
-                            f"📊 آمار {link.get('type', 'نامشخص')[:6]}", 
-                            callback_data=f"link_stats_{link.get('code', '')}"
-                        ),
-                        InlineKeyboardButton(
-                            f"🔗 کپی {link.get('type', 'نامشخص')[:6]}", 
-                            callback_data=f"copy_link_{link.get('code', '')}"
-                        )
-                    ])
-                    
-                    if link.get('is_active'):
-                        keyboard_rows.append([
-                            InlineKeyboardButton(
-                                f"🔒 غیرفعال‌سازی {link.get('type', 'نامشخص')[:6]}", 
-                                callback_data=f"deactivate_link_{link.get('code', '')}"
-                            )
-                        ])
-                
             else:
                 text += "❌ هیچ لینک فعالی برای این فایل وجود ندارد.\n\n"
-                text += "💡 می‌توانید از گزینه‌های بالا لینک جدید ایجاد کنید."
-                keyboard_rows = []
+                text += "💡 می‌توانید از دکمه زیر لینک جدید ایجاد کنید."
             
             # دکمه‌های عمومی
             keyboard_rows.extend([
@@ -759,6 +820,7 @@ class DownloadSystemHandler(BaseHandler):
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
+            logger.error(f"Error in view_file_links: {e}")
             await self.handle_error(update, context, e)
     
     async def get_file_links(self, file_id: int) -> dict:
@@ -773,6 +835,154 @@ class DownloadSystemHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error getting file links: {e}")
             return {'success': False, 'error': str(e)}
+    
+    async def get_all_my_links(self, limit: int = 50) -> dict:
+        """دریافت تمام لینک‌های کاربر از API"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/download/links/my?limit={limit}",
+                    headers=self.headers
+                ) as response:
+                    return await response.json()
+        except Exception as e:
+            logger.error(f"Error getting all my links: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def view_all_download_links(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مشاهده تمام لینک‌های دانلود کاربر"""
+        try:
+            query = update.callback_query
+            await self.answer_callback_query(update)
+            
+            # دریافت تمام لینک‌های کاربر
+            links_data = await self.get_all_my_links(limit=20)
+            
+            text = f"📋 *تمام لینک‌های دانلود شما*\n\n"
+            
+            keyboard_rows = []
+            
+            # بررسی response structure
+            links = []
+            if isinstance(links_data, dict):
+                if 'links' in links_data:
+                    links = links_data['links']
+            
+            if links and len(links) > 0:
+                text += f"🔗 *کل لینک‌ها:* {len(links)}\n\n"
+                
+                # گروه‌بندی بر اساس نوع
+                link_types = {}
+                for link in links:
+                    download_type = link.get('download_type', 'fast')
+                    if download_type not in link_types:
+                        link_types[download_type] = []
+                    link_types[download_type].append(link)
+                
+                # نمایش آمار کلی
+                for link_type, type_links in link_types.items():
+                    type_names = {
+                        'stream': 'استریم',
+                        'fast': 'سریع',
+                        'restricted': 'محدود'
+                    }
+                    type_name = type_names.get(link_type, 'عمومی')
+                    active_count = sum(1 for link in type_links if link.get('is_active', True) and not link.get('is_expired', False))
+                    text += f"• {type_name}: {active_count}/{len(type_links)} فعال\n"
+                
+                text += "\n"
+                
+                # نمایش لینک‌های اخیر (5 تا)
+                recent_links = sorted(links, key=lambda x: x.get('created_at', ''), reverse=True)[:5]
+                
+                text += "*لینک‌های اخیر:*\n\n"
+                
+                for i, link in enumerate(recent_links, 1):
+                    is_active = link.get('is_active', True) and not link.get('is_expired', False)
+                    download_type = link.get('download_type', 'fast')
+                    link_code = link.get('link_code', '')
+                    file_name = link.get('file_name', 'نامشخص')
+                    
+                    status_icon = "🟢" if is_active else "🔴"
+                    link_type_icons = {
+                        'stream': '🌊',
+                        'fast': '⚡️',
+                        'restricted': '⚙️'
+                    }
+                    type_icon = link_type_icons.get(download_type, '🔗')
+                    
+                    # نام نوع لینک
+                    type_names = {
+                        'stream': 'استریم',
+                        'fast': 'سریع',
+                        'restricted': 'محدود'
+                    }
+                    type_name = type_names.get(download_type, 'عمومی')
+                    
+                    text += f"{i}. {type_icon} *{type_name}* {status_icon}\n"
+                    text += f"   📄 {file_name[:30]}{'...' if len(file_name) > 30 else ''}\n"
+                    text += f"   📊 دانلودها: {link.get('download_count', 0)}\n"
+                    text += f"   🔗 کد: `{link_code}`\n\n"
+                    
+                    # دکمه‌های مدیریت برای هر لینک
+                    link_buttons = [
+                        InlineKeyboardButton(
+                            f"📊 آمار {type_name}", 
+                            callback_data=f"download_link_stats_{link_code}"
+                        ),
+                        InlineKeyboardButton(
+                            f"🔗 اطلاعات", 
+                            callback_data=f"download_link_info_{link_code}"
+                        )
+                    ]
+                    keyboard_rows.append(link_buttons)
+                    
+                    # دکمه‌های عملیات
+                    action_buttons = [
+                        InlineKeyboardButton(
+                            f"📋 کپی", 
+                            callback_data=f"copy_link_{link_code}"
+                        ),
+                        InlineKeyboardButton(
+                            f"🗑 حذف", 
+                            callback_data=f"delete_download_link_{link_code}"
+                        )
+                    ]
+                    keyboard_rows.append(action_buttons)
+                    
+                    # فاصله بین لینک‌ها
+                    if i < len(recent_links):
+                        keyboard_rows.append([
+                            InlineKeyboardButton("─────────", callback_data="page_info")
+                        ])
+                
+                if len(links) > 5:
+                    text += f"... و {len(links) - 5} لینک دیگر"
+                    keyboard_rows.append([
+                        InlineKeyboardButton("📋 مشاهده همه", callback_data="view_all_links_full")
+                    ])
+                
+            else:
+                text += "❌ هیچ لینک فعالی وجود ندارد.\n\n"
+                text += "💡 می‌توانید با آپلود فایل و ایجاد لینک، شروع کنید."
+            
+            # دکمه‌های عمومی
+            keyboard_rows.extend([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="view_all_download_links"),
+                    InlineKeyboardButton("📊 آمار کلی", callback_data="download_stats")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
+                ]
+            ])
+            
+            keyboard = InlineKeyboardMarkup(keyboard_rows)
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in view_all_download_links: {e}")
+            await self.handle_error(update, context, e)
     
     async def handle_set_max_downloads(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """مدیریت تنظیم حداکثر دانلود برای لینک محدود"""
@@ -1003,6 +1213,11 @@ class DownloadSystemHandler(BaseHandler):
                 download_type = "fast"  # Restricted links use fast download
                 icon = "⚙️"
                 type_name = "محدود"
+            elif callback_data.startswith('copy_link_'):
+                # Generic link copy from view_file_links
+                download_type = "fast"
+                icon = "🔗"
+                type_name = "عمومی"
             else:
                 download_type = "fast"
                 icon = "🔗"
@@ -1011,10 +1226,15 @@ class DownloadSystemHandler(BaseHandler):
             # ساخت URL کامل
             download_url = f"{self.api_url}/api/download/{download_type}/{link_code}"
             
-            text = f"{icon} **لینک دانلود {type_name} کپی شد**\n\n"
-            text += f"📋 **برای کپی روی لینک زیر کلیک کنید:**\n"
+            # Escape special characters for Markdown
+            from utils.helpers import escape_text_for_markdown
+            escaped_url = escape_text_for_markdown(download_url)
+            escaped_code = escape_text_for_markdown(link_code)
+            
+            text = f"{icon} *لینک دانلود {type_name} کپی شد*\n\n"
+            text += f"📋 *برای کپی روی لینک زیر کلیک کنید:*\n"
             text += f"`{download_url}`\n\n"
-            text += f"💡 **نکات:**\n"
+            text += f"💡 *نکات:*\n"
             text += f"• این لینک مستقیماً فایل را دانلود می‌کند\n"
             text += f"• کد لینک: `{link_code}`\n"
             text += f"• می‌توانید در مرورگر یا برنامه دانلود استفاده کنید"
@@ -1025,6 +1245,9 @@ class DownloadSystemHandler(BaseHandler):
                     InlineKeyboardButton("🔗 اطلاعات لینک", callback_data=f"download_link_info_{link_code}")
                 ],
                 [
+                    InlineKeyboardButton("🗑 حذف لینک", callback_data=f"delete_download_link_{link_code}")
+                ],
+                [
                     InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
                 ]
             ])
@@ -1032,6 +1255,7 @@ class DownloadSystemHandler(BaseHandler):
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
+            logger.error(f"Error in copy_link_handler: {e}")
             await self.handle_error(update, context, e)
     
     async def show_download_link_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1048,34 +1272,53 @@ class DownloadSystemHandler(BaseHandler):
             if stats_data.get('success'):
                 stats = stats_data['data']
                 
-                text = f"📊 **آمار تفصیلی لینک دانلود**\n\n"
-                text += f"🔗 **کد لینک:** `{link_code}`\n"
-                text += f"📥 **کل دانلودها:** {stats.get('total_downloads', 0)}\n"
-                text += f"👥 **IP های منحصر به فرد:** {stats.get('unique_ips', 0)}\n"
-                text += f"💾 **حجم منتقل شده:** {self._format_bytes(stats.get('total_bytes_transferred', 0))}\n"
-                text += f"⚡️ **سرعت میانگین:** {stats.get('average_speed_mbps', 0):.2f} MB/s\n"
-                text += f"📅 **تاریخ ایجاد:** {stats.get('created_at', 'نامشخص')[:16]}\n"
-                text += f"🕐 **آخرین دسترسی:** {stats.get('last_accessed', 'هرگز')[:16] if stats.get('last_accessed') else 'هرگز'}\n\n"
+                text = f"📊 *آمار تفصیلی لینک دانلود*\n\n"
+                text += f"🔗 *کد لینک:* `{link_code}`\n"
+                text += f"📥 *کل دانلودها:* {stats.get('total_downloads', 0)}\n"
+                text += f"👥 *IP های منحصر به فرد:* {stats.get('unique_ips', 0)}\n"
+                text += f"💾 *حجم منتقل شده:* {self._format_bytes(stats.get('total_bytes_transferred', 0))}\n"
+                text += f"⚡️ *سرعت میانگین:* {stats.get('average_speed_mbps', 0):.2f} MB/s\n"
+                
+                # تاریخ ایجاد
+                created_at = stats.get('created_at')
+                if created_at:
+                    text += f"📅 *تاریخ ایجاد:* {str(created_at)[:16]}\n"
+                
+                # آخرین دسترسی
+                last_accessed = stats.get('last_accessed')
+                if last_accessed:
+                    text += f"🕐 *آخرین دسترسی:* {str(last_accessed)[:16]}\n"
+                else:
+                    text += f"🕐 *آخرین دسترسی:* هرگز\n"
+                
+                text += "\n"
                 
                 # اطلاعات اضافی
-                if stats.get('expires_at'):
-                    text += f"⏰ **انقضا:** {stats.get('expires_at')[:16]}\n"
+                expires_at = stats.get('expires_at')
+                if expires_at:
+                    text += f"⏰ *انقضا:* {str(expires_at)[:16]}\n"
                 else:
-                    text += f"♾️ **انقضا:** بدون محدودیت\n"
+                    text += f"♾️ *انقضا:* بدون محدودیت\n"
                 
-                if stats.get('max_downloads'):
-                    text += f"📊 **حد دانلود:** {stats.get('download_count', 0)}/{stats.get('max_downloads')}\n"
+                max_downloads = stats.get('max_downloads')
+                download_count = stats.get('download_count', 0)
+                if max_downloads:
+                    text += f"📊 *حد دانلود:* {download_count}/{max_downloads}\n"
                 else:
-                    text += f"📊 **حد دانلود:** نامحدود\n"
+                    text += f"📊 *حد دانلود:* نامحدود\n"
                 
             else:
-                text = f"❌ **خطا در دریافت آمار**\n\n"
+                text = f"❌ *خطا در دریافت آمار*\n\n"
                 text += f"علت: {stats_data.get('error', 'نامشخص')}"
             
             keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"download_link_stats_{link_code}"),
                     InlineKeyboardButton("🔗 اطلاعات لینک", callback_data=f"download_link_info_{link_code}")
+                ],
+                [
+                    InlineKeyboardButton("📋 کپی لینک", callback_data=f"copy_link_{link_code}"),
+                    InlineKeyboardButton("🗑 حذف لینک", callback_data=f"delete_download_link_{link_code}")
                 ],
                 [
                     InlineKeyboardButton("🔙 بازگشت", callback_data="download_system_control")
@@ -1085,6 +1328,7 @@ class DownloadSystemHandler(BaseHandler):
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
+            logger.error(f"Error in show_download_link_stats: {e}")
             await self.handle_error(update, context, e)
     
     async def show_download_link_info(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1107,48 +1351,76 @@ class DownloadSystemHandler(BaseHandler):
                     'fast': '⚡️', 
                     'restricted': '⚙️'
                 }
-                icon = type_icons.get(info.get('download_type'), '🔗')
+                download_type = info.get('download_type', 'fast')
+                icon = type_icons.get(download_type, '🔗')
                 
-                text = f"{icon} **اطلاعات کامل لینک دانلود**\n\n"
-                text += f"📄 **فایل:** {info.get('file_name', 'نامشخص')}\n"
-                text += f"💾 **حجم فایل:** {self._format_bytes(info.get('file_size', 0))}\n"
-                text += f"🏷 **نوع فایل:** {info.get('file_type', 'نامشخص')}\n"
-                text += f"🔗 **کد لینک:** `{link_code}`\n"
-                text += f"🌐 **نوع دانلود:** {info.get('download_type', 'نامشخص').title()}\n\n"
+                # نام نوع لینک
+                type_names = {
+                    'stream': 'استریم',
+                    'fast': 'سریع',
+                    'restricted': 'محدود'
+                }
+                type_name = type_names.get(download_type, 'عمومی')
+                
+                text = f"{icon} *اطلاعات کامل لینک دانلود*\n\n"
+                text += f"📄 *فایل:* {info.get('file_name', 'نامشخص')}\n"
+                text += f"💾 *حجم فایل:* {self._format_bytes(info.get('file_size', 0))}\n"
+                text += f"🏷 *نوع فایل:* {info.get('file_type', 'نامشخص')}\n"
+                text += f"🔗 *کد لینک:* `{link_code}`\n"
+                text += f"🌐 *نوع دانلود:* {type_name}\n\n"
                 
                 # وضعیت لینک
                 is_expired = info.get('is_expired', False)
+                is_active = info.get('is_active', True)
+                
                 if is_expired:
-                    text += f"🔴 **وضعیت:** منقضی شده\n"
+                    text += f"🔴 *وضعیت:* منقضی شده\n"
+                elif is_active:
+                    text += f"🟢 *وضعیت:* فعال\n"
                 else:
-                    text += f"🟢 **وضعیت:** فعال\n"
+                    text += f"🟡 *وضعیت:* غیرفعال\n"
                 
                 # محدودیت‌ها
-                text += f"📊 **دانلودها:** {info.get('download_count', 0)}"
-                if info.get('max_downloads'):
-                    text += f"/{info.get('max_downloads')}\n"
+                download_count = info.get('download_count', 0)
+                max_downloads = info.get('max_downloads')
+                
+                text += f"📊 *دانلودها:* {download_count}"
+                if max_downloads:
+                    text += f"/{max_downloads}\n"
                 else:
                     text += f" (نامحدود)\n"
                 
-                if info.get('expires_at'):
-                    text += f"⏰ **انقضا:** {info.get('expires_at')[:16]}\n"
+                expires_at = info.get('expires_at')
+                if expires_at:
+                    text += f"⏰ *انقضا:* {str(expires_at)[:16]}\n"
                 else:
-                    text += f"♾️ **انقضا:** بدون محدودیت\n"
+                    text += f"♾️ *انقضا:* بدون محدودیت\n"
                 
-                if info.get('password_protected'):
-                    text += f"🔒 **محافظت با رمز:** بله\n"
+                password_protected = info.get('password_protected', False)
+                if password_protected:
+                    text += f"🔒 *محافظت با رمز:* بله\n"
                 else:
-                    text += f"🔓 **محافظت با رمز:** خیر\n"
+                    text += f"🔓 *محافظت با رمز:* خیر\n"
                 
-                text += f"\n📅 **تاریخ ایجاد:** {info.get('created_at', 'نامشخص')[:16]}"
+                created_at = info.get('created_at')
+                if created_at:
+                    text += f"\n📅 *تاریخ ایجاد:* {str(created_at)[:16]}"
+                
+                # URL کامل دانلود
+                download_url = f"{self.api_url}/api/download/{download_type}/{link_code}"
+                text += f"\n\n🌐 *URL دانلود:*\n`{download_url}`"
                 
             else:
-                text = f"❌ **خطا در دریافت اطلاعات**\n\n"
+                text = f"❌ *خطا در دریافت اطلاعات*\n\n"
                 text += f"علت: {info_data.get('error', 'نامشخص')}"
             
             keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("📊 آمار تفصیلی", callback_data=f"download_link_stats_{link_code}"),
+                    InlineKeyboardButton("📋 کپی لینک", callback_data=f"copy_link_{link_code}")
+                ],
+                [
+                    InlineKeyboardButton("🔒 غیرفعال‌سازی", callback_data=f"deactivate_link_{link_code}"),
                     InlineKeyboardButton("🗑 حذف لینک", callback_data=f"delete_download_link_{link_code}")
                 ],
                 [
@@ -1159,6 +1431,7 @@ class DownloadSystemHandler(BaseHandler):
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
+            logger.error(f"Error in show_download_link_info: {e}")
             await self.handle_error(update, context, e)
     
     async def get_link_stats(self, link_code: str) -> dict:
@@ -1208,10 +1481,10 @@ class DownloadSystemHandler(BaseHandler):
             delete_result = await self.delete_link_via_api(link_code)
             
             if delete_result.get('success'):
-                text = f"✅ **لینک دانلود حذف شد**\n\n"
-                text += f"🔗 **کد لینک:** `{link_code}`\n"
+                text = f"✅ *لینک دانلود حذف شد*\n\n"
+                text += f"🔗 *کد لینک:* `{link_code}`\n"
                 text += f"🗑 لینک با موفقیت غیرفعال و حذف شد.\n\n"
-                text += f"💡 **نکته:** دانلودهای در حال انجام قطع خواهند شد."
+                text += f"💡 *نکته:* دانلودهای در حال انجام قطع خواهند شد."
                 
                 keyboard = InlineKeyboardMarkup([
                     [
@@ -1219,8 +1492,8 @@ class DownloadSystemHandler(BaseHandler):
                     ]
                 ])
             else:
-                text = f"❌ **خطا در حذف لینک**\n\n"
-                text += f"🔗 **کد لینک:** `{link_code}`\n"
+                text = f"❌ *خطا در حذف لینک*\n\n"
+                text += f"🔗 *کد لینک:* `{link_code}`\n"
                 text += f"علت: {delete_result.get('error', 'نامشخص')}\n\n"
                 text += f"لطفاً دوباره تلاش کنید."
                 
@@ -1237,6 +1510,7 @@ class DownloadSystemHandler(BaseHandler):
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
+            logger.error(f"Error in delete_download_link: {e}")
             await self.handle_error(update, context, e)
     
     async def delete_link_via_api(self, link_code: str) -> dict:

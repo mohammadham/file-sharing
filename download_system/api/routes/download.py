@@ -518,3 +518,58 @@ async def delete_download_link(
         )
     
     return {"message": "Download link deleted successfully"}
+
+
+@router.get("/links/my")
+async def get_my_download_links(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current_token = Depends(require_permission("links.read")),
+    download_manager = Depends(get_download_manager)
+):
+    """Get all user's download links"""
+    
+    # Get user's links
+    all_links = await download_manager.db.get_user_download_links(current_token.id, limit)
+    
+    if not all_links:
+        return {
+            "links": [],
+            "total_count": 0,
+            "message": "No download links found"
+        }
+    
+    result = []
+    for link in all_links:
+        # Get file info
+        file_info = await download_manager.get_file_info_from_bot_db(link.file_id)
+        
+        # Generate download URL
+        download_url = f"/api/download/{link.download_type.value}/{link.link_code}"
+        
+        # Check if expired
+        is_expired = link.expires_at and datetime.utcnow() > link.expires_at
+        
+        result.append({
+            "link_id": link.id,
+            "link_code": link.link_code,
+            "download_url": download_url,
+            "file_id": link.file_id,
+            "file_name": file_info['file_name'] if file_info else "Unknown",
+            "file_size": file_info['file_size'] if file_info else 0,
+            "download_type": link.download_type.value,
+            "is_active": link.is_active and not is_expired,
+            "is_expired": is_expired,
+            "download_count": link.download_count,
+            "max_downloads": link.max_downloads,
+            "expires_at": link.expires_at,
+            "password_protected": bool(link.password_hash),
+            "created_at": link.created_at
+        })
+    
+    return {
+        "links": result,
+        "total_count": len(result),
+        "limit": limit,
+        "offset": offset
+    }
