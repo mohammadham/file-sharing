@@ -31,7 +31,12 @@ class BotMessageHandler(BaseHandler):
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Route text messages based on user state"""
         try:
-            user_id = update.effective_user.id
+            # Safely get user ID
+            user_id = self.get_user_id(update)
+            if not user_id:
+                logger.warning("Received text message without valid user")
+                return
+                
             session = await self.get_user_session(user_id)
             
             # Route based on current action state
@@ -95,7 +100,12 @@ class BotMessageHandler(BaseHandler):
     async def handle_file_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle file uploads"""
         try:
-            user_id = update.effective_user.id
+            # Safely get user ID
+            user_id = self.get_user_id(update)
+            if not user_id:
+                logger.warning("Received file upload without valid user")
+                return
+                
             session = await self.get_user_session(user_id)
             
             logger.info(f"File upload attempt - User: {user_id}, State: {session.action_state}, Category: {session.current_category}")

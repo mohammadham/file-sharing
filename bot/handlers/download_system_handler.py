@@ -683,7 +683,10 @@ class DownloadSystemHandler(BaseHandler):
             query = update.callback_query
             await self.answer_callback_query(update)
             
-            file_id = int(query.data.split('_')[3])
+            # استخراج file_id و page از callback_data
+            callback_parts = query.data.split('_')
+            file_id = int(callback_parts[3])
+            page = int(callback_parts[4]) if len(callback_parts) > 4 else 0
             
             # دریافت لینک‌های موجود از API
             links_data = await self.get_file_links(file_id)
@@ -709,9 +712,17 @@ class DownloadSystemHandler(BaseHandler):
                     links = links_data['links']
             
             if links and len(links) > 0:
-                text += f"🔗 *لینک‌های فعال:* {len(links)}\n\n"
+                # تنظیمات pagination
+                links_per_page = 3
+                total_pages = (len(links) + links_per_page - 1) // links_per_page
+                start_index = page * links_per_page
+                end_index = min(start_index + links_per_page, len(links))
+                page_links = links[start_index:end_index]
                 
-                for i, link in enumerate(links[:5], 1):  # نمایش 5 لینک اول
+                text += f"🔗 *کل لینک‌ها:* {len(links)} | "
+                text += f"📄 *صفحه:* {page + 1}/{total_pages}\n\n"
+                
+                for i, link in enumerate(page_links, start_index + 1):
                     # بررسی structure لینک
                     is_active = link.get('is_active', True)
                     is_expired = link.get('is_expired', False)
@@ -749,7 +760,9 @@ class DownloadSystemHandler(BaseHandler):
                     else:
                         text += f"   ♾️ انقضا: بدون محدودیت\n"
                     
-                    text += f"   🔗 کد: `{link_code}`\n\n"
+                    from utils.helpers import escape_text_for_markdown
+                    safe_link_code = escape_text_for_markdown(link_code)
+                    text += f"   🔗 کد: `{safe_link_code}`\n\n"
                     
                     # دکمه‌های مدیریت برای هر لینک
                     link_buttons = []
@@ -793,13 +806,41 @@ class DownloadSystemHandler(BaseHandler):
                     keyboard_rows.append(action_buttons)
                     
                     # فاصله بین لینک‌ها
-                    if i < min(len(links), 5):
+                    if i < end_index:
                         keyboard_rows.append([
                             InlineKeyboardButton("─────────", callback_data="page_info")
                         ])
                 
-                if len(links) > 5:
-                    text += f"... و {len(links) - 5} لینک دیگر"
+                # دکمه‌های pagination
+                if total_pages > 1:
+                    pagination_buttons = []
+                    
+                    # دکمه صفحه قبل
+                    if page > 0:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("◀️ قبلی", callback_data=f"view_file_links_{file_id}_{page-1}")
+                        )
+                    else:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("◀️", callback_data="page_info")
+                        )
+                    
+                    # نمایش شماره صفحه
+                    pagination_buttons.append(
+                        InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="page_info")
+                    )
+                    
+                    # دکمه صفحه بعد
+                    if page < total_pages - 1:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("▶️ بعدی", callback_data=f"view_file_links_{file_id}_{page+1}")
+                        )
+                    else:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("▶️", callback_data="page_info")
+                        )
+                    
+                    keyboard_rows.append(pagination_buttons)
                 
             else:
                 text += "❌ هیچ لینک فعالی برای این فایل وجود ندارد.\n\n"
@@ -855,8 +896,12 @@ class DownloadSystemHandler(BaseHandler):
             query = update.callback_query
             await self.answer_callback_query(update)
             
+            # استخراج شماره صفحه از callback_data
+            callback_parts = query.data.split('_')
+            page = int(callback_parts[4]) if len(callback_parts) > 4 else 0
+            
             # دریافت تمام لینک‌های کاربر
-            links_data = await self.get_all_my_links(limit=20)
+            links_data = await self.get_all_my_links(limit=100)
             
             text = f"📋 *تمام لینک‌های دانلود شما*\n\n"
             
@@ -892,16 +937,31 @@ class DownloadSystemHandler(BaseHandler):
                 
                 text += "\n"
                 
-                # نمایش لینک‌های اخیر (5 تا)
-                recent_links = sorted(links, key=lambda x: x.get('created_at', ''), reverse=True)[:5]
+                # تنظیمات pagination
+                links_per_page = 5
+                total_pages = (len(links) + links_per_page - 1) // links_per_page
+                start_index = page * links_per_page
+                end_index = min(start_index + links_per_page, len(links))
                 
-                text += "*لینک‌های اخیر:*\n\n"
+                # مرتب‌سازی لینک‌ها بر اساس تاریخ ایجاد
+                sorted_links = sorted(links, key=lambda x: x.get('created_at', ''), reverse=True)
+                page_links = sorted_links[start_index:end_index]
                 
-                for i, link in enumerate(recent_links, 1):
+                text += f"📄 *صفحه:* {page + 1}/{total_pages}\n"
+                text += "*لینک‌های شما:*\n\n"
+                
+                for i, link in enumerate(page_links, start_index + 1):
                     is_active = link.get('is_active', True) and not link.get('is_expired', False)
                     download_type = link.get('download_type', 'fast')
                     link_code = link.get('link_code', '')
                     file_name = link.get('file_name', 'نامشخص')
+                    
+                    # Escape متن‌ها
+                    from utils.helpers import escape_text_for_markdown
+                    safe_file_name = escape_text_for_markdown(file_name[:30])
+                    if len(file_name) > 30:
+                        safe_file_name += "..."
+                    safe_link_code = escape_text_for_markdown(link_code)
                     
                     status_icon = "🟢" if is_active else "🔴"
                     link_type_icons = {
@@ -920,9 +980,9 @@ class DownloadSystemHandler(BaseHandler):
                     type_name = type_names.get(download_type, 'عمومی')
                     
                     text += f"{i}. {type_icon} *{type_name}* {status_icon}\n"
-                    text += f"   📄 {file_name[:30]}{'...' if len(file_name) > 30 else ''}\n"
+                    text += f"   📄 {safe_file_name}\n"
                     text += f"   📊 دانلودها: {link.get('download_count', 0)}\n"
-                    text += f"   🔗 کد: `{link_code}`\n\n"
+                    text += f"   🔗 کد: `{safe_link_code}`\n\n"
                     
                     # دکمه‌های مدیریت برای هر لینک
                     link_buttons = [
@@ -951,16 +1011,41 @@ class DownloadSystemHandler(BaseHandler):
                     keyboard_rows.append(action_buttons)
                     
                     # فاصله بین لینک‌ها
-                    if i < len(recent_links):
+                    if i < end_index:
                         keyboard_rows.append([
                             InlineKeyboardButton("─────────", callback_data="page_info")
                         ])
                 
-                if len(links) > 5:
-                    text += f"... و {len(links) - 5} لینک دیگر"
-                    keyboard_rows.append([
-                        InlineKeyboardButton("📋 مشاهده همه", callback_data="view_all_links_full")
-                    ])
+                # دکمه‌های pagination
+                if total_pages > 1:
+                    pagination_buttons = []
+                    
+                    # دکمه صفحه قبل
+                    if page > 0:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("◀️ قبلی", callback_data=f"view_all_download_links_{page-1}")
+                        )
+                    else:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("◀️", callback_data="page_info")
+                        )
+                    
+                    # نمایش شماره صفحه
+                    pagination_buttons.append(
+                        InlineKeyboardButton(f"{page + 1}/{total_pages}", callback_data="page_info")
+                    )
+                    
+                    # دکمه صفحه بعد
+                    if page < total_pages - 1:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("▶️ بعدی", callback_data=f"view_all_download_links_{page+1}")
+                        )
+                    else:
+                        pagination_buttons.append(
+                            InlineKeyboardButton("▶️", callback_data="page_info")
+                        )
+                    
+                    keyboard_rows.append(pagination_buttons)
                 
             else:
                 text += "❌ هیچ لینک فعالی وجود ندارد.\n\n"
@@ -1362,12 +1447,14 @@ class DownloadSystemHandler(BaseHandler):
                 }
                 type_name = type_names.get(download_type, 'عمومی')
                 
+                from utils.helpers import escape_text_for_markdown
+                
                 text = f"{icon} *اطلاعات کامل لینک دانلود*\n\n"
-                text += f"📄 *فایل:* {info.get('file_name', 'نامشخص')}\n"
-                text += f"💾 *حجم فایل:* {self._format_bytes(info.get('file_size', 0))}\n"
-                text += f"🏷 *نوع فایل:* {info.get('file_type', 'نامشخص')}\n"
-                text += f"🔗 *کد لینک:* `{link_code}`\n"
-                text += f"🌐 *نوع دانلود:* {type_name}\n\n"
+                text += f"📄 *فایل:* {escape_text_for_markdown(info.get('file_name', 'نامشخص'))}\n"
+                text += f"💾 *حجم فایل:* {escape_text_for_markdown(self._format_bytes(info.get('file_size', 0)))}\n"
+                text += f"🏷 *نوع فایل:* {escape_text_for_markdown(info.get('file_type', 'نامشخص'))}\n"
+                text += f"🔗 *کد لینک:* `{escape_text_for_markdown(link_code)}`\n"
+                text += f"🌐 *نوع دانلود:* {escape_text_for_markdown(type_name)}\n\n"
                 
                 # وضعیت لینک
                 is_expired = info.get('is_expired', False)
@@ -1408,7 +1495,7 @@ class DownloadSystemHandler(BaseHandler):
                 
                 # URL کامل دانلود
                 download_url = f"{self.api_url}/api/download/{download_type}/{link_code}"
-                text += f"\n\n🌐 *URL دانلود:*\n`{download_url}`"
+                text += f"\n\n🌐 *URL دانلود:*\n`{escape_text_for_markdown(download_url)}`"
                 
             else:
                 text = f"❌ *خطا در دریافت اطلاعات*\n\n"

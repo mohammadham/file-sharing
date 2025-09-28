@@ -24,6 +24,12 @@ class BaseHandler:
         self.db = db_manager
         self.messages = MESSAGES
     
+    def get_user_id(self, update: Update) -> Optional[int]:
+        """Safely get user ID from update"""
+        if update and update.effective_user:
+            return update.effective_user.id
+        return None
+    
     async def get_user_session(self, user_id: int) -> UserSession:
         """Get current user session"""
         return await self.db.get_user_session(user_id)

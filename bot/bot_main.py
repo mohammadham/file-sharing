@@ -109,6 +109,11 @@ class TelegramFileBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
         try:
+            # Safely get user ID
+            if not update.effective_user:
+                logger.warning("Received start command without effective_user")
+                return
+            
             user_id = update.effective_user.id
             
             # Check if it's a share link
@@ -167,6 +172,14 @@ class TelegramFileBot:
         try:
             callback_data = update.callback_query.data
             action = callback_data.split('_')[0]
+            
+            # Safely get user ID
+            if not update.effective_user:
+                logger.warning("Received callback query without effective_user")
+                if update.callback_query:
+                    await update.callback_query.answer("❌ خطای احراز هویت!")
+                return
+            
             user_id = update.effective_user.id
             
             # Advanced logging of user interactions
@@ -319,6 +332,8 @@ class TelegramFileBot:
                 await self.download_system_handler.handle_test_api_connection(update, context)
             elif callback_data == 'api_statistics':
                 await self.download_system_handler.handle_api_statistics(update, context)
+            elif callback_data == 'view_all_download_links' or callback_data.startswith('view_all_download_links_'):
+                await self.download_system_handler.view_all_download_links(update, context)
             
             # Telethon Management Operations
             elif callback_data == 'telethon_management_menu':
