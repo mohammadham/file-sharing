@@ -7,6 +7,7 @@ Admin API Routes
 
 from typing import List, Optional
 from datetime import datetime
+import json
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from core.models import TokenResponse
@@ -31,10 +32,19 @@ async def list_all_tokens(
         token_responses = []
         
         for token in tokens:
+            # Parse permissions from JSON string
+            permissions_str = getattr(token, 'permissions', "[]")
+            try:
+                permissions = json.loads(permissions_str) if permissions_str else []
+            except (json.JSONDecodeError, TypeError):
+                permissions = []
+                
             token_responses.append(TokenResponse(
                 token_id=token.id,
                 token="***hidden***",  # نمایش توکن واقعی امنیتی نیست
                 name=token.name or f"Token {token.id}",
+                permissions=permissions,
+                max_usage=getattr(token, 'max_usage', None),
                 type=token.token_type,
                 is_active=token.is_active,
                 expires_at=token.expires_at,

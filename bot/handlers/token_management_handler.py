@@ -144,7 +144,7 @@ class TokenManagementHandler(BaseHandler):
                 
                 text = f"✅ **توکن جدید تولید شد**\n\n"
                 text += f"🔐 **نوع:** {self._get_token_type_name(token_type)}\n"
-                text += f"🆔 **شناسه:** `{token_data.get('token_id', 'N/A')}`\n"
+                text += f"🆔 **شناسه:** {token_data.get('token_id', 'N/A')}\n"
                 text += f"📝 **نام:** {token_data.get('name', 'بدون نام')}\n"
                 text += f"📅 **تاریخ ایجاد:** {token_data.get('created_at', 'نامشخص')[:16]}\n"
                 
@@ -153,7 +153,7 @@ class TokenManagementHandler(BaseHandler):
                 else:
                     text += f"♾ **انقضا:** بدون محدودیت\n"
                 
-                text += f"\n🔑 **توکن:**\n`{token_data.get('token', '')}`\n\n"
+                text += f"\n🔑 **توکن:**\n{token_data.get('token', '')}\n\n"
                 
                 text += "⚠️ **نکات مهم:**\n"
                 text += "• این توکن را در جایی امن ذخیره کنید\n"
@@ -219,7 +219,7 @@ class TokenManagementHandler(BaseHandler):
                         
                         text += f"{i}. {type_icon} **{token.get('name', f'توکن {i}')}** {status_icon}\n"
                         text += f"   🏷 نوع: {self._get_token_type_name(token.get('type', 'user'))}\n"
-                        text += f"   🆔 شناسه: `{token.get('token_id', token.get('id', 'N/A'))}`\n"
+                        text += f"   🆔 شناسه: {token.get('token_id', token.get('id', 'N/A'))}\n"
                         text += f"   📅 ایجاد: {token.get('created_at', 'نامشخص')[:16]}\n"
                         
                         if token.get('expires_at'):
@@ -750,6 +750,458 @@ class TokenManagementHandler(BaseHandler):
             logger.error(f"Error in handle_set_expiry_action: {e}")
             await self.handle_error(update, context, e)
     
+    async def handle_search_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """جستجوی توکن‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🔍 **جستجوی توکن‌ها**\n\n"
+            text += "این بخش در حال توسعه است...\n\n"
+            text += "قابلیت‌های آینده:\n"
+            text += "• جستجو بر اساس نام\n"
+            text += "• جستجو بر اساس نوع\n"
+            text += "• جستجو بر اساس تاریخ ایجاد\n"
+            text += "• فیلتر بر اساس وضعیت"
+            
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+            ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_search_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_delete_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """حذف دسته‌ای توکن‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🗑 **حذف دسته‌ای توکن‌ها**\n\n"
+            text += "⚠️ **هشدار:** این عملیات برگشت‌پذیر نیست!\n\n"
+            text += "گزینه‌های حذف:\n"
+            text += "• حذف توکن‌های منقضی شده\n"
+            text += "• حذف توکن‌های غیرفعال\n"
+            text += "• حذف توکن‌های بدون استفاده\n"
+            text += "• حذف بر اساس نوع توکن"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⏰ توکن‌های منقضی", callback_data="bulk_delete_expired"),
+                    InlineKeyboardButton("🔴 توکن‌های غیرفعال", callback_data="bulk_delete_inactive")
+                ],
+                [
+                    InlineKeyboardButton("💤 بدون استفاده", callback_data="bulk_delete_unused"),
+                    InlineKeyboardButton("🎯 بر اساس نوع", callback_data="bulk_delete_by_type")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_delete_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_detailed_token_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """آمار کامل توکن‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # دریافت آمار دقیق
+            stats = await self.get_token_statistics()
+            
+            text = "📊 **آمار کامل توکن‌ها**\n\n"
+            
+            if stats.get('success'):
+                data = stats.get('data', {})
+                text += f"📈 **آمار عمومی:**\n"
+                text += f"• کل توکن‌ها: {data.get('total_tokens', 0)}\n"
+                text += f"• توکن‌های فعال: {data.get('active_tokens', 0)}\n"
+                text += f"• توکن‌های منقضی: {data.get('expired_tokens', 0)}\n"
+                text += f"• توکن‌های غیرفعال: {data.get('inactive_tokens', 0)}\n\n"
+                
+                text += f"🏷 **تفکیک بر اساس نوع:**\n"
+                text += f"• مدیر: {data.get('admin_tokens', 0)}\n"
+                text += f"• محدود: {data.get('limited_tokens', 0)}\n"
+                text += f"• کاربر: {data.get('user_tokens', 0)}\n"
+                text += f"• API: {data.get('api_tokens', 0)}\n\n"
+                
+                text += f"📊 **آمار استفاده:**\n"
+                text += f"• استفاده امروز: {data.get('daily_usage', 0)}\n"
+                text += f"• استفاده هفته: {data.get('weekly_usage', 0)}\n"
+                text += f"• استفاده ماه: {data.get('monthly_usage', 0)}\n"
+                text += f"• کل استفاده‌ها: {data.get('total_usage', 0):,}\n\n"
+                
+                text += f"📅 **آمار زمانی:**\n"
+                text += f"• ایجاد شده امروز: {data.get('tokens_created_today', 0)}\n"
+                text += f"• منقضی شده امروز: {data.get('tokens_expired_today', 0)}\n"
+                text += f"• آخرین فعالیت: {data.get('last_activity', 'نامشخص')}\n"
+            else:
+                text += "❌ خطا در دریافت آمار کامل"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data="detailed_token_stats"),
+                    InlineKeyboardButton("📈 نمودار", callback_data="token_stats_chart")
+                ],
+                [
+                    InlineKeyboardButton("💾 صادرات", callback_data="export_tokens"),
+                    InlineKeyboardButton("📧 ارسال ایمیل", callback_data="email_token_stats")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_detailed_token_stats: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_default_expiry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم انقضای پیش‌فرض"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "⏰ **تنظیم انقضای پیش‌فرض**\n\n"
+            text += "لطفاً مدت زمان انقضای پیش‌فرض را برای توکن‌های جدید انتخاب کنید:\n\n"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("1 روز", callback_data="set_default_expiry_1"),
+                    InlineKeyboardButton("7 روز", callback_data="set_default_expiry_7")
+                ],
+                [
+                    InlineKeyboardButton("30 روز", callback_data="set_default_expiry_30"),
+                    InlineKeyboardButton("90 روز", callback_data="set_default_expiry_90")
+                ],
+                [
+                    InlineKeyboardButton("365 روز", callback_data="set_default_expiry_365"),
+                    InlineKeyboardButton("نامحدود", callback_data="set_default_expiry_0")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_security_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_default_expiry: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_usage_limit(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم حد استفاده"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🔢 **تنظیم حد استفاده**\n\n"
+            text += "لطفاً حداکثر تعداد استفاده روزانه را برای توکن‌ها تعیین کنید:\n\n"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("100 درخواست", callback_data="set_usage_limit_100"),
+                    InlineKeyboardButton("500 درخواست", callback_data="set_usage_limit_500")
+                ],
+                [
+                    InlineKeyboardButton("1000 درخواست", callback_data="set_usage_limit_1000"),
+                    InlineKeyboardButton("5000 درخواست", callback_data="set_usage_limit_5000")
+                ],
+                [
+                    InlineKeyboardButton("10000 درخواست", callback_data="set_usage_limit_10000"),
+                    InlineKeyboardButton("نامحدود", callback_data="set_usage_limit_0")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_security_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_usage_limit: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_ip_restrictions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """محدودیت‌های IP"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🌐 **محدودیت‌های IP**\n\n"
+            text += "🔒 **وضعیت فعلی:** غیرفعال\n\n"
+            text += "گزینه‌های دسترسی:\n"
+            text += "• **فعال‌سازی محدودیت IP:** تنها IP های مجاز دسترسی داشته باشند\n"
+            text += "• **لیست سفید IP:** اضافه کردن IP های مجاز\n"
+            text += "• **لیست سیاه IP:** مسدود کردن IP های خاص\n"
+            text += "• **محدودیت جغرافیایی:** محدودیت بر اساس کشور"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🟢 فعال‌سازی", callback_data="enable_ip_restrictions"),
+                    InlineKeyboardButton("🔴 غیرفعال‌سازی", callback_data="disable_ip_restrictions")
+                ],
+                [
+                    InlineKeyboardButton("📝 لیست سفید", callback_data="manage_whitelist_ip"),
+                    InlineKeyboardButton("❌ لیست سیاه", callback_data="manage_blacklist_ip")
+                ],
+                [
+                    InlineKeyboardButton("🌍 محدودیت جغرافیایی", callback_data="geo_restrictions"),
+                    InlineKeyboardButton("📊 آمار IP", callback_data="ip_statistics")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_security_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_ip_restrictions: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_security_alerts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """هشدارهای امنیتی"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🔔 **هشدارهای امنیتی**\n\n"
+            text += "🟢 **وضعیت:** فعال\n\n"
+            text += "نوع هشدارها:\n"
+            text += "• **توکن جدید:** اطلاع از ایجاد توکن جدید\n"
+            text += "• **دسترسی مشکوک:** هشدار فعالیت غیرعادی\n"
+            text += "• **تلاش ورود ناموفق:** تلاش‌های دسترسی غیرمجاز\n"
+            text += "• **انقضای توکن:** یادآوری انقضای توکن‌ها\n"
+            text += "• **حد استفاده:** هشدار رسیدن به حد مجاز استفاده"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📧 هشدار ایمیل", callback_data="email_alerts_toggle"),
+                    InlineKeyboardButton("📱 هشدار تلگرام", callback_data="telegram_alerts_toggle")
+                ],
+                [
+                    InlineKeyboardButton("⚙️ تنظیمات هشدار", callback_data="alert_settings"),
+                    InlineKeyboardButton("📊 تاریخچه هشدارها", callback_data="alert_history")
+                ],
+                [
+                    InlineKeyboardButton("🔕 غیرفعال کردن همه", callback_data="disable_all_alerts"),
+                    InlineKeyboardButton("🔔 فعال کردن همه", callback_data="enable_all_alerts")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="token_security_settings")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_security_alerts: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_copy_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """کپی توکن"""
+        try:
+            query = update.callback_query
+            await query.answer("✅ توکن کپی شد!")
+            
+            # Extract token_id from callback_data
+            token_id = query.data.split('_')[2]
+            
+            text = f"📋 **کپی توکن**\n\n"
+            text += f"🆔 **شناسه:** {token_id}\n\n"
+            text += "⚠️ **نکته:** توکن به کلیپ‌برد شما کپی نشده است.\n"
+            text += "لطفاً از منوی جزئیات توکن استفاده کنید تا توکن کامل را مشاهده کنید."
+            
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+            ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_copy_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_token_details(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش جزئیات توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # Extract token_id from callback_data
+            token_id = query.data.split('_')[2]
+            
+            text = f"📊 **جزئیات توکن**\n\n"
+            text += f"🆔 **شناسه:** {token_id}\n\n"
+            text += "این بخش در حال توسعه است...\n\n"
+            text += "قابلیت‌های آینده:\n"
+            text += "• نمایش کامل اطلاعات توکن\n"
+            text += "• تاریخچه استفاده\n"
+            text += "• آمار عملکرد\n"
+            text += "• لاگ‌های دسترسی"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"token_details_{token_id}"),
+                    InlineKeyboardButton("🗑 حذف", callback_data=f"delete_token_{token_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔒 غیرفعال‌سازی", callback_data=f"deactivate_token_{token_id}"),
+                    InlineKeyboardButton("⏰ تنظیم انقضا", callback_data=f"set_token_expiry_{token_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_token_details: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_cleanup_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """عملیات پاکسازی"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            action = query.data.split('_')[1]  # expired, inactive, unused, all
+            
+            text = f"🧹 **پاکسازی توکن‌ها**\n\n"
+            
+            if action == 'expired':
+                text += "⏰ **پاکسازی توکن‌های منقضی**\n\n"
+                text += "این عملیات تمام توکن‌های منقضی شده را حذف می‌کند.\n"
+            elif action == 'inactive':
+                text += "🔴 **پاکسازی توکن‌های غیرفعال**\n\n"
+                text += "این عملیات تمام توکن‌های غیرفعال را حذف می‌کند.\n"
+            elif action == 'unused':
+                text += "💤 **پاکسازی توکن‌های بدون استفاده**\n\n"
+                text += "این عملیات توکن‌های بدون استفاده را حذف می‌کند.\n"
+            elif action == 'all':
+                text += "🗑 **پاکسازی کامل**\n\n"
+                text += "⚠️ **هشدار:** این عملیات همه توکن‌ها را حذف می‌کند!\n"
+            
+            text += "\n⚠️ **توجه:** این عملیات برگشت‌پذیر نیست!"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ تأیید", callback_data=f"confirm_cleanup_{action}"),
+                    InlineKeyboardButton("❌ انصراف", callback_data="cleanup_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_cleanup_action: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_delete_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """عملیات حذف دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            parts = query.data.split('_')
+            action = '_'.join(parts[2:])  # expired, inactive, unused, by_type
+            
+            text = f"🗑 **حذف دسته‌ای توکن‌ها**\n\n"
+            
+            if action == 'expired':
+                text += "⏰ **حذف توکن‌های منقضی**\n\n"
+                text += "این عملیات تمام توکن‌های منقضی شده را حذف می‌کند.\n"
+            elif action == 'inactive': 
+                text += "🔴 **حذف توکن‌های غیرفعال**\n\n"
+                text += "این عملیات تمام توکن‌های غیرفعال را حذف می‌کند.\n"
+            elif action == 'unused':
+                text += "💤 **حذف توکن‌های بدون استفاده**\n\n"
+                text += "این عملیات توکن‌های بدون استفاده را حذف می‌کند.\n"
+            elif action == 'by_type':
+                text += "🎯 **حذف بر اساس نوع**\n\n"
+                text += "لطفاً نوع توکن‌هایی که می‌خواهید حذف کنید را انتخاب کنید:\n"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🛡 مدیر", callback_data="bulk_delete_type_admin"),
+                        InlineKeyboardButton("⚙️ محدود", callback_data="bulk_delete_type_limited")
+                    ],
+                    [
+                        InlineKeyboardButton("👤 کاربر", callback_data="bulk_delete_type_user"),
+                        InlineKeyboardButton("🔑 API", callback_data="bulk_delete_type_api")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                    ]
+                ])
+                
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+                return
+            
+            text += "\n⚠️ **توجه:** این عملیات برگشت‌پذیر نیست!"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ تأیید", callback_data=f"confirm_bulk_delete_{action}"),
+                    InlineKeyboardButton("❌ انصراف", callback_data="bulk_delete_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_delete_action: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_export_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """صادرات اطلاعات توکن‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "💾 **صادرات اطلاعات توکن‌ها**\n\n"
+            text += "لطفاً فرمت صادرات را انتخاب کنید:\n\n"
+            text += "• **JSON:** فرمت ساده و قابل خواندن\n"
+            text += "• **CSV:** قابل باز کردن در Excel\n"
+            text += "• **PDF:** گزارش کامل و آماده چاپ\n"
+            text += "• **XML:** فرمت استاندارد تبادل داده"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📄 JSON", callback_data="export_tokens_json"),
+                    InlineKeyboardButton("📊 CSV", callback_data="export_tokens_csv")
+                ],
+                [
+                    InlineKeyboardButton("📑 PDF", callback_data="export_tokens_pdf"),
+                    InlineKeyboardButton("🔗 XML", callback_data="export_tokens_xml")
+                ],
+                [
+                    InlineKeyboardButton("📧 ارسال ایمیل", callback_data="export_tokens_email"),
+                    InlineKeyboardButton("☁️ ذخیره ابری", callback_data="export_tokens_cloud")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_tokens: {e}")
+            await self.handle_error(update, context, e)
+
     async def handle_confirm_new_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """تأیید ایجاد توکن جدید"""
         try:
@@ -798,7 +1250,7 @@ class TokenManagementHandler(BaseHandler):
                 
                 text = f"✅ **توکن جدید با موفقیت ایجاد شد**\n\n"
                 text += f"🔐 **نوع:** {self._get_token_type_name(token_type)}\n"
-                text += f"🆔 **شناسه:** `{token_data.get('token_id', 'N/A')}`\n"
+                text += f"🆔 **شناسه:** {token_data.get('token_id', 'N/A')}\n"
                 text += f"📝 **نام:** {token_data.get('name', 'بدون نام')}\n"
                 text += f"📅 **تاریخ ایجاد:** {token_data.get('created_at', 'نامشخص')[:16]}\n"
                 
@@ -807,7 +1259,7 @@ class TokenManagementHandler(BaseHandler):
                 else:
                     text += f"♾ **انقضا:** بدون محدودیت\n"
                 
-                text += f"\n🔑 **توکن:**\n`{token_data.get('token', '')}`\n\n"
+                text += f"\n🔑 **توکن:**\n{token_data.get('token', '')}\n\n"
                 
                 text += "⚠️ **نکات مهم:**\n"
                 text += "• این توکن را در جایی امن ذخیره کنید\n"
