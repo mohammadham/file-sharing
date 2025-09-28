@@ -54,6 +54,7 @@ class AuthManager:
         permissions: List[str],
         user_id: Optional[int] = None,
         expires_hours: Optional[int] = None,
+        expires_at: Optional[datetime] = None,
         max_usage: Optional[int] = None,
         token_type: TokenType = TokenType.API
     ) -> tuple[str, Token]:
@@ -64,9 +65,11 @@ class AuthManager:
         token_hash = self.hash_token(token_string)
         
         # Calculate expiration
-        expires_at = None
-        if expires_hours:
-            expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
+        final_expires_at = None
+        if expires_at:
+            final_expires_at = expires_at
+        elif expires_hours:
+            final_expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
         
         # Create token object
         token = Token(
@@ -75,7 +78,7 @@ class AuthManager:
             token_type=token_type,
             user_id=user_id,
             permissions=json.dumps(permissions),
-            expires_at=expires_at,
+            expires_at=final_expires_at,
             max_usage=max_usage,
             created_at=datetime.utcnow()
         )
@@ -139,6 +142,28 @@ class AuthManager:
     async def revoke_token(self, token_id: str) -> bool:
         """Revoke token"""
         return await self.db.deactivate_token(token_id)
+    
+    async def get_all_tokens(self, limit: int = 100) -> List[Token]:
+        """Get all tokens with optional limit"""
+        return await self.db.get_all_tokens(limit=limit)
+    
+    def get_default_permissions(self, token_type: str) -> List[str]:
+        """Get default permissions for token type"""
+        if token_type == "admin":
+            return ["all"]
+        elif token_type == "limited":
+            return [
+                "files.read", "files.download", 
+                "links.create", "links.read", "links.stats",
+                "system.read"
+            ]
+        elif token_type == "user":
+            return [
+                "files.download",
+                "links.create", "links.read"
+            ]
+        else:
+            return ["files.download"]
 
 
 class PermissionManager:

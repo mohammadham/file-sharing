@@ -60,9 +60,13 @@ class TokenResponse(BaseModel):
     token: str
     name: str
     permissions: List[str]
-    expires_at: Optional[datetime]
     max_usage: Optional[int]
+    type: str = "user"
+    is_active: bool = True
+    expires_at: Optional[datetime] = None
     created_at: datetime
+    usage_count: int = 0
+    last_used_at: Optional[datetime] = None
 
 
 class DownloadLinkCreateRequest(BaseModel):
@@ -167,8 +171,17 @@ class Token(BaseModel):
     is_active: bool = True
     created_at: Optional[datetime] = None
     last_used: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None  # Alias for last_used
     usage_count: int = 0
     max_usage: Optional[int] = None
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Sync last_used and last_used_at
+        if self.last_used and not self.last_used_at:
+            self.last_used_at = self.last_used
+        elif self.last_used_at and not self.last_used:
+            self.last_used = self.last_used_at
 
 
 class DownloadLink(BaseModel):

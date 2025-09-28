@@ -89,6 +89,14 @@ class TelegramFileBot:
             admin_token="uVsXgmICyxa0mhPshBJZ1XtYpFFt-p5rLrdMvZnhv4c"
         )
         
+        # Initialize token management handler
+        from handlers.token_management_handler import TokenManagementHandler
+        self.token_management_handler = TokenManagementHandler(
+            self.db,
+            download_api_url="http://localhost:8001",
+            admin_token="uVsXgmICyxa0mhPshBJZ1XtYpFFt-p5rLrdMvZnhv4c"
+        )
+        
         # Initialize Telethon management handlers
         from handlers.telethon_config_handler import TelethonConfigHandler
         from handlers.telethon_login_handler import TelethonLoginHandler
@@ -310,11 +318,20 @@ class TelegramFileBot:
             elif callback_data.startswith('set_speed_'):
                 await self.download_system_handler.handle_set_speed(update, context)
             elif callback_data == 'token_management':
-                await self.download_system_handler.handle_token_management(update, context)
-            elif callback_data == 'generate_new_token':
-                await self.download_system_handler.handle_generate_new_token(update, context)
-            elif callback_data == 'view_all_tokens':
-                await self.download_system_handler.handle_view_all_tokens(update, context)
+            #     await self.download_system_handler.handle_token_management(update, context)
+            # elif callback_data == 'generate_new_token':
+            #     await self.download_system_handler.handle_generate_new_token(update, context)
+            # elif callback_data == 'view_all_tokens':
+            #     await self.download_system_handler.handle_view_all_tokens(update, context)
+                await self.token_management_handler.show_token_dashboard(update, context)
+            elif callback_data == 'token_dashboard':
+                await self.token_management_handler.show_token_dashboard(update, context)
+            elif callback_data == 'generate_new_token' or callback_data == 'create_new_token':
+                await self.token_management_handler.show_create_token_wizard(update, context)
+            elif callback_data == 'view_all_tokens' or callback_data == 'list_all_tokens':
+                await self.token_management_handler.show_token_list(update, context)
+            elif callback_data.startswith('create_token_'):
+                await self.token_management_handler.process_token_creation(update, context)
             elif callback_data.startswith('confirm_new_token_'):
                 await self.download_system_handler.handle_confirm_new_token(update, context)
             elif callback_data == 'api_settings':
@@ -343,11 +360,21 @@ class TelegramFileBot:
             elif callback_data == 'diagnose_api_issue':
                 await self.download_system_handler.handle_diagnose_api_issue(update, context)
             
-            # Token Management Callbacks
+            # Token Management Callbacks  
             elif callback_data == 'deactivate_tokens':
                 await self.download_system_handler.handle_deactivate_tokens(update, context)
             elif callback_data == 'set_token_expiry':
                 await self.download_system_handler.handle_set_token_expiry(update, context)
+                
+            # New Token Management Callbacks
+            elif callback_data == 'token_manage_permissions':
+                await self.token_management_handler.show_permissions_manager(update, context)
+            elif callback_data == 'token_usage_report':
+                await self.token_management_handler.show_usage_report(update, context)
+            elif callback_data == 'token_security_settings':
+                await self.token_management_handler.show_security_settings(update, context)
+            elif callback_data == 'cleanup_tokens':
+                await self.token_management_handler.show_cleanup_options(update, context)
             
             # Download Stats Callbacks
             elif callback_data == 'detailed_download_stats':

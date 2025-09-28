@@ -173,6 +173,39 @@ class DatabaseManager:
             await db.commit()
             return cursor.rowcount > 0
     
+    async def get_all_tokens(self, limit: int = 100) -> List[Token]:
+        """Get all tokens with limit"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute('''
+                SELECT id, token_hash, name, token_type, user_id, permissions,
+                       expires_at, max_usage, usage_count, is_active, created_at, last_used
+                FROM download_tokens 
+                ORDER BY created_at DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            rows = await cursor.fetchall()
+            tokens = []
+            
+            for row in rows:
+                token = Token(
+                    id=row[0],
+                    token_hash=row[1],
+                    name=row[2],
+                    token_type=row[3],
+                    user_id=row[4],
+                    permissions=row[5],
+                    expires_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                    max_usage=row[7],
+                    usage_count=row[8] or 0,
+                    is_active=bool(row[9]),
+                    created_at=datetime.fromisoformat(row[10]) if row[10] else datetime.utcnow(),
+                    last_used=datetime.fromisoformat(row[11]) if row[11] else None
+                )
+                tokens.append(token)
+            
+            return tokens
+    
     # Download Links Management
     
     async def create_download_link(self, link: DownloadLink) -> bool:

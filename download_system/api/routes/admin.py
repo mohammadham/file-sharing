@@ -6,6 +6,7 @@ Admin API Routes
 """
 
 from typing import List, Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from core.models import TokenResponse
@@ -25,11 +26,103 @@ async def list_all_tokens(
     auth_manager: AuthManager = Depends(get_auth_manager)
 ):
     """List all API tokens (admin only)"""
-    
-    # This would require additional database method
-    # For now, return empty list with note
-    
-    return []
+    try:
+        tokens = await auth_manager.get_all_tokens(limit=limit)
+        token_responses = []
+        
+        for token in tokens:
+            token_responses.append(TokenResponse(
+                token_id=token.id,
+                token="***hidden***",  # نمایش توکن واقعی امنیتی نیست
+                name=token.name or f"Token {token.id}",
+                type=token.token_type,
+                is_active=token.is_active,
+                expires_at=token.expires_at,
+                created_at=token.created_at,
+                usage_count=token.usage_count,
+                last_used_at=token.last_used
+            ))
+        
+        return token_responses
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving tokens: {str(e)}"
+        )
+
+
+@router.get("/tokens/stats")
+async def get_token_statistics(
+    current_token = Depends(require_permission("admin.tokens")),
+    auth_manager: AuthManager = Depends(get_auth_manager)
+):
+    """Get token usage statistics (admin only)"""
+    try:
+        # Get all tokens for analysis
+        all_tokens = await auth_manager.get_all_tokens(limit=1000)
+        
+        stats = {
+            "total_tokens": len(all_tokens),
+            "active_tokens": len([t for t in all_tokens if t.is_active]),
+            "expired_tokens": len([t for t in all_tokens if t.expires_at and t.expires_at < datetime.utcnow()]),
+            "admin_tokens": len([t for t in all_tokens if t.token_type == "admin"]),
+            "limited_tokens": len([t for t in all_tokens if t.token_type == "limited"]), 
+            "user_tokens": len([t for t in all_tokens if t.token_type == "user"]),
+            "daily_usage": sum([t.usage_count for t in all_tokens if t.last_used and 
+                              t.last_used.date() == datetime.utcnow().date()]) if any(t.last_used for t in all_tokens) else 0,
+            "total_usage": sum([t.usage_count for t in all_tokens])
+        }
+        
+        return stats
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving token statistics: {str(e)}"
+        )
+
+
+@router.post("/tokens/generate")
+async def generate_admin_token(
+    request: dict,
+    current_token = Depends(require_permission("admin.tokens")),
+    auth_manager: AuthManager = Depends(get_auth_manager)
+):
+    """Generate new admin token (admin only)"""
+    try:
+        token_type = request.get("type", "user")
+        token_name = request.get("name", f"Generated Token {datetime.now().strftime('%Y%m%d_%H%M')}")
+        expires_at = request.get("expires_at")
+        
+        # Parse expires_at if provided
+        expires_datetime = None
+        if expires_at:
+            try:
+                expires_datetime = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+            except:
+                expires_datetime = None
+        
+        # Generate new token
+        token_string, token = await auth_manager.create_token(
+            name=token_name,
+            token_type=token_type,
+            expires_at=expires_datetime,
+            permissions=auth_manager.get_default_permissions(token_type)
+        )
+        
+        return {
+            "success": True,
+            "token": token_string,
+            "token_id": token.id,
+            "name": token.name,
+            "type": token.token_type,
+            "expires_at": token.expires_at.isoformat() if token.expires_at else None,
+            "created_at": token.created_at.isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating token: {str(e)}"
+        )
 
 
 @router.get("/stats/system")
