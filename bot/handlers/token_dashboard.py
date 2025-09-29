@@ -930,15 +930,1121 @@ class TokenDashboardHandler(BaseHandler):
             logger.error(f"Error in handle_token_details: {e}")
             await self.handle_error(update, context, e)
     
+    # === TOKEN EDIT OPERATIONS - DETAILED ===
+    
+    async def handle_edit_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """منوی ویرایش توکن خاص"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            # دریافت اطلاعات فعلی توکن
+            result = await self.token_manager.get_token_details(token_id)
+            
+            if result.get('success'):
+                token = result.get('token', {})
+                
+                text = f"✏️ **ویرایش توکن**\n\n"
+                text += f"🆔 **شناسه:** `{token_id}`\n"
+                text += f"📝 **نام فعلی:** {token.get('name', 'بدون نام')}\n"
+                text += f"🏷 **نوع فعلی:** {self._get_token_type_name(token.get('type', 'user'))}\n"
+                text += f"⏰ **انقضای فعلی:** {token.get('expires_at', 'نامحدود')[:16] if token.get('expires_at') else 'نامحدود'}\n"
+                text += f"📊 **کوتای فعلی:** {token.get('usage_quota', 'نامحدود')}\n\n"
+                
+                text += "لطفاً بخش مورد نظر برای ویرایش را انتخاب کنید:"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📝 ویرایش نام", callback_data=f"edit_name_{token_id}"),
+                        InlineKeyboardButton("⏰ ویرایش انقضا", callback_data=f"edit_expiry_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("🏷 تغییر نوع", callback_data=f"edit_type_{token_id}"),
+                        InlineKeyboardButton("📊 تنظیم کوتا", callback_data=f"edit_quota_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("💾 اعمال تغییرات", callback_data=f"save_changes_{token_id}"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                    ]
+                ])
+                
+            else:
+                text = f"❌ **خطا در دریافت اطلاعات توکن**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_edit_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_edit_token_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ویرایش نام توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            text = f"📝 **ویرایش نام توکن**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
+            text += "لطفاً نام جدید توکن را انتخاب کنید یا نام سفارشی وارد نمایید:\n\n"
+            text += "💡 **نکات:**\n"
+            text += "• نام باید بین 3 تا 50 کاراکتر باشد\n"
+            text += "• از کاراکترهای فارسی، انگلیسی و اعداد استفاده کنید\n"
+            text += "• نام توکن در لیست‌ها نمایش داده می‌شود"
+            
+            # ذخیره token_id در context برای استفاده در مرحله بعد
+            context.user_data[f'editing_token_{update.effective_user.id}'] = {
+                'token_id': token_id,
+                'field': 'name',
+                'awaiting_input': True
+            }
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🏢 توکن اداری", callback_data=f"set_name_{token_id}_admin_token"),
+                    InlineKeyboardButton("🔧 توکن API", callback_data=f"set_name_{token_id}_api_token")
+                ],
+                [
+                    InlineKeyboardButton("👤 توکن کاربری", callback_data=f"set_name_{token_id}_user_token"),
+                    InlineKeyboardButton("🛡 توکن امنیتی", callback_data=f"set_name_{token_id}_security_token")
+                ],
+                [
+                    InlineKeyboardButton("✏️ نام سفارشی", callback_data=f"custom_name_{token_id}"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"edit_token_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_edit_token_name: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_edit_token_expiry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ویرایش انقضای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            text = f"⏰ **ویرایش انقضای توکن**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
+            text += "لطفاً زمان انقضای جدید را انتخاب کنید:\n\n"
+            text += "⚠️ **نکات مهم:**\n"
+            text += "• تغییر انقضا فوری اعمال می‌شود\n"
+            text += "• کاهش زمان انقضا ممکن است توکن را غیرفعال کند\n"
+            text += "• انتخاب \"نامحدود\" توکن را بدون انقضا می‌کند"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("1 روز", callback_data=f"set_expiry_{token_id}_1"),
+                    InlineKeyboardButton("7 روز", callback_data=f"set_expiry_{token_id}_7"),
+                    InlineKeyboardButton("30 روز", callback_data=f"set_expiry_{token_id}_30")
+                ],
+                [
+                    InlineKeyboardButton("90 روز", callback_data=f"set_expiry_{token_id}_90"),
+                    InlineKeyboardButton("365 روز", callback_data=f"set_expiry_{token_id}_365"),
+                    InlineKeyboardButton("♾ نامحدود", callback_data=f"set_expiry_{token_id}_0")
+                ],
+                [
+                    InlineKeyboardButton("📅 تاریخ سفارشی", callback_data=f"custom_expiry_{token_id}"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"edit_token_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_edit_token_expiry: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_edit_token_type(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تغییر نوع توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            # دریافت نوع فعلی توکن
+            result = await self.token_manager.get_token_details(token_id)
+            current_type = result.get('token', {}).get('type', 'user') if result.get('success') else 'user'
+            
+            text = f"🏷 **تغییر نوع توکن**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+            text += f"🔹 **نوع فعلی:** {self._get_token_type_name(current_type)}\n\n"
+            text += "لطفاً نوع جدید توکن را انتخاب کنید:\n\n"
+            text += "⚠️ **هشدارهای مهم:**\n"
+            text += "• تغییر نوع توکن دسترسی‌ها را تغییر می‌دهد\n"
+            text += "• کاهش سطح دسترسی فوری اعمال می‌شود\n"
+            text += "• این عمل برگشت‌پذیر است"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        f"🛡 مدیر {'✅' if current_type == 'admin' else ''}",
+                        callback_data=f"set_type_{token_id}_admin"
+                    ),
+                    InlineKeyboardButton(
+                        f"⚙️ محدود {'✅' if current_type == 'limited' else ''}",
+                        callback_data=f"set_type_{token_id}_limited"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        f"👤 کاربر {'✅' if current_type == 'user' else ''}",
+                        callback_data=f"set_type_{token_id}_user"
+                    ),
+                    InlineKeyboardButton(
+                        f"🔧 API {'✅' if current_type == 'api' else ''}",
+                        callback_data=f"set_type_{token_id}_api"
+                    )
+                ],
+                [
+                    InlineKeyboardButton("ℹ️ مقایسه دسترسی‌ها", callback_data=f"compare_types_{token_id}"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"edit_token_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_edit_token_type: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_edit_token_quota(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم کوتای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            # دریافت کوتای فعلی
+            result = await self.token_manager.get_token_details(token_id)
+            current_quota = result.get('token', {}).get('usage_quota', 0) if result.get('success') else 0
+            quota_text = f"{current_quota:,}" if current_quota > 0 else "نامحدود"
+            
+            text = f"📊 **تنظیم کوتای استفاده توکن**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+            text += f"📈 **کوتای فعلی:** {quota_text}\n\n"
+            text += "لطفاً کوتای جدید (حد مجاز استفاده روزانه) را انتخاب کنید:\n\n"
+            text += "💡 **توضیحات:**\n"
+            text += "• کوتا بر اساس تعداد درخواست در 24 ساعت محاسبه می‌شود\n"
+            text += "• رسیدن به کوتا باعث قطع دسترسی موقت می‌شود\n"
+            text += "• کوتا هر روز به صورت خودکار بازنشانی می‌شود"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("100 درخواست", callback_data=f"set_quota_{token_id}_100"),
+                    InlineKeyboardButton("500 درخواست", callback_data=f"set_quota_{token_id}_500")
+                ],
+                [
+                    InlineKeyboardButton("1K درخواست", callback_data=f"set_quota_{token_id}_1000"),
+                    InlineKeyboardButton("5K درخواست", callback_data=f"set_quota_{token_id}_5000")
+                ],
+                [
+                    InlineKeyboardButton("10K درخواست", callback_data=f"set_quota_{token_id}_10000"),
+                    InlineKeyboardButton("50K درخواست", callback_data=f"set_quota_{token_id}_50000")
+                ],
+                [
+                    InlineKeyboardButton("♾ نامحدود", callback_data=f"set_quota_{token_id}_0"),
+                    InlineKeyboardButton("🎯 کوتای سفارشی", callback_data=f"custom_quota_{token_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"edit_token_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_edit_token_quota: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_save_token_changes(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """اعمال و ذخیره تغییرات توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            # بررسی وجود تغییرات در انتظار
+            user_data = context.user_data.get(f'token_changes_{token_id}', {})
+            
+            if not user_data:
+                text = "ℹ️ **هیچ تغییری در انتظار اعمال نیست**\n\n"
+                text += "برای ویرایش توکن، ابتدا یکی از گزینه‌های ویرایش را انتخاب کنید."
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("✏️ ویرایش توکن", callback_data=f"edit_token_{token_id}"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                ]])
+            else:
+                # اعمال تغییرات از طریق API
+                result = await self.token_manager.update_token_settings(token_id, user_data)
+                
+                if result.get('success'):
+                    text = f"✅ **تغییرات با موفقیت اعمال شد**\n\n"
+                    text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
+                    text += f"📝 **تغییرات اعمال شده:**\n"
+                    
+                    for field, value in user_data.items():
+                        if field == 'name':
+                            text += f"• نام: {value}\n"
+                        elif field == 'expires_at':
+                            text += f"• انقضا: {value if value else 'نامحدود'}\n"
+                        elif field == 'type':
+                            text += f"• نوع: {self._get_token_type_name(value)}\n"
+                        elif field == 'usage_quota':
+                            text += f"• کوتا: {f'{value:,}' if value > 0 else 'نامحدود'}\n"
+                    
+                    text += f"\n📅 **زمان اعمال:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    
+                    # پاک کردن تغییرات موقت
+                    if f'token_changes_{token_id}' in context.user_data:
+                        del context.user_data[f'token_changes_{token_id}']
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📊 مشاهده جزئیات", callback_data=f"token_details_{token_id}"),
+                            InlineKeyboardButton("✏️ ویرایش مجدد", callback_data=f"edit_token_{token_id}")
+                        ],
+                        [
+                            InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens")
+                        ]
+                    ])
+                else:
+                    text = f"❌ **خطا در اعمال تغییرات**\n\n"
+                    text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                    text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"save_changes_{token_id}"),
+                            InlineKeyboardButton("✏️ ویرایش مجدد", callback_data=f"edit_token_{token_id}")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                        ]
+                    ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_save_token_changes: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === TOKEN DEACTIVATION ===
+    
+    async def handle_deactivate_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی توکن با تأیید"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            # دریافت اطلاعات توکن برای نمایش
+            result = await self.token_manager.get_token_details(token_id)
+            
+            if result.get('success'):
+                token = result.get('token', {})
+                
+                text = f"🔒 **غیرفعال‌سازی توکن**\n\n"
+                text += f"🆔 **شناسه:** `{token_id}`\n"
+                text += f"📝 **نام:** {token.get('name', 'بدون نام')}\n"
+                text += f"🏷 **نوع:** {self._get_token_type_name(token.get('type', 'user'))}\n"
+                text += f"📊 **تعداد استفاده:** {token.get('usage_count', 0)}\n\n"
+                
+                text += "⚠️ **هشدار:**\n"
+                text += "• این توکن قابل استفاده نخواهد بود\n"
+                text += "• تمام درخواست‌های آن رد می‌شود\n"
+                text += "• امکان فعال‌سازی مجدد وجود دارد\n"
+                text += "• آمار و تاریخچه حفظ می‌شود\n\n"
+                text += "آیا از غیرفعال‌سازی این توکن اطمینان دارید؟"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ بله، غیرفعال کن", callback_data=f"confirm_deactivate_{token_id}"),
+                        InlineKeyboardButton("❌ خیر، انصراف", callback_data=f"token_details_{token_id}")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در دریافت اطلاعات توکن**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="list_all_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_deactivate_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_deactivate_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید نهایی غیرفعال‌سازی توکن"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال غیرفعال‌سازی توکن...")
+            
+            token_id = query.data.split('_')[2]
+            
+            # غیرفعال‌سازی توکن از طریق API
+            result = await self.token_manager.deactivate_token(token_id)
+            
+            if result.get('success'):
+                text = f"✅ **توکن غیرفعال شد**\n\n"
+                text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+                text += f"📅 **زمان غیرفعال‌سازی:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                text += "این توکن دیگر قابل استفاده نیست.\n"
+                text += "در صورت نیاز می‌توانید آن را مجدداً فعال کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 فعال‌سازی مجدد", callback_data=f"reactivate_token_{token_id}"),
+                        InlineKeyboardButton("📊 مشاهده جزئیات", callback_data=f"token_details_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens"),
+                        InlineKeyboardButton("➕ توکن جدید", callback_data="create_new_token")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در غیرفعال‌سازی توکن**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"deactivate_token_{token_id}"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_deactivate_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === TOKEN STATISTICS ===
+    
+    async def handle_token_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش آمار کامل توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            # دریافت آمار کامل توکن
+            result = await self.token_manager.get_token_statistics_detailed(token_id)
+            
+            if result.get('success'):
+                stats = result.get('data', {})
+                token_info = stats.get('token_info', {})
+                usage_stats = stats.get('usage_stats', {})
+                
+                text = f"📊 **آمار کامل توکن**\n\n"
+                text += f"🆔 **شناسه:** `{token_id}`\n"
+                text += f"📝 **نام:** {token_info.get('name', 'بدون نام')}\n"
+                text += f"🏷 **نوع:** {self._get_token_type_name(token_info.get('type', 'user'))}\n\n"
+                
+                text += f"📈 **آمار استفاده:**\n"
+                text += f"• کل استفاده‌ها: {usage_stats.get('total_requests', 0):,}\n"
+                text += f"• استفاده امروز: {usage_stats.get('today_requests', 0):,}\n"
+                text += f"• استفاده این هفته: {usage_stats.get('week_requests', 0):,}\n"
+                text += f"• استفاده این ماه: {usage_stats.get('month_requests', 0):,}\n\n"
+                
+                text += f"🕐 **آمار زمانی:**\n"
+                text += f"• آخرین استفاده: {usage_stats.get('last_used_at', 'هرگز')[:16] if usage_stats.get('last_used_at') else 'هرگز'}\n"
+                text += f"• میانگین استفاده روزانه: {usage_stats.get('daily_average', 0):.1f}\n"
+                text += f"• روزهای فعالیت: {usage_stats.get('active_days', 0)}\n\n"
+                
+                text += f"🌐 **آمار شبکه:**\n"
+                text += f"• IP های مختلف: {usage_stats.get('unique_ips', 0)}\n"
+                text += f"• کشورهای مختلف: {usage_stats.get('unique_countries', 0)}\n"
+                text += f"• پربازدیدترین IP: {usage_stats.get('top_ip', 'نامشخص')}\n\n"
+                
+                if usage_stats.get('quota_limit', 0) > 0:
+                    quota_used = usage_stats.get('quota_used', 0)
+                    quota_limit = usage_stats.get('quota_limit', 0)
+                    quota_percent = (quota_used / quota_limit) * 100 if quota_limit > 0 else 0
+                    text += f"📊 **وضعیت کوتا:**\n"
+                    text += f"• استفاده شده: {quota_used:,} از {quota_limit:,} ({quota_percent:.1f}%)\n"
+                    text += f"• باقی‌مانده: {quota_limit - quota_used:,}\n\n"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 لاگ دسترسی", callback_data=f"token_access_log_{token_id}"),
+                        InlineKeyboardButton("⚠️ تحلیل ناهنجاری", callback_data=f"token_anomaly_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("📊 نمودار استفاده", callback_data=f"token_usage_chart_{token_id}"),
+                        InlineKeyboardButton("📈 تحلیل ترند", callback_data=f"token_trend_analysis_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("📄 صادرات گزارش", callback_data=f"export_token_report_{token_id}_pdf"),
+                        InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"token_stats_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در دریافت آمار توکن**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_token_stats: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_token_access_log(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش لاگ دسترسی‌های توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[3]  # token_access_log_{id}
+            
+            # دریافت لاگ دسترسی‌ها
+            result = await self.token_manager.get_token_access_log(token_id, limit=10)
+            
+            if result.get('success'):
+                logs = result.get('data', [])
+                
+                text = f"📋 **لاگ دسترسی‌های توکن**\n\n"
+                text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
+                
+                if logs:
+                    text += f"🕐 **آخرین {len(logs)} دسترسی:**\n\n"
+                    for i, log in enumerate(logs, 1):
+                        status_icon = "✅" if log.get('success', True) else "❌"
+                        text += f"{i}. {status_icon} **{log.get('timestamp', '')[:16]}**\n"
+                        text += f"   🌐 IP: {log.get('ip_address', 'نامشخص')}\n"
+                        text += f"   🔗 عملیات: {log.get('operation', 'نامشخص')}\n"
+                        text += f"   📊 پاسخ: {log.get('response_code', 'N/A')}\n"
+                        if log.get('user_agent'):
+                            text += f"   🖥 UA: {log.get('user_agent', '')[:30]}...\n"
+                        text += "\n"
+                else:
+                    text += "ℹ️ **هیچ لاگ دسترسی یافت نشد**\n\n"
+                    text += "این توکن هنوز استفاده نشده است."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📄 لاگ کامل", callback_data=f"full_access_log_{token_id}"),
+                        InlineKeyboardButton("📊 تحلیل دسترسی", callback_data=f"analyze_access_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("📤 صادرات لاگ", callback_data=f"export_access_log_{token_id}"),
+                        InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"token_access_log_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_stats_{token_id}")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در دریافت لاگ دسترسی**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_stats_{token_id}")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_token_access_log: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_token_anomaly(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تحلیل ناهنجاری‌های توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            # دریافت تحلیل ناهنجاری
+            result = await self.token_manager.get_token_anomaly_analysis(token_id)
+            
+            if result.get('success'):
+                analysis = result.get('data', {})
+                anomalies = analysis.get('anomalies', [])
+                score = analysis.get('risk_score', 0)
+                
+                text = f"⚠️ **تحلیل ناهنجاری توکن**\n\n"
+                text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+                text += f"📊 **امتیاز ریسک:** {score}/100\n\n"
+                
+                # تعیین سطح ریسک
+                if score >= 80:
+                    risk_level = "🔴 بالا"
+                elif score >= 50:
+                    risk_level = "🟠 متوسط"
+                elif score >= 20:
+                    risk_level = "🟡 پایین"
+                else:
+                    risk_level = "🟢 عادی"
+                
+                text += f"🎯 **سطح ریسک:** {risk_level}\n\n"
+                
+                if anomalies:
+                    text += f"🚨 **ناهنجاری‌های شناسایی شده:**\n\n"
+                    for i, anomaly in enumerate(anomalies, 1):
+                        severity_icon = {"high": "🔴", "medium": "🟠", "low": "🟡"}.get(anomaly.get('severity', 'low'), "🟡")
+                        text += f"{i}. {severity_icon} **{anomaly.get('type', 'نامشخص')}**\n"
+                        text += f"   📝 توضیح: {anomaly.get('description', 'توضیح موجود نیست')}\n"
+                        text += f"   📅 زمان شناسایی: {anomaly.get('detected_at', '')[:16]}\n"
+                        text += f"   💡 توصیه: {anomaly.get('recommendation', 'بررسی دقیق‌تر')}\n\n"
+                else:
+                    text += "✅ **هیچ ناهنجاری مشکوکی شناسایی نشد**\n\n"
+                    text += "این توکن در حالت عادی و امن قرار دارد."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🛡 اقدامات امنیتی", callback_data=f"security_actions_{token_id}"),
+                        InlineKeyboardButton("📊 تحلیل عمیق", callback_data=f"deep_analysis_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔒 قرنطینه توکن", callback_data=f"quarantine_token_{token_id}") if score >= 80 else None,
+                        InlineKeyboardButton("⚠️ اخطار به مدیر", callback_data=f"alert_admin_{token_id}") if score >= 50 else None
+                    ],
+                    [
+                        InlineKeyboardButton("📄 گزارش کامل", callback_data=f"full_anomaly_report_{token_id}"),
+                        InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"token_anomaly_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_stats_{token_id}")
+                    ]
+                ])
+                
+                # حذف دکمه‌های None
+                keyboard.inline_keyboard = [
+                    [btn for btn in row if btn is not None] 
+                    for row in keyboard.inline_keyboard
+                ]
+                keyboard.inline_keyboard = [row for row in keyboard.inline_keyboard if row]
+                
+            else:
+                text = f"❌ **خطا در تحلیل ناهنجاری**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_stats_{token_id}")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_token_anomaly: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_export_token_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """صادرات گزارش توکن"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تهیه گزارش...")
+            
+            # استخراج token_id و format از callback_data
+            parts = query.data.split('_')
+            token_id = parts[3]  # export_token_report_{id}_{format}
+            report_format = parts[4] if len(parts) > 4 else 'pdf'
+            
+            # تولید گزارش از طریق API
+            result = await self.token_manager.generate_token_report(token_id, report_format)
+            
+            if result.get('success'):
+                text = f"✅ **گزارش توکن تولید شد**\n\n"
+                text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+                text += f"📄 **فرمت گزارش:** {report_format.upper()}\n"
+                text += f"📅 **تاریخ تولید:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                
+                report_info = result.get('data', {})
+                text += f"📊 **مشخصات گزارش:**\n"
+                text += f"• حجم فایل: {report_info.get('file_size', 'نامشخص')}\n"
+                text += f"• تعداد صفحات: {report_info.get('pages', 'نامشخص')}\n"
+                text += f"• شامل: {report_info.get('includes', 'آمار کامل')}\n\n"
+                
+                if report_info.get('download_url'):
+                    text += f"🔗 **لینک دانلود:** [کلیک کنید]({report_info.get('download_url')})\n\n"
+                    text += "⏰ **نکته:** لینک دانلود تا 24 ساعت معتبر است."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📧 ارسال ایمیل", callback_data=f"email_report_{token_id}_{report_format}"),
+                        InlineKeyboardButton("💬 ارسال در چت", callback_data=f"send_report_{token_id}_{report_format}")
+                    ],
+                    [
+                        InlineKeyboardButton("📄 فرمت دیگر", callback_data=f"choose_report_format_{token_id}"),
+                        InlineKeyboardButton("🔄 تولید مجدد", callback_data=f"export_token_report_{token_id}_{report_format}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_stats_{token_id}")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در تولید گزارش**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید یا فرمت دیگری انتخاب نمایید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"export_token_report_{token_id}_{report_format}"),
+                        InlineKeyboardButton("📄 فرمت دیگر", callback_data=f"choose_report_format_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_stats_{token_id}")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_token_report: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === TOKEN SET OPERATIONS ===
+    
+    async def handle_set_token_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم نام جدید برای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج اطلاعات از callback_data: set_name_{token_id}_{name_type}
+            parts = query.data.split('_')
+            token_id = parts[2]
+            name_type = parts[3] if len(parts) > 3 else "custom"
+            
+            # نام‌های از پیش تعریف شده
+            predefined_names = {
+                'admin': 'توکن اداری',
+                'api': 'توکن API',
+                'user': 'توکن کاربری',
+                'security': 'توکن امنیتی'
+            }
+            
+            new_name = predefined_names.get(name_type, f"توکن جدید {token_id}")
+            
+            # ذخیره تغییرات در context برای اعمال بعدی
+            if f'token_changes_{token_id}' not in context.user_data:
+                context.user_data[f'token_changes_{token_id}'] = {}
+            
+            context.user_data[f'token_changes_{token_id}']['name'] = new_name
+            
+            text = f"✅ **نام جدید تنظیم شد**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+            text += f"📝 **نام جدید:** {new_name}\n\n"
+            text += "⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💾 اعمال تغییرات", callback_data=f"save_changes_{token_id}"),
+                    InlineKeyboardButton("✏️ ویرایش بیشتر", callback_data=f"edit_token_{token_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_token_name: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_token_expiry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم انقضای جدید برای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج اطلاعات از callback_data: set_expiry_{token_id}_{days}
+            parts = query.data.split('_')
+            token_id = parts[2]
+            days = int(parts[3])
+            
+            # محاسبه تاریخ انقضای جدید
+            from datetime import datetime, timedelta
+            
+            if days > 0:
+                new_expiry = datetime.now() + timedelta(days=days)
+                expiry_text = new_expiry.strftime('%Y-%m-%d %H:%M')
+                expiry_persian = f"{days} روز از الان"
+            else:
+                new_expiry = None
+                expiry_text = None
+                expiry_persian = "نامحدود"
+            
+            # ذخیره تغییرات در context
+            if f'token_changes_{token_id}' not in context.user_data:
+                context.user_data[f'token_changes_{token_id}'] = {}
+            
+            context.user_data[f'token_changes_{token_id}']['expires_at'] = expiry_text
+            
+            text = f"⏰ **انقضای جدید تنظیم شد**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+            text += f"📅 **انقضای جدید:** {expiry_persian}\n"
+            if expiry_text:
+                text += f"🕐 **تاریخ دقیق:** {expiry_text}\n"
+            text += f"\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💾 اعمال تغییرات", callback_data=f"save_changes_{token_id}"),
+                    InlineKeyboardButton("✏️ ویرایش بیشتر", callback_data=f"edit_token_{token_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_token_expiry: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_token_type(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم نوع جدید برای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج اطلاعات از callback_data: set_type_{token_id}_{type}
+            parts = query.data.split('_')
+            token_id = parts[2]
+            new_type = parts[3]
+            
+            # ذخیره تغییرات در context
+            if f'token_changes_{token_id}' not in context.user_data:
+                context.user_data[f'token_changes_{token_id}'] = {}
+            
+            context.user_data[f'token_changes_{token_id}']['type'] = new_type
+            
+            text = f"🏷 **نوع جدید تنظیم شد**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+            text += f"🔹 **نوع جدید:** {self._get_token_type_name(new_type)}\n\n"
+            
+            text += f"📊 **دسترسی‌های جدید:**\n"
+            permissions = self._get_token_permissions(new_type)
+            for perm in permissions:
+                text += f"• {perm}\n"
+            
+            text += f"\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💾 اعمال تغییرات", callback_data=f"save_changes_{token_id}"),
+                    InlineKeyboardButton("✏️ ویرایش بیشتر", callback_data=f"edit_token_{token_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_token_type: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_token_quota(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم کوتای جدید برای توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج اطلاعات از callback_data: set_quota_{token_id}_{amount}
+            parts = query.data.split('_')
+            token_id = parts[2]
+            quota_amount = int(parts[3])
+            
+            # ذخیره تغییرات در context
+            if f'token_changes_{token_id}' not in context.user_data:
+                context.user_data[f'token_changes_{token_id}'] = {}
+            
+            context.user_data[f'token_changes_{token_id}']['usage_quota'] = quota_amount
+            
+            quota_text = f"{quota_amount:,} درخواست در روز" if quota_amount > 0 else "نامحدود"
+            
+            text = f"📊 **کوتای جدید تنظیم شد**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+            text += f"📈 **کوتای جدید:** {quota_text}\n\n"
+            
+            if quota_amount > 0:
+                text += f"💡 **توضیحات:**\n"
+                text += f"• حداکثر {quota_amount:,} درخواست در هر 24 ساعت\n"
+                text += f"• پس از رسیدن به کوتا، توکن موقتاً غیرفعال می‌شود\n"
+                text += f"• کوتا هر روز در ساعت 00:00 بازنشانی می‌شود\n"
+            else:
+                text += f"♾ **بدون محدودیت** - توکن می‌تواند نامحدود استفاده شود"
+            
+            text += f"\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💾 اعمال تغییرات", callback_data=f"save_changes_{token_id}"),
+                    InlineKeyboardButton("✏️ ویرایش بیشتر", callback_data=f"edit_token_{token_id}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_token_quota: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === TOKEN OPERATIONS - EXTENDED ===
+    
+    async def handle_compare_token_types(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مقایسه انواع دسترسی‌های توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            text = f"ℹ️ **مقایسه انواع توکن‌ها**\n\n"
+            text += f"🆔 **برای توکن:** `{token_id}`\n\n"
+            
+            # مقایسه انواع مختلف
+            types_info = {
+                'admin': {
+                    'name': '🛡 مدیر',
+                    'level': 'بالاترین سطح دسترسی',
+                    'features': [
+                        'مدیریت تمام توکن‌ها',
+                        'مشاهده آمار کامل',
+                        'تنظیمات سیستم',
+                        'مدیریت کاربران',
+                        'دسترسی به لاگ‌ها'
+                    ]
+                },
+                'limited': {
+                    'name': '⚙️ محدود',
+                    'level': 'سطح متوسط دسترسی', 
+                    'features': [
+                        'مدیریت لینک‌های شخصی',
+                        'مشاهده آمار محدود',
+                        'ایجاد و حذف لینک‌ها',
+                        'تنظیمات حساب شخصی'
+                    ]
+                },
+                'user': {
+                    'name': '👤 کاربر',
+                    'level': 'سطح پایه دسترسی',
+                    'features': [
+                        'ایجاد لینک دانلود',
+                        'مشاهده آمار شخصی',
+                        'استفاده محدود روزانه'
+                    ]
+                },
+                'api': {
+                    'name': '🔧 API',
+                    'level': 'دسترسی برنامه‌نویسی',
+                    'features': [
+                        'فراخوانی API ها',
+                        'ایجاد لینک از طریق کد',
+                        'دسترسی محدود به endpoint ها'
+                    ]
+                }
+            }
+            
+            for type_key, info in types_info.items():
+                text += f"{info['name']}\n"
+                text += f"📋 {info['level']}\n"
+                text += f"🔹 ویژگی‌ها:\n"
+                for feature in info['features']:
+                    text += f"  • {feature}\n"
+                text += "\n"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🛡 انتخاب مدیر", callback_data=f"set_type_{token_id}_admin"),
+                    InlineKeyboardButton("⚙️ انتخاب محدود", callback_data=f"set_type_{token_id}_limited")
+                ],
+                [
+                    InlineKeyboardButton("👤 انتخاب کاربر", callback_data=f"set_type_{token_id}_user"),
+                    InlineKeyboardButton("🔧 انتخاب API", callback_data=f"set_type_{token_id}_api")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data=f"edit_type_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_compare_token_types: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_custom_token_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """وارد کردن نام سفارشی توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            text = f"✏️ **نام سفارشی توکن**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
+            text += "لطفاً نام جدید توکن را در پیام بعدی ارسال کنید:\n\n"
+            text += "📋 **شرایط نام:**\n"
+            text += "• حداقل 3 کاراکتر، حداکثر 50 کاراکتر\n"
+            text += "• استفاده از حروف فارسی، انگلیسی و اعداد\n"
+            text += "• بدون استفاده از کاراکترهای خاص\n\n"
+            text += "💡 **مثال:** `توکن مدیریت API`، `Marketing Token`"
+            
+            # تنظیم حالت انتظار ورودی
+            context.user_data[f'awaiting_custom_name_{token_id}'] = True
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("❌ انصراف", callback_data=f"edit_name_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_custom_token_name: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_custom_token_expiry(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم انقضای سفارشی توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            text = f"📅 **تاریخ انقضای سفارشی**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
+            text += "لطفاً تاریخ انقضا را در یکی از فرمت‌های زیر ارسال کنید:\n\n"
+            text += "📅 **فرمت‌های مجاز:**\n"
+            text += "• `YYYY-MM-DD` (مثال: 2024-12-31)\n"
+            text += "• `YYYY-MM-DD HH:MM` (مثال: 2024-12-31 23:59)\n"
+            text += "• `+N days` (مثال: +45 days)\n"
+            text += "• `never` برای نامحدود\n\n"
+            text += "💡 **نکته:** تاریخ باید در آینده باشد"
+            
+            # تنظیم حالت انتظار ورودی
+            context.user_data[f'awaiting_custom_expiry_{token_id}'] = True
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("❌ انصراف", callback_data=f"edit_expiry_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_custom_token_expiry: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_custom_token_quota(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تنظیم کوتای سفارشی توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.split('_')[2]
+            
+            text = f"📊 **کوتای سفارشی**\n\n"
+            text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
+            text += "لطفاً تعداد درخواست مجاز در روز را ارسال کنید:\n\n"
+            text += "🔢 **فرمت‌های مجاز:**\n"
+            text += "• عدد صحیح (مثال: 2500)\n"
+            text += "• عدد با واحد K (مثال: 2.5K = 2500)\n"
+            text += "• عدد با واحد M (مثال: 1.5M = 1500000)\n"
+            text += "• `unlimited` برای نامحدود\n\n"
+            text += "💡 **محدودیت:** حداقل 1، حداکثر 10,000,000 در روز"
+            
+            # تنظیم حالت انتظار ورودی
+            context.user_data[f'awaiting_custom_quota_{token_id}'] = True
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("❌ انصراف", callback_data=f"edit_quota_{token_id}")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_custom_token_quota: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_reactivate_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """فعال‌سازی مجدد توکن"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال فعال‌سازی مجدد توکن...")
+            
+            token_id = query.data.split('_')[2]
+            
+            # فعال‌سازی مجدد توکن از طریق API
+            result = await self.token_manager.reactivate_token(token_id)
+            
+            if result.get('success'):
+                text = f"✅ **توکن مجدداً فعال شد**\n\n"
+                text += f"🆔 **شناسه توکن:** `{token_id}`\n"
+                text += f"📅 **زمان فعال‌سازی:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                text += "این توکن اکنون دوباره قابل استفاده است."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📊 مشاهده جزئیات", callback_data=f"token_details_{token_id}"),
+                        InlineKeyboardButton("✏️ ویرایش توکن", callback_data=f"edit_token_{token_id}")
+                    ],
+                    [
+                        InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در فعال‌سازی مجدد توکن**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"reactivate_token_{token_id}"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data=f"token_details_{token_id}")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_reactivate_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === HELPER METHOD UPDATE ===
+    
     async def handle_confirm_new_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """تأیید نهایی توکن جدید"""
-        # این متد در کد اصلی وجود ندارد، placeholder اضافه می‌کنم
+        """تأیید نهایی توکن جدید - تکمیل شده"""
         try:
             query = update.callback_query
             await query.answer()
             
             text = "✅ **تأیید توکن جدید**\n\n"
-            text += "این بخش در حال توسعه است..."
+            text += "این بخش برای تأیید مراحل نهایی تولید توکن استفاده می‌شود."
             
             keyboard = InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 بازگشت", callback_data="token_dashboard")

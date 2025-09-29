@@ -246,15 +246,57 @@ class TokenCallbacks:
             elif callback_data.startswith('edit_token_'):
                 await self.handlers['dashboard'].handle_edit_token(update, context)
             elif callback_data.startswith('edit_name_'):
-                await self.handlers['dashboard'].handle_edit_token_name(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_name') else await update.callback_query.answer("🚧 در حال توسعه")
+                await self.handlers['dashboard'].handle_edit_token_name(update, context)
             elif callback_data.startswith('edit_expiry_'):
-                await self.handlers['dashboard'].handle_edit_token_expiry(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_expiry') else await update.callback_query.answer("🚧 در حال توسعه")
+                await self.handlers['dashboard'].handle_edit_token_expiry(update, context)
             elif callback_data.startswith('edit_type_'):
-                await self.handlers['dashboard'].handle_edit_token_type(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_type') else await update.callback_query.answer("🚧 در حال توسعه")
+                await self.handlers['dashboard'].handle_edit_token_type(update, context)
             elif callback_data.startswith('edit_quota_'):
-                await self.handlers['dashboard'].handle_edit_token_quota(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_quota') else await update.callback_query.answer("🚧 در حال توسعه")
+                await self.handlers['dashboard'].handle_edit_token_quota(update, context)
             elif callback_data.startswith('save_changes_'):
-                await self.handlers['dashboard'].handle_save_token_changes(update, context) if hasattr(self.handlers['dashboard'], 'handle_save_token_changes') else await update.callback_query.answer("🚧 در حال توسعه")
+                await self.handlers['dashboard'].handle_save_token_changes(update, context)
+            
+            # === Token Actions - Set Operations ===
+            elif callback_data.startswith('set_name_'):
+                await self.handlers['dashboard'].handle_set_token_name(update, context)
+            elif callback_data.startswith('set_expiry_'):
+                await self.handlers['dashboard'].handle_set_token_expiry(update, context)
+            elif callback_data.startswith('set_type_'):
+                await self.handlers['dashboard'].handle_set_token_type(update, context)
+            elif callback_data.startswith('set_quota_'):
+                await self.handlers['dashboard'].handle_set_token_quota(update, context)
+            
+            # === Token Deactivation ===
+            elif callback_data.startswith('deactivate_token_'):
+                await self.handlers['dashboard'].handle_deactivate_token(update, context)
+            elif callback_data.startswith('confirm_deactivate_'):
+                await self.handlers['dashboard'].handle_confirm_deactivate_token(update, context)
+            
+            # === Token Statistics ===
+            elif callback_data.startswith('token_stats_'):
+                await self.handlers['dashboard'].handle_token_stats(update, context)
+            elif callback_data.startswith('token_access_log_'):
+                await self.handlers['dashboard'].handle_token_access_log(update, context)
+            elif callback_data.startswith('token_anomaly_'):
+                await self.handlers['dashboard'].handle_token_anomaly(update, context)
+            elif callback_data.startswith('export_token_report_'):
+                await self.handlers['dashboard'].handle_export_token_report(update, context)
+            
+            # === Token Type Comparison ===
+            elif callback_data.startswith('compare_types_'):
+                await self.handlers['dashboard'].handle_compare_token_types(update, context)
+            
+            # === Custom Token Operations ===
+            elif callback_data.startswith('custom_name_'):
+                await self.handlers['dashboard'].handle_custom_token_name(update, context)
+            elif callback_data.startswith('custom_expiry_'):
+                await self.handlers['dashboard'].handle_custom_token_expiry(update, context)
+            elif callback_data.startswith('custom_quota_'):
+                await self.handlers['dashboard'].handle_custom_token_quota(update, context)
+            
+            # === Token Reactivation ===
+            elif callback_data.startswith('reactivate_token_'):
+                await self.handlers['dashboard'].handle_reactivate_token(update, context)
             
             # === Advanced Search Operations Extended ===
             elif callback_data.startswith('search_by_'):

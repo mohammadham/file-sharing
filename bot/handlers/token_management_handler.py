@@ -1598,6 +1598,117 @@ class TokenManagementHandler(BaseHandler):
             'service': 'سرویس'
         }
         return type_names.get(token_type, 'نامشخص')
+    # === NEW API METHODS FOR TOKEN MANAGEMENT ===
+    
+    async def update_token_settings(self, token_id: str, settings: dict) -> dict:
+        """به‌روزرسانی تنظیمات توکن"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.api_url}/api/tokens/{token_id}/settings"
+                
+                async with session.put(url, headers=self.headers, json=settings) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {"success": True, "data": data}
+                    else:
+                        error_text = await response.text()
+                        return {"success": False, "error": f"API Error {response.status}: {error_text}"}
+                        
+        except Exception as e:
+            logger.error(f"Error updating token settings: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def get_token_statistics_detailed(self, token_id: str) -> dict:
+        """دریافت آمار کامل یک توکن خاص"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.api_url}/api/tokens/{token_id}/statistics"
+                
+                async with session.get(url, headers=self.headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {"success": True, "data": data}
+                    else:
+                        error_text = await response.text()
+                        return {"success": False, "error": f"API Error {response.status}: {error_text}"}
+                        
+        except Exception as e:
+            logger.error(f"Error getting token detailed statistics: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def get_token_access_log(self, token_id: str, limit: int = 50) -> dict:
+        """دریافت لاگ دسترسی‌های یک توکن"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.api_url}/api/tokens/{token_id}/access-log"
+                params = {"limit": limit}
+                
+                async with session.get(url, headers=self.headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {"success": True, "data": data}
+                    else:
+                        error_text = await response.text()
+                        return {"success": False, "error": f"API Error {response.status}: {error_text}"}
+                        
+        except Exception as e:
+            logger.error(f"Error getting token access log: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def get_token_anomaly_analysis(self, token_id: str) -> dict:
+        """دریافت تحلیل ناهنجاری‌های یک توکن"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.api_url}/api/tokens/{token_id}/anomaly-analysis"
+                
+                async with session.get(url, headers=self.headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {"success": True, "data": data}
+                    else:
+                        error_text = await response.text()
+                        return {"success": False, "error": f"API Error {response.status}: {error_text}"}
+                        
+        except Exception as e:
+            logger.error(f"Error getting token anomaly analysis: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def generate_token_report(self, token_id: str, report_format: str = 'pdf') -> dict:
+        """تولید گزارش کامل یک توکن"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.api_url}/api/tokens/{token_id}/generate-report"
+                data = {"format": report_format}
+                
+                async with session.post(url, headers=self.headers, json=data) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return {"success": True, "data": result}
+                    else:
+                        error_text = await response.text()
+                        return {"success": False, "error": f"API Error {response.status}: {error_text}"}
+                        
+        except Exception as e:
+            logger.error(f"Error generating token report: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def reactivate_token(self, token_id: str) -> dict:
+        """فعال‌سازی مجدد یک توکن"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.api_url}/api/tokens/{token_id}/reactivate"
+                
+                async with session.post(url, headers=self.headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {"success": True, "data": data}
+                    else:
+                        error_text = await response.text()
+                        return {"success": False, "error": f"API Error {response.status}: {error_text}"}
+                        
+        except Exception as e:
+            logger.error(f"Error reactivating token: {e}")
+            return {"success": False, "error": str(e)}
     
     def _get_token_type_icon(self, token_type: str) -> str:
         """دریافت آیکون نوع توکن"""
