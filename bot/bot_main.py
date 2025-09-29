@@ -105,6 +105,8 @@ class TelegramFileBot:
         from handlers.token_reports import TokenReportsHandler
         from handlers.token_users import TokenUsersHandler
         from handlers.token_callbacks import TokenCallbacks
+        from handlers.token_system_management import TokenSystemHandler
+        from handlers.token_advanced_analytics import TokenAdvancedAnalytics
         
         # Initialize new token handlers
         self.token_dashboard = TokenDashboardHandler(self.db, self.token_management_handler)
@@ -113,15 +115,20 @@ class TelegramFileBot:
         self.token_cleanup = TokenCleanupHandler(self.db, self.token_management_handler)
         self.token_reports = TokenReportsHandler(self.db, self.token_management_handler)
         self.token_users = TokenUsersHandler(self.db, self.token_management_handler)
+        self.token_system = TokenSystemHandler(self.db)
+        self.token_analytics = TokenAdvancedAnalytics(self.db)
         
         # Initialize token callbacks router
         token_handlers_dict = {
             'dashboard': self.token_dashboard,
+            'management': self.token_management_handler,
             'security': self.token_security,
             'security_advanced': self.token_security_advanced,
             'cleanup': self.token_cleanup,
             'reports': self.token_reports,
-            'users': self.token_users
+            'users': self.token_users,
+            'system': self.token_system,
+            'analytics': self.token_analytics
         }
         self.token_callbacks = TokenCallbacks(self.db, token_handlers_dict)
         

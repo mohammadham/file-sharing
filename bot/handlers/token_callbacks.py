@@ -189,6 +189,81 @@ class TokenCallbacks:
             elif callback_data == 'suspicious_analysis':
                 await self.handlers['security_advanced'].show_suspicious_analysis_menu(update, context)
             
+            # === System Management Menu ===
+            elif callback_data == 'system_menu':
+                await self.handlers['system'].show_system_menu(update, context)
+            elif callback_data == 'backup_menu':
+                await self.handlers['system'].show_backup_menu(update, context)
+            elif callback_data == 'create_backup_now':
+                await self.handlers['system'].create_backup_now(update, context)
+            elif callback_data == 'download_backup':
+                await self.handlers['system'].handle_download_backup(update, context)
+            elif callback_data == 'restore_backup':
+                await self.handlers['system'].handle_restore_backup(update, context)
+            elif callback_data == 'schedule_backup':
+                await self.handlers['system'].handle_schedule_backup(update, context)
+            elif callback_data == 'health_menu':
+                await self.handlers['system'].show_health_menu(update, context)
+            elif callback_data == 'detailed_health':
+                await self.handlers['system'].show_health_menu(update, context)  # Refresh health
+            elif callback_data == 'logs_menu':
+                await self.handlers['system'].show_logs_menu(update, context)
+            elif callback_data == 'view_system_log':
+                await self.handlers['system'].handle_view_system_log(update, context)
+            elif callback_data == 'download_log':
+                await self.handlers['system'].handle_download_log(update, context)
+            elif callback_data == 'clear_old_logs':
+                await self.handlers['system'].handle_clear_old_logs(update, context)
+            elif callback_data == 'log_settings':
+                await self.handlers['system'].handle_log_settings(update, context)
+            elif callback_data == 'language_menu':
+                await self.handlers['system'].show_language_menu(update, context)
+            elif callback_data.startswith('set_'):
+                if callback_data in ['set_persian', 'set_english', 'set_auto']:
+                    await self.handlers['system'].handle_set_language(update, context)
+            elif callback_data == 'reset_system_menu':
+                await self.handlers['system'].show_reset_system_menu(update, context)
+            elif callback_data == 'type_password_reset':
+                await self.handlers['system'].handle_type_password_reset(update, context)
+            
+            # === Advanced Analytics Menu ===
+            elif callback_data == 'advanced_analytics':
+                await self.handlers['analytics'].show_advanced_analytics_menu(update, context)
+            elif callback_data == 'usage_charts':
+                await self.handlers['analytics'].show_usage_charts(update, context)
+            elif callback_data == 'behavior_analysis':
+                await self.handlers['analytics'].show_behavior_analysis(update, context)
+            elif callback_data == 'trend_prediction':
+                await self.handlers['analytics'].show_trend_prediction(update, context)
+            elif callback_data == 'performance_stats':
+                await self.handlers['analytics'].show_performance_stats(update, context)
+            elif callback_data == 'geo_analysis':
+                await self.handlers['analytics'].show_geo_analysis(update, context)
+            elif callback_data == 'optimization_recommendations':
+                await self.handlers['analytics'].show_optimization_recommendations(update, context)
+            
+            # === Token Edit Operations ===
+            elif callback_data.startswith('edit_token_'):
+                await self.handlers['dashboard'].handle_edit_token(update, context)
+            elif callback_data.startswith('edit_name_'):
+                await self.handlers['dashboard'].handle_edit_token_name(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_name') else await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('edit_expiry_'):
+                await self.handlers['dashboard'].handle_edit_token_expiry(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_expiry') else await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('edit_type_'):
+                await self.handlers['dashboard'].handle_edit_token_type(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_type') else await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('edit_quota_'):
+                await self.handlers['dashboard'].handle_edit_token_quota(update, context) if hasattr(self.handlers['dashboard'], 'handle_edit_token_quota') else await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('save_changes_'):
+                await self.handlers['dashboard'].handle_save_token_changes(update, context) if hasattr(self.handlers['dashboard'], 'handle_save_token_changes') else await update.callback_query.answer("🚧 در حال توسعه")
+            
+            # === Advanced Search Operations Extended ===
+            elif callback_data.startswith('search_by_'):
+                await self.handlers['dashboard'].handle_advanced_search_action(update, context) if hasattr(self.handlers['dashboard'], 'handle_advanced_search_action') else await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'combined_search':
+                await self.handlers['dashboard'].show_combined_search(update, context) if hasattr(self.handlers['dashboard'], 'show_combined_search') else await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'save_search':
+                await self.handlers['dashboard'].handle_save_search(update, context) if hasattr(self.handlers['dashboard'], 'handle_save_search') else await update.callback_query.answer("🚧 در حال توسعه")
+            
             # === Cleanup Operations Extended ===
             elif callback_data.startswith('confirm_cleanup_'):
                 await self.handlers['cleanup'].handle_confirm_cleanup(update, context)

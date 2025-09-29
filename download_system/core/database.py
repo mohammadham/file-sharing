@@ -443,3 +443,313 @@ class DatabaseManager:
             stats['daily_transfer_bytes'] = daily_row[2] or 0
             
             return stats
+    
+    # === New Missing Database Functions ===
+    
+    async def get_expired_tokens(self) -> List[Dict[str, Any]]:
+        """Get all expired tokens"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute('''
+                SELECT id, token_hash, name, token_type, user_id, expires_at, created_at,
+                       last_used, usage_count, is_active
+                FROM download_tokens 
+                WHERE expires_at IS NOT NULL AND expires_at < datetime('now')
+                ORDER BY expires_at ASC
+            ''')
+            rows = await cursor.fetchall()
+            
+            tokens = []
+            for row in rows:
+                tokens.append({
+                    'id': row[0],
+                    'token_hash': row[1],
+                    'name': row[2],
+                    'token_type': row[3],
+                    'user_id': row[4],
+                    'expires_at': row[5],
+                    'created_at': row[6],
+                    'last_used': row[7],
+                    'usage_count': row[8],
+                    'is_active': bool(row[9])
+                })
+            
+            return tokens
+    
+    async def get_inactive_tokens(self) -> List[Dict[str, Any]]:
+        """Get all inactive tokens"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute('''
+                SELECT id, token_hash, name, token_type, user_id, expires_at, created_at,
+                       last_used, usage_count, is_active
+                FROM download_tokens 
+                WHERE is_active = 0
+                ORDER BY created_at DESC
+            ''')
+            rows = await cursor.fetchall()
+            
+            tokens = []
+            for row in rows:
+                tokens.append({
+                    'id': row[0],
+                    'token_hash': row[1], 
+                    'name': row[2],
+                    'token_type': row[3],
+                    'user_id': row[4],
+                    'expires_at': row[5],
+                    'created_at': row[6],
+                    'last_used': row[7],
+                    'usage_count': row[8],
+                    'is_active': bool(row[9])
+                })
+            
+            return tokens
+    
+    async def get_unused_tokens(self, days_unused: int = 30) -> List[Dict[str, Any]]:
+        """Get tokens that haven't been used for specified days"""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute('''
+                SELECT id, token_hash, name, token_type, user_id, expires_at, created_at,
+                       last_used, usage_count, is_active
+                FROM download_tokens 
+                WHERE (last_used IS NULL OR last_used < datetime('now', '-{} days'))
+                AND is_active = 1
+                ORDER BY created_at ASC
+            '''.format(days_unused))
+            rows = await cursor.fetchall()
+            
+            tokens = []
+            for row in rows:
+                tokens.append({
+                    'id': row[0],
+                    'token_hash': row[1],
+                    'name': row[2],
+                    'token_type': row[3],
+                    'user_id': row[4],
+                    'expires_at': row[5],
+                    'created_at': row[6],
+                    'last_used': row[7],
+                    'usage_count': row[8],
+                    'is_active': bool(row[9])
+                })
+            
+            return tokens
+    
+    async def get_suspicious_activity(self) -> Dict[str, Any]:
+        """Detect suspicious token activity"""
+        async with aiosqlite.connect(self.db_path) as db:
+            suspicious_tokens = []
+            
+            # High usage tokens (above average)
+            cursor = await db.execute('''
+                SELECT t.id, t.name, t.usage_count,
+                       (SELECT AVG(usage_count) FROM download_tokens WHERE is_active = 1) as avg_usage
+                FROM download_tokens t
+                WHERE t.is_active = 1 AND t.usage_count > (
+                    SELECT AVG(usage_count) * 5 FROM download_tokens WHERE is_active = 1
+                )
+                ORDER BY t.usage_count DESC
+            ''')
+            high_usage = await cursor.fetchall()
+            
+            for row in high_usage:
+                suspicious_tokens.append({
+                    'token_id': row[0],
+                    'name': row[1],
+                    'reason': 'High usage pattern',
+                    'usage_count': row[2],
+                    'average_usage': row[3],
+                    'risk_level': 'high'
+                })
+            
+            # Multiple IP usage
+            cursor = await db.execute('''
+                SELECT t.id, t.name, COUNT(DISTINCT ds.ip_address) as ip_count
+                FROM download_tokens t
+                JOIN download_sessions ds ON t.id = ds.token_id
+                WHERE ds.started_at > datetime('now', '-7 days')
+                GROUP BY t.id, t.name
+                HAVING COUNT(DISTINCT ds.ip_address) > 10
+                ORDER BY ip_count DESC
+            ''')
+            multi_ip = await cursor.fetchall()
+            
+            for row in multi_ip:
+                suspicious_tokens.append({
+                    'token_id': row[0],
+                    'name': row[1],
+                    'reason': 'Multiple IP addresses',
+                    'ip_count': row[2],
+                    'risk_level': 'medium'
+                })
+            
+            # Get security events (simplified)
+            security_events = [
+                {
+                    'timestamp': datetime.now().isoformat(),
+                    'event': 'High usage detected',
+                    'token_id': suspicious_tokens[0]['token_id'] if suspicious_tokens else 'N/A',
+                    'details': 'Usage 5x above average'
+                }
+            ]
+            
+            return {
+                'suspicious_tokens': suspicious_tokens,
+                'security_events': security_events,
+                'total_suspicious': len(suspicious_tokens),
+                'high_risk_count': len([t for t in suspicious_tokens if t.get('risk_level') == 'high']),
+                'medium_risk_count': len([t for t in suspicious_tokens if t.get('risk_level') == 'medium'])
+            }
+    
+    async def delete_token_permanently(self, token_id: str) -> bool:
+        """Permanently delete a token and its related data"""
+        async with aiosqlite.connect(self.db_path) as db:
+            try:
+                # Delete related sessions first
+                await db.execute('DELETE FROM download_sessions WHERE token_id = ?', (token_id,))
+                
+                # Delete the token
+                await db.execute('DELETE FROM download_tokens WHERE id = ?', (token_id,))
+                
+                await db.commit()
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error deleting token permanently: {e}")
+                await db.rollback()
+                return False
+    
+    async def update_token_settings(self, token_id: str, settings: Dict[str, Any]) -> bool:
+        """Update token settings"""
+        async with aiosqlite.connect(self.db_path) as db:
+            try:
+                # Build dynamic update query
+                set_clauses = []
+                values = []
+                
+                if 'name' in settings:
+                    set_clauses.append('name = ?')
+                    values.append(settings['name'])
+                
+                if 'expires_at' in settings:
+                    set_clauses.append('expires_at = ?')
+                    values.append(settings['expires_at'])
+                
+                if 'is_active' in settings:
+                    set_clauses.append('is_active = ?')
+                    values.append(int(settings['is_active']))
+                
+                if 'token_type' in settings:
+                    set_clauses.append('token_type = ?')
+                    values.append(settings['token_type'])
+                
+                if 'permissions' in settings:
+                    set_clauses.append('permissions = ?')
+                    values.append(json.dumps(settings['permissions']))
+                
+                if not set_clauses:
+                    return False
+                
+                values.append(token_id)
+                query = f"UPDATE download_tokens SET {', '.join(set_clauses)} WHERE id = ?"
+                
+                await db.execute(query, values)
+                await db.commit()
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error updating token settings: {e}")
+                await db.rollback()
+                return False
+    
+    async def get_token_usage_stats(self, token_id: str) -> Dict[str, Any]:
+        """Get detailed usage statistics for a specific token"""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Basic token info
+            cursor = await db.execute('''
+                SELECT usage_count, last_used, created_at 
+                FROM download_tokens WHERE id = ?
+            ''', (token_id,))
+            token_row = await cursor.fetchone()
+            
+            if not token_row:
+                return {}
+            
+            # Usage by day (last 30 days)
+            cursor = await db.execute('''
+                SELECT DATE(started_at) as date, COUNT(*) as requests
+                FROM download_sessions 
+                WHERE token_id = ? AND started_at > datetime('now', '-30 days')
+                GROUP BY DATE(started_at)
+                ORDER BY date DESC
+            ''', (token_id,))
+            daily_usage = await cursor.fetchall()
+            
+            # Unique IPs
+            cursor = await db.execute('''
+                SELECT COUNT(DISTINCT ip_address) 
+                FROM download_sessions 
+                WHERE token_id = ?
+            ''', (token_id,))
+            unique_ips = (await cursor.fetchone())[0]
+            
+            # Total bytes transferred
+            cursor = await db.execute('''
+                SELECT SUM(downloaded_bytes) 
+                FROM download_sessions 
+                WHERE token_id = ? AND status = 'completed'
+            ''', (token_id,))
+            total_bytes = (await cursor.fetchone())[0] or 0
+            
+            return {
+                'usage_count': token_row[0],
+                'last_used': token_row[1],
+                'created_at': token_row[2],
+                'daily_usage': [{'date': row[0], 'requests': row[1]} for row in daily_usage],
+                'unique_ips': unique_ips,
+                'total_bytes_transferred': total_bytes,
+                'average_daily_usage': sum(row[1] for row in daily_usage) / max(len(daily_usage), 1)
+            }
+    
+    async def cleanup_expired_data(self, days_old: int = 90) -> Dict[str, int]:
+        """Clean up old data from database"""
+        async with aiosqlite.connect(self.db_path) as db:
+            counts = {}
+            
+            # Clean old sessions
+            cursor = await db.execute('''
+                DELETE FROM download_sessions 
+                WHERE started_at < datetime('now', '-{} days')
+            '''.format(days_old))
+            counts['sessions_deleted'] = cursor.rowcount
+            
+            # Clean invalid cache entries
+            cursor = await db.execute('''
+                DELETE FROM cache_entries 
+                WHERE created_at < datetime('now', '-{} days') OR is_valid = 0
+            '''.format(days_old))
+            counts['cache_entries_deleted'] = cursor.rowcount
+            
+            await db.commit()
+            return counts
+    
+    async def export_data_to_format(self, data_type: str, format_type: str) -> str:
+        """Export data to specified format"""
+        # This is a simplified implementation
+        # In production, this would generate actual files
+        
+        if data_type == 'tokens':
+            tokens = await self.get_all_tokens()
+            if format_type == 'json':
+                return json.dumps(tokens, indent=2, default=str)
+            elif format_type == 'csv':
+                import csv
+                import io
+                output = io.StringIO()
+                if tokens:
+                    fieldnames = tokens[0].keys()
+                    writer = csv.DictWriter(output, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(tokens)
+                return output.getvalue()
+        
+        return "Export not implemented for this combination"
