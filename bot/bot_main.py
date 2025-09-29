@@ -97,6 +97,34 @@ class TelegramFileBot:
             admin_token="uVsXgmICyxa0mhPshBJZ1XtYpFFt-p5rLrdMvZnhv4c"
         )
         
+        # Initialize token management modules
+        from handlers.token_dashboard import TokenDashboardHandler
+        from handlers.token_security import TokenSecurityHandler
+        from handlers.token_security_advanced import TokenSecurityAdvancedHandler
+        from handlers.token_cleanup import TokenCleanupHandler
+        from handlers.token_reports import TokenReportsHandler
+        from handlers.token_users import TokenUsersHandler
+        from handlers.token_callbacks import TokenCallbacks
+        
+        # Initialize new token handlers
+        self.token_dashboard = TokenDashboardHandler(self.db, self.token_management_handler)
+        self.token_security = TokenSecurityHandler(self.db, self.token_management_handler)
+        self.token_security_advanced = TokenSecurityAdvancedHandler(self.db, self.token_management_handler)
+        self.token_cleanup = TokenCleanupHandler(self.db, self.token_management_handler)
+        self.token_reports = TokenReportsHandler(self.db, self.token_management_handler)
+        self.token_users = TokenUsersHandler(self.db, self.token_management_handler)
+        
+        # Initialize token callbacks router
+        token_handlers_dict = {
+            'dashboard': self.token_dashboard,
+            'security': self.token_security,
+            'security_advanced': self.token_security_advanced,
+            'cleanup': self.token_cleanup,
+            'reports': self.token_reports,
+            'users': self.token_users
+        }
+        self.token_callbacks = TokenCallbacks(self.db, token_handlers_dict)
+        
         # Initialize Telethon management handlers
         from handlers.telethon_config_handler import TelethonConfigHandler
         from handlers.telethon_login_handler import TelethonLoginHandler
@@ -317,23 +345,9 @@ class TelegramFileBot:
                 await self.download_system_handler.handle_speed_settings(update, context)
             elif callback_data.startswith('set_speed_'):
                 await self.download_system_handler.handle_set_speed(update, context)
-            elif callback_data == 'token_management':
-            #     await self.download_system_handler.handle_token_management(update, context)
-            # elif callback_data == 'generate_new_token':
-            #     await self.download_system_handler.handle_generate_new_token(update, context)
-            # elif callback_data == 'view_all_tokens':
-            #     await self.download_system_handler.handle_view_all_tokens(update, context)
-                await self.token_management_handler.show_token_dashboard(update, context)
-            elif callback_data == 'token_dashboard':
-                await self.token_management_handler.show_token_dashboard(update, context)
-            elif callback_data == 'generate_new_token' or callback_data == 'create_new_token':
-                await self.token_management_handler.show_create_token_wizard(update, context)
-            elif callback_data == 'view_all_tokens' or callback_data == 'list_all_tokens':
-                await self.token_management_handler.show_token_list(update, context)
-            elif callback_data.startswith('create_token_'):
-                await self.token_management_handler.process_token_creation(update, context)
-            elif callback_data.startswith('confirm_new_token_'):
-                await self.token_management_handler.handle_confirm_new_token(update, context)
+            # Token Management - Use new callback router
+            elif await self.token_callbacks.route_token_callback(update, context, callback_data):
+                pass  # Token callback was handled by router
             elif callback_data == 'api_settings':
                 await self.download_system_handler.handle_api_settings(update, context)
             elif callback_data == 'download_stats':
@@ -360,45 +374,7 @@ class TelegramFileBot:
             elif callback_data == 'diagnose_api_issue':
                 await self.download_system_handler.handle_diagnose_api_issue(update, context)
             
-            # Token Management Callbacks  
-            elif callback_data == 'deactivate_tokens':
-                await self.token_management_handler.handle_deactivate_tokens(update, context)
-            elif callback_data == 'set_token_expiry':
-                await self.token_management_handler.handle_set_token_expiry(update, context)
-                
-            # New Token Management Callbacks
-            elif callback_data == 'token_manage_permissions':
-                await self.token_management_handler.show_permissions_manager(update, context)
-            elif callback_data == 'token_usage_report':
-                await self.token_management_handler.show_usage_report(update, context)
-            elif callback_data == 'token_security_settings':
-                await self.token_management_handler.show_security_settings(update, context)
-            elif callback_data == 'cleanup_tokens':
-                await self.token_management_handler.show_cleanup_options(update, context)
-            elif callback_data == 'search_tokens':
-                await self.token_management_handler.handle_search_tokens(update, context)
-            elif callback_data == 'bulk_delete_tokens':
-                await self.token_management_handler.handle_bulk_delete_tokens(update, context)
-            elif callback_data == 'detailed_token_stats':
-                await self.token_management_handler.handle_detailed_token_stats(update, context)
-            elif callback_data == 'export_tokens':
-                await self.token_management_handler.handle_export_tokens(update, context)
-            elif callback_data == 'set_default_expiry':
-                await self.token_management_handler.handle_set_default_expiry(update, context)
-            elif callback_data == 'set_usage_limit':
-                await self.token_management_handler.handle_set_usage_limit(update, context)
-            elif callback_data == 'ip_restrictions':
-                await self.token_management_handler.handle_ip_restrictions(update, context)
-            elif callback_data == 'security_alerts':
-                await self.token_management_handler.handle_security_alerts(update, context)
-            elif callback_data.startswith('copy_token_'):
-                await self.token_management_handler.handle_copy_token(update, context)
-            elif callback_data.startswith('token_details_'):
-                await self.token_management_handler.handle_token_details(update, context)
-            elif callback_data.startswith('cleanup_'):
-                await self.token_management_handler.handle_cleanup_action(update, context)
-            elif callback_data.startswith('bulk_delete_'):
-                await self.token_management_handler.handle_bulk_delete_action(update, context)
+            # Token Management Callbacks moved to router - legacy callbacks removed
             
             # Download Stats Callbacks
             elif callback_data == 'detailed_download_stats':
@@ -428,17 +404,7 @@ class TelegramFileBot:
             elif callback_data == 'contact_support':
                 await self.download_system_handler.handle_contact_support(update, context)
             
-            # Additional Token Management Callbacks
-            elif callback_data == 'deactivate_current_token':
-                await self.token_management_handler.handle_deactivate_current_token(update, context)
-            elif callback_data == 'deactivate_expired_tokens':
-                await self.token_management_handler.handle_deactivate_expired_tokens(update, context)
-            elif callback_data == 'deactivate_user_tokens':
-                await self.token_management_handler.handle_deactivate_user_tokens(update, context)
-            elif callback_data == 'deactivate_suspicious_tokens':
-                await self.token_management_handler.handle_deactivate_suspicious_tokens(update, context)
-            elif callback_data.startswith('set_expiry_'):
-                await self.token_management_handler.handle_set_expiry_action(update, context)
+            # Additional Token Management Callbacks moved to router - legacy callbacks removed
             
             # Additional Stats Callbacks
             elif callback_data == 'daily_chart':
