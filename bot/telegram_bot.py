@@ -432,6 +432,12 @@ class TelegramFileBot:
         user_id = update.effective_user.id
         session = await self.get_user_session(user_id)
         
+        # Handle search input from token search system
+        if hasattr(self.bot_main, 'token_search'):
+            search_handled = await self.bot_main.token_search.handle_search_input(update, context)
+            if search_handled:
+                return
+        
         # Handle adding category name
         if session['action_state'] == 'adding_category':
             temp_data = json.loads(session['temp_data'] or '{}')

@@ -118,6 +118,10 @@ class TelegramFileBot:
         self.token_system = TokenSystemHandler(self.db)
         self.token_analytics = TokenAdvancedAnalytics(self.db)
         
+        # Initialize token search handler
+        from handlers.token_search_handler import TokenSearchHandler
+        self.token_search = TokenSearchHandler(self.db, self.token_management_handler)
+        
         # Initialize token callbacks router
         token_handlers_dict = {
             'dashboard': self.token_dashboard,
@@ -128,7 +132,8 @@ class TelegramFileBot:
             'reports': self.token_reports,
             'users': self.token_users,
             'system': self.token_system,
-            'analytics': self.token_analytics
+            'analytics': self.token_analytics,
+            'search': self.token_search
         }
         self.token_callbacks = TokenCallbacks(self.db, token_handlers_dict)
         

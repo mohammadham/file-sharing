@@ -2207,3 +2207,103 @@ class TokenManagementHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error getting anomaly report: {e}")
             return {"success": False, "error": str(e)}
+    
+    # === SEARCH METHODS ===
+    
+    async def search_tokens_by_name(self, name: str) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس نام"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'name': name}
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/name",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by name: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def search_tokens_by_type(self, token_type: str) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس نوع"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'type': token_type}
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/type",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by type: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def search_tokens_by_status(self, status: str) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس وضعیت"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'status': status}
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/status",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by status: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def search_tokens_by_date_range(self, start_date: datetime, end_date: datetime) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس بازه زمانی"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {
+                    'start_date': start_date.isoformat(),
+                    'end_date': end_date.isoformat()
+                }
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/date-range",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by date range: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def search_tokens_by_ip(self, ip: str) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس IP"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'ip': ip}
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/ip",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by IP: {e}")
+            return {'success': False, 'error': str(e)}

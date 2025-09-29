@@ -101,7 +101,10 @@ class TokenCallbacks:
             
             # === Search & Bulk Operations ===
             elif callback_data == 'search_tokens':
-                await self.handlers['dashboard'].show_advanced_search_menu(update, context)
+                if 'search' in self.handlers:
+                    await self.handlers['search'].show_advanced_search_menu(update, context)
+                else:
+                    await self.handlers['dashboard'].show_advanced_search_menu(update, context)
             elif callback_data == 'bulk_delete_tokens':
                 await self.handlers['cleanup'].handle_bulk_delete_tokens(update, context)
             elif callback_data.startswith('bulk_delete_'):
@@ -115,11 +118,107 @@ class TokenCallbacks:
             
             # === Advanced Search Operations ===
             elif callback_data.startswith('search_by_'):
-                await self.handlers['dashboard'].handle_advanced_search_action(update, context)
+                if 'search' in self.handlers:
+                    if callback_data == 'search_by_name':
+                        await self.handlers['search'].search_by_name(update, context)
+                    elif callback_data == 'search_by_type':
+                        await self.handlers['search'].search_by_type(update, context)
+                    elif callback_data == 'search_by_status':
+                        await self.handlers['search'].search_by_status(update, context)
+                    elif callback_data == 'search_by_date_range':
+                        await self.handlers['search'].search_by_date_range(update, context)
+                    elif callback_data == 'search_by_ip':
+                        await self.handlers['search'].search_by_ip(update, context)
+                    elif callback_data == 'search_by_usage':
+                        await self.handlers['dashboard'].handle_advanced_search_action(update, context)
+                    else:
+                        await self.handlers['dashboard'].handle_advanced_search_action(update, context)
+                else:
+                    await self.handlers['dashboard'].handle_advanced_search_action(update, context)
             elif callback_data == 'combined_search':
                 await self.handlers['dashboard'].show_combined_search(update, context)
             elif callback_data == 'save_search':
                 await self.handlers['dashboard'].handle_save_search(update, context)
+            elif callback_data == 'recent_searches':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].show_recent_searches(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'clear_search_history':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].clear_search_history(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            
+            # === Filter Operations ===
+            elif callback_data.startswith('filter_type_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_filter_type(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('filter_status_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_filter_status(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('filter_date_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_filter_date(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            
+            # === IP Search Operations ===
+            elif callback_data == 'search_specific_ip':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_search_specific_ip(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('search_results_'):
+                if 'search' in self.handlers:
+                    # Parse callback data: search_results_type_value_page
+                    parts = callback_data.split('_', 3)
+                    if len(parts) >= 4:
+                        search_type = parts[2]
+                        value_and_page = parts[3].rsplit('_', 1)
+                        if len(value_and_page) == 2:
+                            search_value = value_and_page[0]
+                            page = int(value_and_page[1])
+                            # Simulate result for pagination
+                            result = await self.handlers['management'].search_tokens_by_type(search_value) if search_type == 'type' else {'success': True, 'tokens': []}
+                            await self.handlers['search']._display_search_results(
+                                update, context, result, f"نتایج {search_type}", search_type, search_value, page
+                            )
+                        else:
+                            await update.callback_query.answer("❌ خطا در صفحه‌بندی")
+                    else:
+                        await update.callback_query.answer("❌ خطا در پردازش")
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('repeat_search_'):
+                if 'search' in self.handlers:
+                    # Extract search index
+                    search_idx = int(callback_data.split('_')[-1])
+                    recent_searches = context.user_data.get('recent_searches', [])
+                    if 0 <= search_idx < len(recent_searches):
+                        search = recent_searches[search_idx]
+                        search_type = search['type']
+                        search_value = search['value']
+                        
+                        # Re-execute the search
+                        if search_type == 'type':
+                            result = await self.handlers['management'].search_tokens_by_type(search_value)
+                        elif search_type == 'status':
+                            result = await self.handlers['management'].search_tokens_by_status(search_value)
+                        else:
+                            result = {'success': True, 'tokens': []}
+                        
+                        await self.handlers['search']._display_search_results(
+                            update, context, result, f"🔄 تکرار: {search['display_name']}", search_type, search_value
+                        )
+                    else:
+                        await update.callback_query.answer("❌ جستجو یافت نشد")
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
             
             # === Bulk Operations Detailed ===
             elif callback_data.startswith('bulk_'):
