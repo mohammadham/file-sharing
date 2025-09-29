@@ -690,6 +690,11 @@ class TokenSearchHandler(BaseHandler):
     async def handle_search_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """پردازش ورودی جستجو از کاربر"""
         try:
+            # بررسی ورودی برای ذخیره نام جستجو
+            if context.user_data.get('awaiting_search_name'):
+                await self.handle_confirm_save_search(update, context)
+                return True
+            
             if not context.user_data.get('awaiting_search_input'):
                 return False
             
@@ -716,6 +721,9 @@ class TokenSearchHandler(BaseHandler):
             elif search_type == 'specific_ip':
                 result = await self.token_manager.search_tokens_by_ip(search_term)
                 title = f"🌐 جستجوی IP: {search_term}"
+            elif search_type == 'ip_range':
+                result = await self.token_manager.search_tokens_by_ip_range(search_term)
+                title = f"📊 جستجوی محدوده IP: {search_term}"
             else:
                 await update.message.reply_text("❌ نوع جستجوی نامعتبر!")
                 return True
@@ -792,3 +800,920 @@ class TokenSearchHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error in _display_search_results_message: {e}")
             await update.message.reply_text("❌ خطا در نمایش نتایج!")
+    
+    # === SEARCH BY USAGE ===
+    
+    async def search_by_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """جستجو بر اساس میزان استفاده"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "📈 **جستجو بر اساس میزان استفاده**\n\n"
+            text += "لطفاً محدوده استفاده مورد نظر را انتخاب کنید:\n\n"
+            text += "📊 **محدوده‌های آماده:**\n"
+            text += "• **بدون استفاده:** توکن‌های استفاده نشده\n"
+            text += "• **کم استفاده:** کمتر از 100 بار\n"
+            text += "• **متوسط:** 100 تا 1000 بار\n"
+            text += "• **پراستفاده:** بیش از 1000 بار\n"
+            text += "• **محدوده سفارشی:** تعیین دقیق بازه"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⭕ بدون استفاده", callback_data="filter_usage_0_0"),
+                    InlineKeyboardButton("📉 کم (< 100)", callback_data="filter_usage_0_100")
+                ],
+                [
+                    InlineKeyboardButton("📊 متوسط (100-1K)", callback_data="filter_usage_100_1000"),
+                    InlineKeyboardButton("📈 زیاد (> 1K)", callback_data="filter_usage_1000_999999")
+                ],
+                [
+                    InlineKeyboardButton("🔥 خیلی زیاد (> 10K)", callback_data="filter_usage_10000_999999"),
+                    InlineKeyboardButton("🎯 محدوده سفارشی", callback_data="filter_usage_custom")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="search_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in search_by_usage: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_filter_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش فیلتر میزان استفاده"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال جستجو...")
+            
+            # استخراج محدوده از callback_data
+            parts = query.data.split('_')
+            if len(parts) >= 4:
+                min_usage = int(parts[2])
+                max_usage = int(parts[3]) if parts[3] != '999999' else None
+            else:
+                min_usage = 0
+                max_usage = None
+            
+            # جستجو در توکن‌ها
+            result = await self.token_manager.search_tokens_by_usage(min_usage, max_usage)
+            
+            # تعیین عنوان بر اساس محدوده
+            if min_usage == 0 and (max_usage is None or max_usage == 0):
+                title = "📊 توکن‌های بدون استفاده"
+            elif min_usage == 0 and max_usage == 100:
+                title = "📉 توکن‌های کم استفاده (< 100)"
+            elif min_usage == 100 and max_usage == 1000:
+                title = "📊 توکن‌های با استفاده متوسط (100-1K)"
+            elif min_usage >= 1000:
+                title = f"📈 توکن‌های پراستفاده (> {min_usage:,})"
+            else:
+                title = f"📊 توکن‌ها با استفاده {min_usage:,} تا {max_usage:,}" if max_usage else f"📈 توکن‌ها با بیش از {min_usage:,} استفاده"
+            
+            await self._display_search_results(
+                update, context, result,
+                title=title,
+                search_type="usage",
+                search_value=f"{min_usage}_{max_usage or 'unlimited'}"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in handle_filter_usage: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === ADVANCED IP SEARCH ===
+    
+    async def handle_search_ip_range(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """جستجوی محدوده IP"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "📊 **جستجوی محدوده IP**\n\n"
+            text += "لطفاً محدوده IP مورد نظر را وارد کنید:\n\n"
+            text += "📝 **فرمت‌های پشتیبانی شده:**\n"
+            text += "• CIDR: `192.168.1.0/24`\n"
+            text += "• Range: `192.168.1.1-192.168.1.100`\n"
+            text += "• Wildcard: `192.168.1.*`\n\n"
+            text += "💡 **مثال‌ها:**\n"
+            text += "• `10.0.0.0/8` - کل شبکه کلاس A\n"
+            text += "• `192.168.1.0/24` - شبکه محلی\n"
+            text += "• `192.168.1.100-200` - محدوده مشخص"
+            
+            # ذخیره نوع جستجوی فعلی
+            context.user_data['current_search_type'] = 'ip_range'
+            context.user_data['awaiting_search_input'] = True
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📋 محدوده‌های رایج", callback_data="common_ip_ranges"),
+                    InlineKeyboardButton("❌ انصراف", callback_data="search_by_ip")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_search_ip_range: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_search_by_country(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """جستجو بر اساس کشور"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🌍 **جستجو بر اساس کشور**\n\n"
+            text += "لطفاً کشور مورد نظر را انتخاب کنید:\n\n"
+            text += "🗺 **کشورهای پراستفاده:**"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🇮🇷 ایران", callback_data="filter_country_IR"),
+                    InlineKeyboardButton("🇺🇸 آمریکا", callback_data="filter_country_US")
+                ],
+                [
+                    InlineKeyboardButton("🇩🇪 آلمان", callback_data="filter_country_DE"),
+                    InlineKeyboardButton("🇬🇧 انگلستان", callback_data="filter_country_GB")
+                ],
+                [
+                    InlineKeyboardButton("🇫🇷 فرانسه", callback_data="filter_country_FR"),
+                    InlineKeyboardButton("🇳🇱 هلند", callback_data="filter_country_NL")
+                ],
+                [
+                    InlineKeyboardButton("🇹🇷 ترکیه", callback_data="filter_country_TR"),
+                    InlineKeyboardButton("🇦🇪 امارات", callback_data="filter_country_AE")
+                ],
+                [
+                    InlineKeyboardButton("🌍 لیست کامل کشورها", callback_data="all_countries_list"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_search_by_country: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_filter_country(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش فیلتر کشور"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال جستجو...")
+            
+            # استخراج کد کشور از callback_data
+            country_code = query.data.split('_')[-1]
+            
+            # جستجو در توکن‌ها
+            result = await self.token_manager.search_tokens_by_country(country_code)
+            
+            # نام کشورها
+            country_names = {
+                'IR': '🇮🇷 ایران',
+                'US': '🇺🇸 آمریکا',
+                'DE': '🇩🇪 آلمان',
+                'GB': '🇬🇧 انگلستان',
+                'FR': '🇫🇷 فرانسه',
+                'NL': '🇳🇱 هلند',
+                'TR': '🇹🇷 ترکیه',
+                'AE': '🇦🇪 امارات'
+            }
+            
+            country_name = country_names.get(country_code, country_code)
+            
+            await self._display_search_results(
+                update, context, result,
+                title=f"🌍 توکن‌های کشور {country_name}",
+                search_type="country",
+                search_value=country_code
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in handle_filter_country: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_search_suspicious_ips(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش IP های مشکوک"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تحلیل...")
+            
+            # دریافت IP های مشکوک
+            result = await self.token_manager.get_suspicious_ips()
+            
+            text = "⚠️ **IP های مشکوک**\n\n"
+            
+            if result.get('success'):
+                ips = result.get('ips', [])
+                
+                if ips:
+                    text += f"📊 **تعداد:** {len(ips)} IP مشکوک شناسایی شد\n\n"
+                    
+                    for i, ip_info in enumerate(ips[:10], 1):
+                        text += f"{i}. 🔴 `{ip_info.get('ip', 'N/A')}`\n"
+                        text += f"   ⚠️ دلیل: {ip_info.get('reason', 'نامشخص')}\n"
+                        text += f"   📊 تعداد توکن: {ip_info.get('token_count', 0)}\n"
+                        text += f"   🔥 تلاش ناموفق: {ip_info.get('failed_attempts', 0)}\n"
+                        text += f"   🕐 آخرین فعالیت: {ip_info.get('last_seen', 'نامشخص')[:16]}\n\n"
+                    
+                    if len(ips) > 10:
+                        text += f"... و {len(ips) - 10} IP مشکوک دیگر"
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔒 مسدود کردن همه", callback_data="block_all_suspicious_ips"),
+                            InlineKeyboardButton("📋 گزارش کامل", callback_data="detailed_suspicious_report")
+                        ],
+                        [
+                            InlineKeyboardButton("🔍 تحلیل عمیق", callback_data="deep_analysis_suspicious"),
+                            InlineKeyboardButton("💾 صادرات لیست", callback_data="export_suspicious_ips")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
+                        ]
+                    ])
+                else:
+                    text += "✅ **هیچ IP مشکوکی یافت نشد!**\n\n"
+                    text += "تمام IP ها در محدوده امن هستند."
+                    
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
+                    ]])
+            else:
+                text += f"❌ خطا در دریافت IP های مشکوک\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}"
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_search_suspicious_ips: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_search_top_ips(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش پربازدیدترین IP ها"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تحلیل...")
+            
+            # دریافت پربازدیدترین IP ها
+            result = await self.token_manager.get_top_ips(limit=15)
+            
+            text = "📋 **پربازدیدترین IP ها**\n\n"
+            
+            if result.get('success'):
+                ips = result.get('ips', [])
+                
+                if ips:
+                    text += f"📊 **15 IP برتر:**\n\n"
+                    
+                    for i, ip_info in enumerate(ips, 1):
+                        # ایموجی بر اساس رتبه
+                        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                        
+                        text += f"{medal} `{ip_info.get('ip', 'N/A')}`\n"
+                        text += f"   📊 درخواست‌ها: {ip_info.get('request_count', 0):,}\n"
+                        text += f"   🔑 توکن‌ها: {ip_info.get('token_count', 0)}\n"
+                        text += f"   🌍 کشور: {ip_info.get('country', 'نامشخص')}\n"
+                        text += f"   🕐 آخرین فعالیت: {ip_info.get('last_seen', 'نامشخص')[:16]}\n\n"
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📊 نمودار آماری", callback_data="ip_stats_chart"),
+                            InlineKeyboardButton("🔍 جزئیات IP اول", callback_data=f"ip_details_{ips[0].get('ip', '')}")
+                        ],
+                        [
+                            InlineKeyboardButton("📈 آمار کامل", callback_data="full_ip_statistics"),
+                            InlineKeyboardButton("💾 صادرات", callback_data="export_top_ips")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
+                        ]
+                    ])
+                else:
+                    text += "❌ هیچ داده‌ای یافت نشد!"
+                    
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
+                    ]])
+            else:
+                text += f"❌ خطا در دریافت آمار IP ها\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}"
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_search_top_ips: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === COMBINED SEARCH ===
+    
+    async def show_combined_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """جستجوی ترکیبی با مدیریت state"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # دریافت فیلترهای فعلی از context
+            user_id = update.effective_user.id
+            filters = context.user_data.get('combined_filters', {})
+            
+            text = "🔄 **فیلتر ترکیبی**\n\n"
+            text += "امکان ترکیب چندین معیار برای جستجوی دقیق‌تر:\n\n"
+            text += "🔧 **معیارهای فعلی:**\n"
+            
+            # نمایش فیلترهای انتخاب شده
+            if filters.get('type'):
+                text += f"• نوع: {self._get_token_type_name(filters['type'])}\n"
+            else:
+                text += "• نوع: همه\n"
+            
+            if filters.get('status'):
+                status_names = {'active': 'فعال', 'inactive': 'غیرفعال', 'expired': 'منقضی', 'expiring': 'نزدیک انقضا'}
+                text += f"• وضعیت: {status_names.get(filters['status'], filters['status'])}\n"
+            else:
+                text += "• وضعیت: همه\n"
+            
+            if filters.get('date_from') or filters.get('date_to'):
+                text += f"• تاریخ: {filters.get('date_from', 'ابتدا')} تا {filters.get('date_to', 'اکنون')}\n"
+            else:
+                text += "• تاریخ: همه\n"
+            
+            if filters.get('min_usage') is not None:
+                text += f"• استفاده: {filters.get('min_usage', 0)} تا {filters.get('max_usage', 'نامحدود')}\n"
+            else:
+                text += "• استفاده: همه\n"
+            
+            text += "\n💡 فیلترها را یکی یکی اضافه کنید:"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🏷 افزودن نوع", callback_data="add_type_filter"),
+                    InlineKeyboardButton("📊 افزودن وضعیت", callback_data="add_status_filter")
+                ],
+                [
+                    InlineKeyboardButton("📅 افزودن تاریخ", callback_data="add_date_filter"),
+                    InlineKeyboardButton("📈 افزودن استفاده", callback_data="add_usage_filter")
+                ],
+                [
+                    InlineKeyboardButton("🔍 اجرای جستجو", callback_data="execute_combined_search"),
+                    InlineKeyboardButton("🗑 پاک کردن فیلترها", callback_data="clear_combined_filters")
+                ],
+                [
+                    InlineKeyboardButton("💾 ذخیره جستجو", callback_data="save_combined_search"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="search_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in show_combined_search: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_add_filter(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """اضافه کردن فیلتر به جستجوی ترکیبی"""
+        try:
+            query = update.callback_query
+            callback_data = query.data
+            
+            if callback_data == "add_type_filter":
+                await self.search_by_type(update, context)
+            elif callback_data == "add_status_filter":
+                await self.search_by_status(update, context)
+            elif callback_data == "add_date_filter":
+                await self.search_by_date_range(update, context)
+            elif callback_data == "add_usage_filter":
+                await self.search_by_usage(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_add_filter: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_execute_combined_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """اجرای جستجوی ترکیبی"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال اجرای جستجوی ترکیبی...")
+            
+            filters = context.user_data.get('combined_filters', {})
+            
+            if not filters:
+                await query.answer("❌ هیچ فیلتری انتخاب نشده است!", show_alert=True)
+                return
+            
+            # اجرای جستجو بر اساس فیلترهای ترکیبی
+            # این بخش نیاز به API endpoint خاص دارد که همه فیلترها را پشتیبانی کند
+            # فعلاً از یک فیلتر اصلی استفاده می‌کنیم
+            
+            result = None
+            title = "🔍 نتایج جستجوی ترکیبی"
+            
+            if filters.get('type'):
+                result = await self.token_manager.search_tokens_by_type(filters['type'])
+            elif filters.get('status'):
+                result = await self.token_manager.search_tokens_by_status(filters['status'])
+            else:
+                result = await self.token_manager.get_all_tokens()
+            
+            # فیلتر کردن نتایج بر اساس سایر معیارها
+            if result and result.get('success'):
+                tokens = result.get('tokens', [])
+                
+                # فیلتر استفاده
+                if filters.get('min_usage') is not None:
+                    min_usage = filters['min_usage']
+                    max_usage = filters.get('max_usage')
+                    tokens = [t for t in tokens if t.get('usage_count', 0) >= min_usage and (max_usage is None or t.get('usage_count', 0) <= max_usage)]
+                
+                result['tokens'] = tokens
+                result['total_count'] = len(tokens)
+            
+            await self._display_search_results(
+                update, context, result,
+                title=title,
+                search_type="combined",
+                search_value="multi_filter"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in handle_execute_combined_search: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_clear_combined_filters(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پاک کردن فیلترهای ترکیبی"""
+        try:
+            query = update.callback_query
+            await query.answer("✅ فیلترها پاک شدند")
+            
+            context.user_data['combined_filters'] = {}
+            
+            await self.show_combined_search(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_clear_combined_filters: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === SAVE SEARCH ===
+    
+    async def handle_save_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ذخیره جستجوی فعلی"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # بررسی وجود فیلترها یا جستجوی اخیر
+            filters = context.user_data.get('combined_filters', {})
+            recent_searches = context.user_data.get('recent_searches', [])
+            
+            if not filters and not recent_searches:
+                await query.answer("❌ هیچ جستجویی برای ذخیره وجود ندارد!", show_alert=True)
+                return
+            
+            text = "💾 **ذخیره جستجو**\n\n"
+            text += "لطفاً نامی برای این جستجو انتخاب کنید:\n\n"
+            text += "📝 **نام باید:**\n"
+            text += "• بین 3 تا 30 کاراکتر باشد\n"
+            text += "• منحصر به فرد باشد\n"
+            text += "• توصیفی و قابل فهم باشد\n\n"
+            
+            if filters:
+                text += "🔧 **جستجوی فعلی شامل:**\n"
+                for key, value in filters.items():
+                    text += f"• {key}: {value}\n"
+            
+            # ذخیره حالت برای دریافت نام
+            context.user_data['awaiting_search_name'] = True
+            context.user_data['search_to_save'] = filters or recent_searches[0] if recent_searches else {}
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📝 نام پیشنهادی 1", callback_data=f"save_search_name_جستجوی_{datetime.now().strftime('%Y%m%d')}"),
+                    InlineKeyboardButton("📝 نام پیشنهادی 2", callback_data="save_search_name_جستجوی_سفارشی")
+                ],
+                [
+                    InlineKeyboardButton("❌ انصراف", callback_data="search_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_save_search: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_save_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید و ذخیره جستجو در دیتابیس"""
+        try:
+            query = update.callback_query
+            
+            # دریافت نام از callback یا از پیام
+            if query:
+                await query.answer("در حال ذخیره...")
+                search_name = query.data.split('save_search_name_')[1] if 'save_search_name_' in query.data else None
+            else:
+                # نام از پیام متنی کاربر
+                search_name = update.message.text.strip()
+            
+            if not search_name or len(search_name) < 3:
+                await query.answer("❌ نام باید حداقل 3 کاراکتر باشد!", show_alert=True)
+                return
+            
+            user_id = update.effective_user.id
+            search_params = context.user_data.get('search_to_save', {})
+            
+            # ذخیره در دیتابیس
+            result = await self.token_manager.save_search_to_db(user_id, search_name, search_params)
+            
+            if result.get('success'):
+                text = f"✅ **جستجو ذخیره شد**\n\n"
+                text += f"📝 **نام:** {search_name}\n"
+                text += f"🆔 **شناسه:** {result.get('search_id')}\n"
+                text += f"📅 **تاریخ:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+                text += "می‌توانید از منوی \"جستجوهای ذخیره شده\" به آن دسترسی داشته باشید."
+                
+                # پاک کردن وضعیت موقت
+                context.user_data['awaiting_search_name'] = False
+                context.user_data['search_to_save'] = None
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 جستجوهای ذخیره شده", callback_data="show_saved_searches"),
+                        InlineKeyboardButton("🔍 جستجوی جدید", callback_data="search_tokens")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="search_tokens")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در ذخیره جستجو**\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                text += "لطفاً دوباره تلاش کنید."
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔄 تلاش مجدد", callback_data="save_search"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="search_tokens")
+                ]])
+            
+            if query:
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            else:
+                await update.message.reply_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_save_search: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def show_saved_searches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش جستجوهای ذخیره شده"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            user_id = update.effective_user.id
+            result = await self.token_manager.get_saved_searches(user_id)
+            
+            text = "💾 **جستجوهای ذخیره شده**\n\n"
+            
+            if result.get('success'):
+                searches = result.get('searches', [])
+                
+                if searches:
+                    text += f"📊 **تعداد:** {len(searches)} جستجو\n\n"
+                    
+                    buttons = []
+                    for i, search in enumerate(searches[:10], 1):
+                        text += f"{i}. 📝 **{search.get('name')}**\n"
+                        text += f"   🆔 شناسه: {search.get('id')}\n"
+                        text += f"   📅 ایجاد: {search.get('created_at', '')[:16]}\n"
+                        text += f"   📊 استفاده: {search.get('usage_count', 0)} بار\n"
+                        if search.get('last_used'):
+                            text += f"   🕐 آخرین استفاده: {search.get('last_used')[:16]}\n"
+                        text += "\n"
+                        
+                        buttons.append([
+                            InlineKeyboardButton(f"🔄 اجرا #{i}", callback_data=f"load_saved_search_{search.get('id')}"),
+                            InlineKeyboardButton(f"🗑 حذف #{i}", callback_data=f"delete_saved_search_{search.get('id')}")
+                        ])
+                    
+                    if len(searches) > 10:
+                        text += f"... و {len(searches) - 10} جستجوی دیگر\n\n"
+                    
+                    buttons.append([
+                        InlineKeyboardButton("🔄 بروزرسانی", callback_data="show_saved_searches"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="search_tokens")
+                    ])
+                    
+                    keyboard = InlineKeyboardMarkup(buttons)
+                else:
+                    text += "❌ هیچ جستجوی ذخیره شده‌ای وجود ندارد!\n\n"
+                    text += "از منوی جستجو می‌توانید جستجوهای خود را ذخیره کنید."
+                    
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔍 شروع جستجو", callback_data="search_tokens")
+                    ]])
+            else:
+                text += f"❌ خطا در دریافت جستجوهای ذخیره شده\n\n"
+                text += f"علت: {result.get('error', 'نامشخص')}"
+                
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="search_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in show_saved_searches: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_load_saved_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """بارگذاری و اجرای جستجوی ذخیره شده"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال اجرای جستجو...")
+            
+            # استخراج search_id
+            search_id = int(query.data.split('_')[-1])
+            
+            user_id = update.effective_user.id
+            result = await self.token_manager.get_saved_searches(user_id)
+            
+            if result.get('success'):
+                searches = result.get('searches', [])
+                search = next((s for s in searches if s.get('id') == search_id), None)
+                
+                if search:
+                    # افزایش شمارنده استفاده
+                    await self.token_manager.increment_saved_search_usage(user_id, search_id)
+                    
+                    # اجرای جستجو بر اساس پارامترهای ذخیره شده
+                    params = search.get('params', {})
+                    
+                    # اجرای جستجو بر اساس نوع
+                    if params.get('type'):
+                        search_result = await self.token_manager.search_tokens_by_type(params['type'])
+                        title = f"💾 {search.get('name')}"
+                        search_type = "type"
+                        search_value = params['type']
+                    elif params.get('status'):
+                        search_result = await self.token_manager.search_tokens_by_status(params['status'])
+                        title = f"💾 {search.get('name')}"
+                        search_type = "status"
+                        search_value = params['status']
+                    else:
+                        search_result = await self.token_manager.get_all_tokens()
+                        title = f"💾 {search.get('name')}"
+                        search_type = "saved"
+                        search_value = str(search_id)
+                    
+                    await self._display_search_results(
+                        update, context, search_result,
+                        title=title,
+                        search_type=search_type,
+                        search_value=search_value
+                    )
+                else:
+                    await query.answer("❌ جستجو یافت نشد!", show_alert=True)
+            else:
+                await query.answer("❌ خطا در بارگذاری جستجو!", show_alert=True)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_load_saved_search: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_delete_saved_search(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """حذف جستجوی ذخیره شده"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج search_id
+            search_id = int(query.data.split('_')[-1])
+            
+            user_id = update.effective_user.id
+            result = await self.token_manager.delete_saved_search(user_id, search_id)
+            
+            if result.get('success'):
+                await query.answer("✅ جستجو حذف شد", show_alert=True)
+                await self.show_saved_searches(update, context)
+            else:
+                await query.answer(f"❌ خطا: {result.get('error', 'نامشخص')}", show_alert=True)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_delete_saved_search: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === EXPORT SEARCH RESULTS ===
+    
+    async def handle_export_search_results(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """صادرات نتایج جستجو"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج اطلاعات جستجو از callback_data
+            parts = query.data.split('_')
+            if len(parts) >= 4:
+                search_type = parts[3]
+                search_value = parts[4] if len(parts) > 4 else ""
+            else:
+                await query.answer("❌ خطا در شناسایی جستجو!", show_alert=True)
+                return
+            
+            text = "💾 **صادرات نتایج جستجو**\n\n"
+            text += "لطفاً فرمت صادرات را انتخاب کنید:\n\n"
+            text += "📄 **فرمت‌های پشتیبانی شده:**\n"
+            text += "• **JSON:** مناسب برای پردازش خودکار\n"
+            text += "• **CSV:** مناسب برای Excel و تحلیل\n"
+            text += "• **TXT:** فرمت متنی ساده و خوانا\n"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📄 JSON", callback_data=f"export_format_json_{search_type}_{search_value}"),
+                    InlineKeyboardButton("📊 CSV", callback_data=f"export_format_csv_{search_type}_{search_value}")
+                ],
+                [
+                    InlineKeyboardButton("📝 TXT", callback_data=f"export_format_text_{search_type}_{search_value}"),
+                    InlineKeyboardButton("❌ انصراف", callback_data="search_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_search_results: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_export_format(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش صادرات با فرمت انتخاب شده"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال آماده‌سازی فایل...")
+            
+            # استخراج اطلاعات از callback_data
+            parts = query.data.split('_')
+            if len(parts) >= 4:
+                format_type = parts[2]
+                search_type = parts[3]
+                search_value = parts[4] if len(parts) > 4 else ""
+            else:
+                await query.answer("❌ خطا در پردازش!", show_alert=True)
+                return
+            
+            # دریافت نتایج جستجو دوباره
+            if search_type == 'type':
+                result = await self.token_manager.search_tokens_by_type(search_value)
+            elif search_type == 'status':
+                result = await self.token_manager.search_tokens_by_status(search_value)
+            elif search_type == 'usage':
+                parts_usage = search_value.split('_')
+                min_usage = int(parts_usage[0]) if parts_usage else 0
+                max_usage = int(parts_usage[1]) if len(parts_usage) > 1 and parts_usage[1] != 'unlimited' else None
+                result = await self.token_manager.search_tokens_by_usage(min_usage, max_usage)
+            else:
+                result = await self.token_manager.get_all_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('tokens', [])
+                
+                # صادرات داده‌ها
+                export_result = await self.token_manager.export_search_results_data(tokens, format_type)
+                
+                if export_result.get('success'):
+                    data = export_result.get('data')
+                    filename = export_result.get('filename')
+                    
+                    # ارسال فایل به کاربر
+                    from io import BytesIO
+                    file_bytes = BytesIO(data.encode('utf-8'))
+                    file_bytes.name = filename
+                    
+                    await query.message.reply_document(
+                        document=file_bytes,
+                        filename=filename,
+                        caption=f"✅ **صادرات با موفقیت انجام شد**\n\n📊 تعداد: {len(tokens)} توکن\n📄 فرمت: {format_type.upper()}\n📅 تاریخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                    )
+                    
+                    await query.edit_message_text(
+                        f"✅ فایل آماده شد و ارسال گردید!\n\n📄 {filename}",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="search_tokens")
+                        ]])
+                    )
+                else:
+                    await query.answer(f"❌ خطا: {export_result.get('error')}", show_alert=True)
+            else:
+                await query.answer("❌ خطا در دریافت نتایج!", show_alert=True)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_format: {e}")
+            await query.answer("❌ خطا در صادرات!", show_alert=True)
+    
+    # === SEARCH RESULTS STATS ===
+    
+    async def handle_search_results_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش آمار تفصیلی نتایج جستجو"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # استخراج اطلاعات جستجو
+            parts = query.data.split('_')
+            if len(parts) >= 4:
+                search_type = parts[3]
+                search_value = parts[4] if len(parts) > 4 else ""
+            else:
+                await query.answer("❌ خطا در شناسایی جستجو!", show_alert=True)
+                return
+            
+            # دریافت نتایج جستجو
+            if search_type == 'type':
+                result = await self.token_manager.search_tokens_by_type(search_value)
+            elif search_type == 'status':
+                result = await self.token_manager.search_tokens_by_status(search_value)
+            else:
+                result = await self.token_manager.get_all_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('tokens', [])
+                total = len(tokens)
+                
+                text = "📊 **آمار تفصیلی نتایج جستجو**\n\n"
+                text += f"🔍 **کل نتایج:** {total} توکن\n\n"
+                
+                if total > 0:
+                    # آمار بر اساس نوع
+                    type_counts = {}
+                    for token in tokens:
+                        t = token.get('type', 'unknown')
+                        type_counts[t] = type_counts.get(t, 0) + 1
+                    
+                    text += "🏷 **توزیع بر اساس نوع:**\n"
+                    for t, count in type_counts.items():
+                        percentage = (count / total) * 100
+                        text += f"• {self._get_token_type_name(t)}: {count} ({percentage:.1f}%)\n"
+                    text += "\n"
+                    
+                    # آمار بر اساس وضعیت
+                    active_count = sum(1 for t in tokens if t.get('is_active', True))
+                    inactive_count = total - active_count
+                    
+                    text += "📊 **توزیع بر اساس وضعیت:**\n"
+                    text += f"• فعال: {active_count} ({(active_count/total)*100:.1f}%)\n"
+                    text += f"• غیرفعال: {inactive_count} ({(inactive_count/total)*100:.1f}%)\n\n"
+                    
+                    # آمار استفاده
+                    total_usage = sum(t.get('usage_count', 0) for t in tokens)
+                    avg_usage = total_usage / total if total > 0 else 0
+                    max_usage = max((t.get('usage_count', 0) for t in tokens), default=0)
+                    min_usage = min((t.get('usage_count', 0) for t in tokens), default=0)
+                    
+                    text += "📈 **آمار استفاده:**\n"
+                    text += f"• کل استفاده‌ها: {total_usage:,}\n"
+                    text += f"• میانگین: {avg_usage:.1f}\n"
+                    text += f"• حداکثر: {max_usage:,}\n"
+                    text += f"• حداقل: {min_usage:,}\n\n"
+                    
+                    # آمار تاریخی
+                    today = datetime.now().date()
+                    created_today = sum(1 for t in tokens if t.get('created_at', '')[:10] == str(today))
+                    
+                    text += "📅 **آمار تاریخی:**\n"
+                    text += f"• ایجاد شده امروز: {created_today}\n"
+                    
+                    # پربازدیدترین
+                    top_token = max(tokens, key=lambda t: t.get('usage_count', 0), default=None)
+                    if top_token:
+                        text += f"\n🔥 **پربازدیدترین:**\n"
+                        text += f"• نام: {top_token.get('name', 'N/A')}\n"
+                        text += f"• استفاده: {top_token.get('usage_count', 0):,} بار\n"
+                else:
+                    text += "❌ نتیجه‌ای یافت نشد!"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📊 نمودار", callback_data=f"stats_chart_{search_type}_{search_value}"),
+                        InlineKeyboardButton("💾 صادرات آمار", callback_data=f"export_stats_{search_type}_{search_value}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت به نتایج", callback_data=f"search_results_{search_type}_{search_value}_1")
+                    ]
+                ])
+                
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            else:
+                await query.answer("❌ خطا در دریافت نتایج!", show_alert=True)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_search_results_stats: {e}")
+            await self.handle_error(update, context, e)

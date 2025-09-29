@@ -2307,3 +2307,199 @@ class TokenManagementHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error searching tokens by IP: {e}")
             return {'success': False, 'error': str(e)}
+    
+    async def search_tokens_by_usage(self, min_usage: int = 0, max_usage: int = None) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس میزان استفاده"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'min_usage': min_usage}
+                if max_usage is not None:
+                    params['max_usage'] = max_usage
+                    
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/usage",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by usage: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def search_tokens_by_ip_range(self, ip_range: str) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس محدوده IP"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'ip_range': ip_range}
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/ip-range",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by IP range: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def search_tokens_by_country(self, country_code: str) -> Dict[str, Any]:
+        """جستجو در توکن‌ها بر اساس کشور"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'country': country_code}
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/search/country",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'tokens': data.get('tokens', []), 'total_count': data.get('total', 0)}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error searching tokens by country: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_top_ips(self, limit: int = 10) -> Dict[str, Any]:
+        """دریافت پربازدیدترین IP ها"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                params = {'limit': limit}
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/analytics/top-ips",
+                    headers=self.headers,
+                    params=params
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'ips': data.get('ips', [])}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting top IPs: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_suspicious_ips(self) -> Dict[str, Any]:
+        """دریافت IP های مشکوک"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/analytics/suspicious-ips",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'ips': data.get('ips', [])}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting suspicious IPs: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def save_search_to_db(self, user_id: int, search_name: str, search_params: Dict[str, Any]) -> Dict[str, Any]:
+        """ذخیره جستجو در دیتابیس"""
+        try:
+            # ذخیره در دیتابیس محلی
+            saved_searches = await self.db.get_user_data(user_id, 'saved_searches') or []
+            
+            # بررسی نام تکراری
+            if any(s.get('name') == search_name for s in saved_searches):
+                return {'success': False, 'error': 'این نام قبلاً استفاده شده است'}
+            
+            # اضافه کردن جستجوی جدید
+            new_search = {
+                'id': len(saved_searches) + 1,
+                'name': search_name,
+                'params': search_params,
+                'created_at': datetime.now().isoformat(),
+                'usage_count': 0
+            }
+            
+            saved_searches.append(new_search)
+            await self.db.set_user_data(user_id, 'saved_searches', saved_searches)
+            
+            return {'success': True, 'search_id': new_search['id']}
+            
+        except Exception as e:
+            logger.error(f"Error saving search: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_saved_searches(self, user_id: int) -> Dict[str, Any]:
+        """دریافت جستجوهای ذخیره شده کاربر"""
+        try:
+            saved_searches = await self.db.get_user_data(user_id, 'saved_searches') or []
+            return {'success': True, 'searches': saved_searches}
+        except Exception as e:
+            logger.error(f"Error getting saved searches: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def delete_saved_search(self, user_id: int, search_id: int) -> Dict[str, Any]:
+        """حذف جستجوی ذخیره شده"""
+        try:
+            saved_searches = await self.db.get_user_data(user_id, 'saved_searches') or []
+            saved_searches = [s for s in saved_searches if s.get('id') != search_id]
+            await self.db.set_user_data(user_id, 'saved_searches', saved_searches)
+            return {'success': True}
+        except Exception as e:
+            logger.error(f"Error deleting saved search: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def increment_saved_search_usage(self, user_id: int, search_id: int) -> None:
+        """افزایش شمارنده استفاده از جستجوی ذخیره شده"""
+        try:
+            saved_searches = await self.db.get_user_data(user_id, 'saved_searches') or []
+            for search in saved_searches:
+                if search.get('id') == search_id:
+                    search['usage_count'] = search.get('usage_count', 0) + 1
+                    search['last_used'] = datetime.now().isoformat()
+            await self.db.set_user_data(user_id, 'saved_searches', saved_searches)
+        except Exception as e:
+            logger.error(f"Error incrementing search usage: {e}")
+    
+    async def export_search_results_data(self, tokens: List[Dict], format_type: str = 'json') -> Dict[str, Any]:
+        """صادرات داده‌های نتایج جستجو"""
+        try:
+            if format_type == 'json':
+                import json
+                data = json.dumps(tokens, ensure_ascii=False, indent=2)
+                return {'success': True, 'data': data, 'filename': f'search_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'}
+            
+            elif format_type == 'csv':
+                import csv
+                from io import StringIO
+                
+                output = StringIO()
+                if tokens:
+                    writer = csv.DictWriter(output, fieldnames=tokens[0].keys())
+                    writer.writeheader()
+                    writer.writerows(tokens)
+                
+                return {'success': True, 'data': output.getvalue(), 'filename': f'search_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'}
+            
+            elif format_type == 'text':
+                # فرمت متنی ساده
+                lines = []
+                for i, token in enumerate(tokens, 1):
+                    lines.append(f"{i}. {token.get('name', 'N/A')}")
+                    lines.append(f"   ID: {token.get('token_id', 'N/A')}")
+                    lines.append(f"   Type: {token.get('type', 'N/A')}")
+                    lines.append(f"   Status: {'Active' if token.get('is_active') else 'Inactive'}")
+                    lines.append(f"   Created: {token.get('created_at', 'N/A')}")
+                    lines.append("")
+                
+                return {'success': True, 'data': '\n'.join(lines), 'filename': f'search_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'}
+            
+            else:
+                return {'success': False, 'error': 'فرمت نامعتبر'}
+                
+        except Exception as e:
+            logger.error(f"Error exporting search results: {e}")
+            return {'success': False, 'error': str(e)}
