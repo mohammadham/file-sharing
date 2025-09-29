@@ -101,11 +101,33 @@ class TokenCallbacks:
             
             # === Search & Bulk Operations ===
             elif callback_data == 'search_tokens':
-                await self.handlers['dashboard'].handle_search_tokens(update, context)
+                await self.handlers['dashboard'].show_advanced_search_menu(update, context)
             elif callback_data == 'bulk_delete_tokens':
                 await self.handlers['cleanup'].handle_bulk_delete_tokens(update, context)
             elif callback_data.startswith('bulk_delete_'):
                 await self.handlers['cleanup'].handle_bulk_delete_action(update, context)
+            elif callback_data == 'bulk_actions':
+                await self.handlers['dashboard'].show_bulk_actions_menu(update, context)
+            elif callback_data == 'edit_tokens_menu':
+                await self.handlers['dashboard'].show_edit_tokens_menu(update, context)
+            elif callback_data == 'delete_tokens_menu':
+                await self.handlers['dashboard'].show_delete_tokens_menu(update, context)
+            
+            # === Advanced Search Operations ===
+            elif callback_data.startswith('search_by_'):
+                await self.handlers['dashboard'].handle_advanced_search_action(update, context)
+            elif callback_data == 'combined_search':
+                await self.handlers['dashboard'].show_combined_search(update, context)
+            elif callback_data == 'save_search':
+                await self.handlers['dashboard'].handle_save_search(update, context)
+            
+            # === Bulk Operations Detailed ===
+            elif callback_data.startswith('bulk_'):
+                await self.handlers['dashboard'].handle_bulk_operation(update, context)
+            elif callback_data.startswith('edit_token_'):
+                await self.handlers['dashboard'].handle_token_edit_action(update, context)
+            elif callback_data.startswith('delete_'):
+                await self.handlers['dashboard'].handle_token_delete_action(update, context)
             
             # === Users Management ===
             elif callback_data == 'list_users':
