@@ -411,6 +411,98 @@ class TokenSearchHandler(BaseHandler):
             logger.error(f"Error in handle_search_specific_ip: {e}")
             await self.handle_error(update, context, e)
     
+    # === PAGINATION HANDLER ===
+    
+    async def handle_paginated_results(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش صفحه‌بندی نتایج جستجو"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # Parse callback data: search_results_{type}_{value}_{page}
+            callback_data = query.data
+            parts = callback_data.replace('search_results_', '').rsplit('_', 1)
+            
+            if len(parts) != 2:
+                await query.answer("❌ خطا در پردازش صفحه‌بندی")
+                return
+            
+            type_value = parts[0]
+            page = int(parts[1])
+            
+            # Extract search_type and search_value
+            type_value_parts = type_value.split('_', 1)
+            if len(type_value_parts) != 2:
+                await query.answer("❌ خطا در پردازش")
+                return
+            
+            search_type = type_value_parts[0]
+            search_value = type_value_parts[1]
+            
+            # Re-execute search based on type
+            result = None
+            title = ""
+            
+            if search_type == 'type':
+                result = await self.token_manager.search_tokens_by_type(search_value)
+                title = f"🏷 توکن‌های نوع {self._get_token_type_name(search_value)}"
+            elif search_type == 'status':
+                result = await self.token_manager.search_tokens_by_status(search_value)
+                status_names = {'active': 'فعال', 'inactive': 'غیرفعال', 'expired': 'منقضی', 'expiring': 'نزدیک انقضا'}
+                title = f"📊 توکن‌های {status_names.get(search_value, search_value)}"
+            elif search_type == 'date':
+                # Parse date range from value
+                end_date = datetime.now()
+                if search_value == 'today':
+                    start_date = end_date.replace(hour=0, minute=0, second=0)
+                    title = "📅 توکن‌های امروز"
+                elif search_value == 'week':
+                    start_date = end_date - timedelta(days=7)
+                    title = "📊 توکن‌های هفته اخیر"
+                elif search_value == 'month':
+                    start_date = end_date - timedelta(days=30)
+                    title = "📆 توکن‌های ماه اخیر"
+                elif search_value == '3months':
+                    start_date = end_date - timedelta(days=90)
+                    title = "📈 توکن‌های 3 ماه اخیر"
+                else:
+                    start_date = datetime(2020, 1, 1)
+                    title = "📋 تمام توکن‌ها"
+                result = await self.token_manager.search_tokens_by_date_range(start_date, end_date)
+            elif search_type == 'name':
+                result = await self.token_manager.search_tokens_by_name(search_value)
+                title = f"📝 جستجوی نام: {search_value}"
+            elif search_type in ['ip', 'specific_ip']:
+                result = await self.token_manager.search_tokens_by_ip(search_value)
+                title = f"🌐 جستجوی IP: {search_value}"
+            elif search_type == 'usage':
+                # Parse usage range from value
+                usage_parts = search_value.split('_')
+                min_usage = int(usage_parts[0]) if len(usage_parts) > 0 else 0
+                max_usage = int(usage_parts[1]) if len(usage_parts) > 1 and usage_parts[1] != 'unlimited' else None
+                result = await self.token_manager.search_tokens_by_usage(min_usage, max_usage)
+                title = f"📊 توکن‌ها با استفاده {min_usage}+"
+            elif search_type == 'country':
+                result = await self.token_manager.search_tokens_by_country(search_value)
+                title = f"🌍 توکن‌های کشور {search_value}"
+            elif search_type == 'combined':
+                # For combined search, re-execute with stored filters
+                filters = context.user_data.get('combined_filters', {})
+                result = await self.token_manager.get_all_tokens()  # Simplified - can be enhanced
+                title = "🔍 نتایج جستجوی ترکیبی"
+            else:
+                result = {'success': True, 'tokens': []}
+                title = "🔍 نتایج جستجو"
+            
+            # Display results with pagination
+            await self._display_search_results(
+                update, context, result, title, search_type, search_value, page
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in handle_paginated_results: {e}")
+            await self.handle_error(update, context, e)
+    
     # === SEARCH RESULTS DISPLAY ===
     
     async def _display_search_results(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
@@ -421,7 +513,7 @@ class TokenSearchHandler(BaseHandler):
             query = update.callback_query
             
             if not result.get('success'):
-                text = f"❌ **خطا در جستجو**\n\n"
+                text = "❌ **خطا در جستجو**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}"
                 
                 keyboard = InlineKeyboardMarkup([[
@@ -745,7 +837,7 @@ class TokenSearchHandler(BaseHandler):
         """نمایش نتایج جستجو از پیام"""
         try:
             if not result.get('success'):
-                text = f"❌ **خطا در جستجو**\n\n"
+                text = "❌ **خطا در جستجو**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}"
                 
                 keyboard = InlineKeyboardMarkup([[
@@ -1043,7 +1135,7 @@ class TokenSearchHandler(BaseHandler):
                         InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
                     ]])
             else:
-                text += f"❌ خطا در دریافت IP های مشکوک\n\n"
+                text += "❌ خطا در دریافت IP های مشکوک\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}"
                 
                 keyboard = InlineKeyboardMarkup([[
@@ -1071,7 +1163,7 @@ class TokenSearchHandler(BaseHandler):
                 ips = result.get('ips', [])
                 
                 if ips:
-                    text += f"📊 **15 IP برتر:**\n\n"
+                    text += "📊 **15 IP برتر:**\n\n"
                     
                     for i, ip_info in enumerate(ips, 1):
                         # ایموجی بر اساس رتبه
@@ -1103,7 +1195,7 @@ class TokenSearchHandler(BaseHandler):
                         InlineKeyboardButton("🔙 بازگشت", callback_data="search_by_ip")
                     ]])
             else:
-                text += f"❌ خطا در دریافت آمار IP ها\n\n"
+                text += "❌ خطا در دریافت آمار IP ها\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}"
                 
                 keyboard = InlineKeyboardMarkup([[
@@ -1336,7 +1428,7 @@ class TokenSearchHandler(BaseHandler):
             result = await self.token_manager.save_search_to_db(user_id, search_name, search_params)
             
             if result.get('success'):
-                text = f"✅ **جستجو ذخیره شد**\n\n"
+                text = "✅ **جستجو ذخیره شد**\n\n"
                 text += f"📝 **نام:** {search_name}\n"
                 text += f"🆔 **شناسه:** {result.get('search_id')}\n"
                 text += f"📅 **تاریخ:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
@@ -1356,7 +1448,7 @@ class TokenSearchHandler(BaseHandler):
                     ]
                 ])
             else:
-                text = f"❌ **خطا در ذخیره جستجو**\n\n"
+                text = "❌ **خطا در ذخیره جستجو**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}\n\n"
                 text += "لطفاً دوباره تلاش کنید."
                 
@@ -1423,7 +1515,7 @@ class TokenSearchHandler(BaseHandler):
                         InlineKeyboardButton("🔍 شروع جستجو", callback_data="search_tokens")
                     ]])
             else:
-                text += f"❌ خطا در دریافت جستجوهای ذخیره شده\n\n"
+                text += "❌ خطا در دریافت جستجوهای ذخیره شده\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}"
                 
                 keyboard = InlineKeyboardMarkup([[
@@ -1694,7 +1786,7 @@ class TokenSearchHandler(BaseHandler):
                     # پربازدیدترین
                     top_token = max(tokens, key=lambda t: t.get('usage_count', 0), default=None)
                     if top_token:
-                        text += f"\n🔥 **پربازدیدترین:**\n"
+                        text += "\n🔥 **پربازدیدترین:**\n"
                         text += f"• نام: {top_token.get('name', 'N/A')}\n"
                         text += f"• استفاده: {top_token.get('usage_count', 0):,} بار\n"
                 else:

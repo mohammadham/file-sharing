@@ -6,6 +6,7 @@ Token Management Callbacks Router - مسیریابی callback های مدیری�
 """
 
 import logging
+from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -125,20 +126,28 @@ class TokenCallbacks:
                         await self.handlers['search'].search_by_type(update, context)
                     elif callback_data == 'search_by_status':
                         await self.handlers['search'].search_by_status(update, context)
-                    elif callback_data == 'search_by_date_range':
+                    elif callback_data in ['search_by_date_range', 'search_by_date']:  # Support both for compatibility
                         await self.handlers['search'].search_by_date_range(update, context)
                     elif callback_data == 'search_by_ip':
                         await self.handlers['search'].search_by_ip(update, context)
                     elif callback_data == 'search_by_usage':
-                        await self.handlers['dashboard'].handle_advanced_search_action(update, context)
+                        await self.handlers['search'].search_by_usage(update, context)  # Fixed: was going to dashboard
+                    elif callback_data == 'search_by_country':
+                        await self.handlers['search'].handle_search_by_country(update, context)
                     else:
                         await self.handlers['dashboard'].handle_advanced_search_action(update, context)
                 else:
                     await self.handlers['dashboard'].handle_advanced_search_action(update, context)
             elif callback_data == 'combined_search':
-                await self.handlers['dashboard'].show_combined_search(update, context)
+                if 'search' in self.handlers:
+                    await self.handlers['search'].show_combined_search(update, context)  # Fixed: was going to dashboard
+                else:
+                    await self.handlers['dashboard'].show_combined_search(update, context)
             elif callback_data == 'save_search':
-                await self.handlers['dashboard'].handle_save_search(update, context)
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_save_search(update, context)  # Fixed: was going to dashboard
+                else:
+                    await self.handlers['dashboard'].handle_save_search(update, context)
             elif callback_data == 'recent_searches':
                 if 'search' in self.handlers:
                     await self.handlers['search'].show_recent_searches(update, context)
@@ -147,6 +156,62 @@ class TokenCallbacks:
             elif callback_data == 'clear_search_history':
                 if 'search' in self.handlers:
                     await self.handlers['search'].clear_search_history(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            
+            # === Saved Searches Operations ===
+            elif callback_data == 'show_saved_searches':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].show_saved_searches(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('load_saved_search_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_load_saved_search(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('delete_saved_search_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_delete_saved_search(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('save_search_name_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_confirm_save_search(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            
+            # === Export & Stats Operations ===
+            elif callback_data.startswith('export_search_results_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_export_search_results(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('export_format_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_export_format(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('search_results_stats_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_search_results_stats(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            
+            # === Combined Search Filter Operations ===
+            elif callback_data in ['add_type_filter', 'add_status_filter', 'add_date_filter', 'add_usage_filter']:
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_add_filter(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'execute_combined_search':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_execute_combined_search(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'clear_combined_filters':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_clear_combined_filters(update, context)
                 else:
                     await update.callback_query.answer("🚧 در حال توسعه")
             
@@ -166,6 +231,16 @@ class TokenCallbacks:
                     await self.handlers['search'].handle_filter_date(update, context)
                 else:
                     await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('filter_usage_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_filter_usage(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data.startswith('filter_country_'):
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_filter_country(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
             
             # === IP Search Operations ===
             elif callback_data == 'search_specific_ip':
@@ -173,25 +248,35 @@ class TokenCallbacks:
                     await self.handlers['search'].handle_search_specific_ip(update, context)
                 else:
                     await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'search_ip_range':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_search_ip_range(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'search_suspicious_ips':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_search_suspicious_ips(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'search_top_ips':
+                if 'search' in self.handlers:
+                    await self.handlers['search'].handle_search_top_ips(update, context)
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'common_ip_ranges':
+                if 'search' in self.handlers:
+                    await update.callback_query.answer("🚧 محدوده‌های رایج IP - در حال توسعه")
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
+            elif callback_data == 'all_countries_list':
+                if 'search' in self.handlers:
+                    await update.callback_query.answer("🚧 لیست کامل کشورها - در حال توسعه")
+                else:
+                    await update.callback_query.answer("🚧 در حال توسعه")
             elif callback_data.startswith('search_results_'):
                 if 'search' in self.handlers:
-                    # Parse callback data: search_results_type_value_page
-                    parts = callback_data.split('_', 3)
-                    if len(parts) >= 4:
-                        search_type = parts[2]
-                        value_and_page = parts[3].rsplit('_', 1)
-                        if len(value_and_page) == 2:
-                            search_value = value_and_page[0]
-                            page = int(value_and_page[1])
-                            # Simulate result for pagination
-                            result = await self.handlers['management'].search_tokens_by_type(search_value) if search_type == 'type' else {'success': True, 'tokens': []}
-                            await self.handlers['search']._display_search_results(
-                                update, context, result, f"نتایج {search_type}", search_type, search_value, page
-                            )
-                        else:
-                            await update.callback_query.answer("❌ خطا در صفحه‌بندی")
-                    else:
-                        await update.callback_query.answer("❌ خطا در پردازش")
+                    # Use the new pagination handler
+                    await self.handlers['search'].handle_paginated_results(update, context)
                 else:
                     await update.callback_query.answer("🚧 در حال توسعه")
             elif callback_data.startswith('repeat_search_'):
@@ -204,11 +289,43 @@ class TokenCallbacks:
                         search_type = search['type']
                         search_value = search['value']
                         
-                        # Re-execute the search
+                        # Re-execute the search based on type
+                        result = None
                         if search_type == 'type':
                             result = await self.handlers['management'].search_tokens_by_type(search_value)
                         elif search_type == 'status':
                             result = await self.handlers['management'].search_tokens_by_status(search_value)
+                        elif search_type == 'name':
+                            result = await self.handlers['management'].search_tokens_by_name(search_value)
+                        elif search_type in ['ip', 'specific_ip']:
+                            result = await self.handlers['management'].search_tokens_by_ip(search_value)
+                        elif search_type == 'ip_range':
+                            result = await self.handlers['management'].search_tokens_by_ip_range(search_value)
+                        elif search_type == 'usage':
+                            # Parse usage range
+                            usage_parts = search_value.split('_')
+                            min_usage = int(usage_parts[0]) if len(usage_parts) > 0 else 0
+                            max_usage = int(usage_parts[1]) if len(usage_parts) > 1 and usage_parts[1] != 'unlimited' else None
+                            result = await self.handlers['management'].search_tokens_by_usage(min_usage, max_usage)
+                        elif search_type == 'date':
+                            # Parse date range
+                            end_date = datetime.now()
+                            if search_value == 'today':
+                                start_date = end_date.replace(hour=0, minute=0, second=0)
+                            elif search_value == 'week':
+                                start_date = end_date - timedelta(days=7)
+                            elif search_value == 'month':
+                                start_date = end_date - timedelta(days=30)
+                            elif search_value == '3months':
+                                start_date = end_date - timedelta(days=90)
+                            else:
+                                start_date = datetime(2020, 1, 1)
+                            result = await self.handlers['management'].search_tokens_by_date_range(start_date, end_date)
+                        elif search_type == 'country':
+                            result = await self.handlers['management'].search_tokens_by_country(search_value)
+                        elif search_type == 'combined':
+                            # Re-execute combined search
+                            result = await self.handlers['management'].get_all_tokens()
                         else:
                             result = {'success': True, 'tokens': []}
                         

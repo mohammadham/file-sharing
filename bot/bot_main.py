@@ -17,6 +17,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler as TelegramMessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationHandlerStop
 
 # Import configuration
 from config.settings import BOT_TOKEN, MESSAGES
@@ -214,6 +215,33 @@ class TelegramFileBot:
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         await self.message_handler.show_help(update, context)
+    
+    async def handle_token_search_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle text input for token search operations"""
+        try:
+            # Check if we're waiting for search input
+            user_data = context.user_data
+            
+            # Check for token search input flags
+            if (user_data.get('awaiting_search_input') or 
+                user_data.get('awaiting_search_name') or
+                user_data.get('awaiting_ip_range') or
+                user_data.get('awaiting_save_search_name')):
+                
+                # Route to TokenSearchHandler
+                await self.token_search.handle_search_input(update, context)
+                # Prevent further processing
+                raise ApplicationHandlerStop
+            
+            # Not a token search input - let other handlers process it
+            # Continue to next handler in the chain
+            
+        except ApplicationHandlerStop:
+            # Stop processing - search input was handled
+            raise
+        except Exception as e:
+            logger.error(f"Error in handle_token_search_input: {e}")
+            # Let other handlers try if there's an error
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Route callback queries to appropriate handlers"""
@@ -667,16 +695,26 @@ class TelegramFileBot:
         # Callback query handler
         self.application.add_handler(CallbackQueryHandler(self.handle_callback_query))
         
-        # Message handlers
+        # Token Search Input Handler (Higher priority - Group 0)
+        # This handler must be registered BEFORE the general message handler
+        self.application.add_handler(
+            TelegramMessageHandler(
+                filters.TEXT & ~filters.COMMAND,
+                self.handle_token_search_input
+            ),
+            group=0
+        )
+        
+        # General Message handlers (Group 1 - Lower priority)
         self.application.add_handler(TelegramMessageHandler(
             filters.TEXT & ~filters.COMMAND, 
             self.message_handler.handle_text_message
-        ))
+        ), group=1)
         
         self.application.add_handler(TelegramMessageHandler(
             filters.Document.ALL | filters.PHOTO | filters.VIDEO | filters.AUDIO,
             self.message_handler.handle_file_message
-        ))
+        ), group=1)
         
         logger.info("All handlers registered successfully")
     
