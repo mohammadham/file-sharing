@@ -2232,6 +2232,52 @@ class TokenDashboardHandler(BaseHandler):
             logger.error(f"Error in handle_execute_bulk_deactivate: {e}")
             await self.handle_error(update, context, e)
     
+    async def handle_select_all_deactivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب همه توکن‌ها برای غیرفعال‌سازی"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال انتخاب همه توکن‌ها...")
+            
+            # دریافت لیست تمام توکن‌های فعال
+            result = await self.token_manager.get_active_tokens_list()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                token_ids = [token.get('id') for token in tokens]
+                
+                # انتخاب همه توکن‌ها
+                context.user_data['bulk_deactivate_selected'] = token_ids
+                
+                # بازنمایی صفحه با وضعیت جدید
+                await self.handle_select_from_list_deactivate(update, context)
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_deactivate_tokens")
+                ]])
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_select_all_deactivate: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_clear_deactivate_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پاک کردن تمام انتخاب‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer("انتخاب‌ها پاک شد")
+            
+            # پاک کردن لیست انتخاب شده
+            if 'bulk_deactivate_selected' in context.user_data:
+                context.user_data['bulk_deactivate_selected'] = []
+            
+            # بازنمایی صفحه با وضعیت جدید
+            await self.handle_select_from_list_deactivate(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_clear_deactivate_selection: {e}")
+            await self.handle_error(update, context, e)
+    
     async def handle_criteria_based_deactivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """غیرفعال‌سازی بر اساس معیار"""
         try:
@@ -2312,6 +2358,243 @@ class TokenDashboardHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Error in handle_bulk_extend_7d: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_select_tokens_extend(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب دستی توکن‌ها برای تمدید"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # دریافت تعداد روز از callback data
+            callback_data = query.data
+            days = int(callback_data.split('_')[-1].replace('d', ''))
+            
+            # ذخیره تعداد روز در context
+            context.user_data['extend_days'] = days
+            
+            # دریافت لیست توکن‌های قابل تمدید
+            result = await self.token_manager.get_extendable_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                
+                if not tokens:
+                    text = "ℹ️ **هیچ توکن قابل تمدیدی یافت نشد**"
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                    ]])
+                else:
+                    text = f"📋 **انتخاب توکن‌ها برای تمدید {days} روزه**\n\n"
+                    text += f"تعداد کل توکن‌های قابل تمدید: {len(tokens)}\n\n"
+                    text += "روی توکن‌هایی که می‌خواهید تمدید کنید کلیک کنید:\n\n"
+                    
+                    # نمایش لیست توکن‌ها با checkbox
+                    selected_tokens = context.user_data.get('bulk_extend_selected', [])
+                    
+                    keyboard_rows = []
+                    for i, token in enumerate(tokens[:20]):
+                        token_id = token.get('id')
+                        token_name = token.get('name', f'توکن {token_id}')
+                        is_selected = token_id in selected_tokens
+                        
+                        checkbox = "☑️" if is_selected else "☐"
+                        keyboard_rows.append([
+                            InlineKeyboardButton(
+                                f"{checkbox} {token_name} ({token_id[:8]})",
+                                callback_data=f"toggle_extend_{token_id}"
+                            )
+                        ])
+                    
+                    # دکمه‌های کنترل
+                    control_row = []
+                    if selected_tokens:
+                        control_row.extend([
+                            InlineKeyboardButton(f"✅ تمدید ({len(selected_tokens)})", callback_data="confirm_bulk_extend"),
+                            InlineKeyboardButton("❌ پاک کردن", callback_data="clear_extend_selection")
+                        ])
+                    
+                    keyboard_rows.extend([
+                        control_row,
+                        [
+                            InlineKeyboardButton("🔄 انتخاب همه", callback_data="select_all_extend"),
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                        ]
+                    ])
+                    
+                    keyboard = InlineKeyboardMarkup([row for row in keyboard_rows if row])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_select_tokens_extend: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_toggle_extend_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تغییر وضعیت انتخاب توکن برای تمدید"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.replace('toggle_extend_', '')
+            
+            # مدیریت لیست انتخاب شده
+            if 'bulk_extend_selected' not in context.user_data:
+                context.user_data['bulk_extend_selected'] = []
+            
+            selected = context.user_data['bulk_extend_selected']
+            if token_id in selected:
+                selected.remove(token_id)
+            else:
+                selected.append(token_id)
+            
+            # بازنمایی صفحه با وضعیت جدید
+            await self.handle_select_tokens_extend(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_toggle_extend_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_bulk_extend(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید تمدید دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            selected_tokens = context.user_data.get('bulk_extend_selected', [])
+            extend_days = context.user_data.get('extend_days', 7)
+            
+            if not selected_tokens:
+                text = "⚠️ **هیچ توکنی انتخاب نشده**"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                ]])
+            else:
+                text = f"⏰ **تأیید تمدید دسته‌ای**\n\n"
+                text += f"تعداد توکن‌های انتخاب شده: {len(selected_tokens)}\n"
+                text += f"مدت تمدید: {extend_days} روز\n\n"
+                text += f"آیا از تمدید {len(selected_tokens)} توکن اطمینان دارید؟"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ بله، تمدید کن", callback_data="execute_bulk_extend"),
+                        InlineKeyboardButton("❌ خیر، انصراف", callback_data="bulk_extend_tokens")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_bulk_extend: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_execute_bulk_extend(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """اجرای عملیات تمدید دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال تمدید توکن‌ها...")
+            
+            selected_tokens = context.user_data.get('bulk_extend_selected', [])
+            extend_days = context.user_data.get('extend_days', 7)
+            
+            if not selected_tokens:
+                text = "⚠️ **خطا: هیچ توکنی انتخاب نشده**"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                ]])
+            else:
+                # اجرای تمدید دسته‌ای
+                result = await self.token_manager.bulk_extend_expiry(selected_tokens, extend_days)
+                
+                if result.get('success'):
+                    successful_count = result.get('successful_count', 0)
+                    failed_count = result.get('failed_count', 0)
+                    
+                    text = f"✅ **تمدید دسته‌ای تکمیل شد**\n\n"
+                    text += f"📊 **نتایج:**\n"
+                    text += f"• موفق: {successful_count} توکن\n"
+                    text += f"• ناموفق: {failed_count} توکن\n"
+                    text += f"• مدت تمدید: {extend_days} روز\n"
+                    
+                    # پاک کردن انتخاب‌ها
+                    if 'bulk_extend_selected' in context.user_data:
+                        del context.user_data['bulk_extend_selected']
+                    if 'extend_days' in context.user_data:
+                        del context.user_data['extend_days']
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📋 مشاهده توکن‌ها", callback_data="list_all_tokens"),
+                            InlineKeyboardButton("🔄 تمدید بیشتر", callback_data="bulk_extend_tokens")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 منوی اصلی", callback_data="bulk_actions")
+                        ]
+                    ])
+                else:
+                    text = f"❌ **خطا در تمدید دسته‌ای**\n\nعلت: {result.get('error', 'نامشخص')}"
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔄 تلاش مجدد", callback_data="execute_bulk_extend"),
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                        ]
+                    ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_execute_bulk_extend: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_select_all_extend(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب همه توکن‌ها برای تمدید"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال انتخاب همه توکن‌ها...")
+            
+            # دریافت لیست تمام توکن‌های قابل تمدید
+            result = await self.token_manager.get_extendable_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                token_ids = [token.get('id') for token in tokens]
+                
+                # انتخاب همه توکن‌ها
+                context.user_data['bulk_extend_selected'] = token_ids
+                
+                # بازنمایی صفحه با وضعیت جدید
+                await self.handle_select_tokens_extend(update, context)
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                ]])
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_select_all_extend: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_clear_extend_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پاک کردن تمام انتخاب‌های تمدید"""
+        try:
+            query = update.callback_query
+            await query.answer("انتخاب‌ها پاک شد")
+            
+            # پاک کردن لیست انتخاب شده
+            if 'bulk_extend_selected' in context.user_data:
+                context.user_data['bulk_extend_selected'] = []
+            
+            # بازنمایی صفحه با وضعیت جدید
+            await self.handle_select_tokens_extend(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_clear_extend_selection: {e}")
             await self.handle_error(update, context, e)
     
     # === BULK EXPORT OPERATIONS ===

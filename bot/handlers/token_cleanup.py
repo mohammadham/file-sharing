@@ -452,6 +452,14 @@ class TokenCleanupHandler(BaseHandler):
                 await self.handle_cleanup_unused(update, context)
             elif callback_data == "bulk_delete_by_type":
                 await self.handle_bulk_delete_by_type(update, context)
+            elif callback_data == "bulk_delete_by_status":
+                await self.handle_bulk_delete_by_status(update, context)
+            elif callback_data == "bulk_delete_by_date":
+                await self.handle_bulk_delete_by_date(update, context)
+            elif callback_data == "bulk_delete_by_usage":
+                await self.handle_bulk_delete_by_usage(update, context)
+            elif callback_data == "bulk_delete_manual":
+                await self.handle_bulk_delete_manual(update, context)
             else:
                 # Placeholder for other bulk operations
                 await self.handle_placeholder_action(update, context)
@@ -564,6 +572,328 @@ class TokenCleanupHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Error in handle_bulk_delete_by_type: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_delete_by_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """حذف دسته‌ای بر اساس وضعیت توکن"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "📊 **حذف بر اساس وضعیت**\n\n"
+            text += "وضعیت توکن‌هایی که می‌خواهید حذف کنید را انتخاب نمایید:\n\n"
+            text += "⚠️ **هشدار:** این عملیات برگشت‌پذیر نیست!"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ توکن‌های فعال", callback_data="bulk_delete_status_active"),
+                    InlineKeyboardButton("❌ توکن‌های غیرفعال", callback_data="bulk_delete_status_inactive")
+                ],
+                [
+                    InlineKeyboardButton("⏰ توکن‌های منقضی", callback_data="bulk_delete_status_expired"),
+                    InlineKeyboardButton("🔄 توکن‌های معلق", callback_data="bulk_delete_status_suspended")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_delete_by_status: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_delete_by_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """حذف دسته‌ای بر اساس تاریخ"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "📅 **حذف بر اساس تاریخ**\n\n"
+            text += "بازه زمانی توکن‌هایی که می‌خواهید حذف کنید را انتخاب نمایید:\n\n"
+            text += "⚠️ **هشدار:** این عملیات برگشت‌پذیر نیست!"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📅 قدیمی‌تر از 30 روز", callback_data="bulk_delete_date_30d"),
+                    InlineKeyboardButton("📅 قدیمی‌تر از 60 روز", callback_data="bulk_delete_date_60d")
+                ],
+                [
+                    InlineKeyboardButton("📅 قدیمی‌تر از 90 روز", callback_data="bulk_delete_date_90d"),
+                    InlineKeyboardButton("📅 قدیمی‌تر از 180 روز", callback_data="bulk_delete_date_180d")
+                ],
+                [
+                    InlineKeyboardButton("🎯 بازه سفارشی", callback_data="bulk_delete_date_custom"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_delete_by_date: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_delete_by_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """حذف دسته‌ای بر اساس میزان استفاده"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "📈 **حذف بر اساس استفاده**\n\n"
+            text += "معیار استفاده را برای حذف توکن‌ها انتخاب نمایید:\n\n"
+            text += "⚠️ **هشدار:** این عملیات برگشت‌پذیر نیست!"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("❌ هیچ استفاده‌ای نداشته", callback_data="bulk_delete_usage_zero"),
+                    InlineKeyboardButton("📉 کمتر از 10 استفاده", callback_data="bulk_delete_usage_low")
+                ],
+                [
+                    InlineKeyboardButton("💤 30 روز استفاده نشده", callback_data="bulk_delete_usage_30d"),
+                    InlineKeyboardButton("💤 60 روز استفاده نشده", callback_data="bulk_delete_usage_60d")
+                ],
+                [
+                    InlineKeyboardButton("🎯 معیار سفارشی", callback_data="bulk_delete_usage_custom"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_delete_by_usage: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_delete_manual(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب دستی توکن‌ها برای حذف"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # دریافت لیست تمام توکن‌ها
+            result = await self.token_manager.get_all_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                
+                if not tokens:
+                    text = "ℹ️ **هیچ توکنی یافت نشد**\n\n"
+                    text += "در حال حاضر توکنی برای حذف وجود ندارد."
+                    
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                    ]])
+                else:
+                    text = "✋ **انتخاب دستی توکن‌ها**\n\n"
+                    text += f"تعداد کل توکن‌ها: {len(tokens)}\n\n"
+                    text += "روی توکن‌هایی که می‌خواهید حذف کنید کلیک کنید:\n\n"
+                    
+                    # نمایش لیست توکن‌ها با checkbox
+                    selected_tokens = context.user_data.get('bulk_delete_selected', [])
+                    
+                    keyboard_rows = []
+                    for i, token in enumerate(tokens[:20]):  # حداکثر 20 توکن در هر صفحه
+                        token_id = token.get('id')
+                        token_name = token.get('name', f'توکن {token_id}')
+                        is_selected = token_id in selected_tokens
+                        
+                        checkbox = "☑️" if is_selected else "☐"
+                        keyboard_rows.append([
+                            InlineKeyboardButton(
+                                f"{checkbox} {token_name} ({token_id[:8]})",
+                                callback_data=f"toggle_delete_{token_id}"
+                            )
+                        ])
+                    
+                    # دکمه‌های کنترل
+                    control_row = []
+                    if selected_tokens:
+                        control_row.extend([
+                            InlineKeyboardButton(f"🗑 حذف ({len(selected_tokens)})", callback_data="confirm_bulk_delete"),
+                            InlineKeyboardButton("❌ پاک کردن", callback_data="clear_delete_selection")
+                        ])
+                    
+                    keyboard_rows.extend([
+                        control_row,
+                        [
+                            InlineKeyboardButton("🔄 انتخاب همه", callback_data="select_all_delete"),
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                        ]
+                    ])
+                    
+                    keyboard = InlineKeyboardMarkup([row for row in keyboard_rows if row])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_delete_manual: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_toggle_delete_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تغییر وضعیت انتخاب توکن برای حذف"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.replace('toggle_delete_', '')
+            
+            # مدیریت لیست انتخاب شده
+            if 'bulk_delete_selected' not in context.user_data:
+                context.user_data['bulk_delete_selected'] = []
+            
+            selected = context.user_data['bulk_delete_selected']
+            if token_id in selected:
+                selected.remove(token_id)
+            else:
+                selected.append(token_id)
+            
+            # بازنمایی صفحه با وضعیت جدید
+            await self.handle_bulk_delete_manual(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_toggle_delete_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_select_all_delete(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب همه توکن‌ها برای حذف"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال انتخاب همه توکن‌ها...")
+            
+            # دریافت لیست تمام توکن‌ها
+            result = await self.token_manager.get_all_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                token_ids = [token.get('id') for token in tokens]
+                
+                # انتخاب همه توکن‌ها
+                context.user_data['bulk_delete_selected'] = token_ids
+                
+                # بازنمایی صفحه با وضعیت جدید
+                await self.handle_bulk_delete_manual(update, context)
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                ]])
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_select_all_delete: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_clear_delete_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پاک کردن تمام انتخاب‌های حذف"""
+        try:
+            query = update.callback_query
+            await query.answer("انتخاب‌ها پاک شد")
+            
+            # پاک کردن لیست انتخاب شده
+            if 'bulk_delete_selected' in context.user_data:
+                context.user_data['bulk_delete_selected'] = []
+            
+            # بازنمایی صفحه با وضعیت جدید
+            await self.handle_bulk_delete_manual(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_clear_delete_selection: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_bulk_delete(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید حذف دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            selected_tokens = context.user_data.get('bulk_delete_selected', [])
+            
+            if not selected_tokens:
+                text = "⚠️ **هیچ توکنی انتخاب نشده**"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_manual")
+                ]])
+            else:
+                text = f"🗑 **تأیید حذف دسته‌ای**\n\n"
+                text += f"تعداد توکن‌های انتخاب شده: {len(selected_tokens)}\n\n"
+                text += f"⚠️ **هشدار شدید:**\n"
+                text += f"• تمام توکن‌های انتخاب شده حذف خواهند شد\n"
+                text += f"• این عملیات برگشت‌پذیر نیست!\n"
+                text += f"• داده‌های مربوطه نیز پاک می‌شوند\n\n"
+                text += f"آیا از حذف {len(selected_tokens)} توکن اطمینان دارید؟"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ بله، حذف کن", callback_data="execute_bulk_delete"),
+                        InlineKeyboardButton("❌ خیر، انصراف", callback_data="bulk_delete_manual")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_bulk_delete: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_execute_bulk_delete(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """اجرای عملیات حذف دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال حذف توکن‌ها...")
+            
+            selected_tokens = context.user_data.get('bulk_delete_selected', [])
+            
+            if not selected_tokens:
+                text = "⚠️ **خطا: هیچ توکنی انتخاب نشده**"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_tokens")
+                ]])
+            else:
+                # اجرای حذف دسته‌ای
+                result = await self.token_manager.bulk_delete_tokens(selected_tokens)
+                
+                if result.get('success'):
+                    successful_count = result.get('successful_count', 0)
+                    failed_count = result.get('failed_count', 0)
+                    
+                    text = f"✅ **حذف دسته‌ای تکمیل شد**\n\n"
+                    text += f"📊 **نتایج:**\n"
+                    text += f"• موفق: {successful_count} توکن\n"
+                    text += f"• ناموفق: {failed_count} توکن\n"
+                    
+                    # پاک کردن انتخاب‌ها
+                    if 'bulk_delete_selected' in context.user_data:
+                        del context.user_data['bulk_delete_selected']
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📋 مشاهده توکن‌ها", callback_data="list_all_tokens"),
+                            InlineKeyboardButton("🗑 حذف بیشتر", callback_data="bulk_delete_tokens")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 منوی اصلی", callback_data="cleanup_menu")
+                        ]
+                    ])
+                else:
+                    text = f"❌ **خطا در حذف دسته‌ای**\n\nعلت: {result.get('error', 'نامشخص')}"
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔄 تلاش مجدد", callback_data="execute_bulk_delete"),
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_delete_manual")
+                        ]
+                    ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_execute_bulk_delete: {e}")
             await self.handle_error(update, context, e)
     
     async def handle_placeholder_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

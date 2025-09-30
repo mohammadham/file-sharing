@@ -110,6 +110,16 @@ class TokenCallbacks:
                 await self.handlers['cleanup'].handle_bulk_delete_tokens(update, context)
             elif callback_data.startswith('bulk_delete_'):
                 await self.handlers['cleanup'].handle_bulk_delete_action(update, context)
+            elif callback_data.startswith('toggle_delete_'):
+                await self.handlers['cleanup'].handle_toggle_delete_token(update, context)
+            elif callback_data == 'select_all_delete':
+                await self.handlers['cleanup'].handle_select_all_delete(update, context)
+            elif callback_data == 'clear_delete_selection':
+                await self.handlers['cleanup'].handle_clear_delete_selection(update, context)
+            elif callback_data == 'confirm_bulk_delete':
+                await self.handlers['cleanup'].handle_confirm_bulk_delete(update, context)
+            elif callback_data == 'execute_bulk_delete':
+                await self.handlers['cleanup'].handle_execute_bulk_delete(update, context)
             elif callback_data == 'bulk_actions':
                 await self.handlers['dashboard'].show_bulk_actions_menu(update, context)
             elif callback_data == 'edit_tokens_menu':
@@ -344,6 +354,10 @@ class TokenCallbacks:
                 await self.handlers['dashboard'].handle_select_from_list_deactivate(update, context)
             elif callback_data.startswith('toggle_deactivate_'):
                 await self.handlers['dashboard'].handle_toggle_deactivate_token(update, context)
+            elif callback_data == 'select_all_deactivate':
+                await self.handlers['dashboard'].handle_select_all_deactivate(update, context)
+            elif callback_data == 'clear_deactivate_selection':
+                await self.handlers['dashboard'].handle_clear_deactivate_selection(update, context)
             elif callback_data == 'confirm_bulk_deactivate':
                 await self.handlers['dashboard'].handle_confirm_bulk_deactivate(update, context)
             elif callback_data == 'execute_bulk_deactivate':
@@ -352,6 +366,18 @@ class TokenCallbacks:
                 await self.handlers['dashboard'].handle_criteria_based_deactivate(update, context)
             elif callback_data.startswith('extend_bulk_'):
                 await self.handlers['dashboard'].handle_bulk_extend_7d(update, context)
+            elif callback_data.startswith('select_tokens_extend_'):
+                await self.handlers['dashboard'].handle_select_tokens_extend(update, context)
+            elif callback_data.startswith('toggle_extend_'):
+                await self.handlers['dashboard'].handle_toggle_extend_token(update, context)
+            elif callback_data == 'confirm_bulk_extend':
+                await self.handlers['dashboard'].handle_confirm_bulk_extend(update, context)
+            elif callback_data == 'execute_bulk_extend':
+                await self.handlers['dashboard'].handle_execute_bulk_extend(update, context)
+            elif callback_data == 'select_all_extend':
+                await self.handlers['dashboard'].handle_select_all_extend(update, context)
+            elif callback_data == 'clear_extend_selection':
+                await self.handlers['dashboard'].handle_clear_extend_selection(update, context)
             elif callback_data.startswith('export_format_'):
                 await self.handlers['dashboard'].handle_bulk_export(update, context)
             elif callback_data == 'bulk_export':
