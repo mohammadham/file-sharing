@@ -36,7 +36,15 @@ class BotMessageHandler(BaseHandler):
             if not user_id:
                 logger.warning("Received text message without valid user")
                 return
-                
+            
+            # Check for custom extend days input first (context-based)
+            if context.user_data.get('awaiting_custom_extend_days'):
+                from handlers.token_dashboard import TokenDashboard
+                dashboard = TokenDashboard(self.db)
+                handled = await dashboard.handle_custom_extend_days_input(update, context)
+                if handled:
+                    return
+            
             session = await self.get_user_session(user_id)
             
             # Route based on current action state

@@ -6,6 +6,7 @@ Token Security Handler - مدیریت امنیت و تنظیمات امنیتی 
 """
 
 import logging
+from typing import Dict, Any, List
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from datetime import datetime

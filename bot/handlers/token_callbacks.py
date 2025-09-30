@@ -364,9 +364,19 @@ class TokenCallbacks:
                 await self.handlers['dashboard'].handle_execute_bulk_deactivate(update, context)
             elif callback_data == 'criteria_based_deactivate':
                 await self.handlers['dashboard'].handle_criteria_based_deactivate(update, context)
-            elif callback_data.startswith('extend_bulk_'):
+            elif callback_data == 'extend_bulk_7d':
                 await self.handlers['dashboard'].handle_bulk_extend_7d(update, context)
-            elif callback_data.startswith('select_tokens_extend_'):
+            elif callback_data == 'extend_bulk_30d':
+                await self.handlers['dashboard'].handle_bulk_extend_30d(update, context)
+            elif callback_data == 'extend_bulk_90d':
+                await self.handlers['dashboard'].handle_bulk_extend_90d(update, context)
+            elif callback_data == 'extend_bulk_365d':
+                await self.handlers['dashboard'].handle_bulk_extend_365d(update, context)
+            elif callback_data == 'extend_bulk_unlimited':
+                await self.handlers['dashboard'].handle_bulk_extend_unlimited(update, context)
+            elif callback_data == 'extend_bulk_custom':
+                await self.handlers['dashboard'].handle_bulk_extend_custom(update, context)
+            elif callback_data.startswith('select_tokens_extend'):
                 await self.handlers['dashboard'].handle_select_tokens_extend(update, context)
             elif callback_data.startswith('toggle_extend_'):
                 await self.handlers['dashboard'].handle_toggle_extend_token(update, context)
@@ -378,10 +388,26 @@ class TokenCallbacks:
                 await self.handlers['dashboard'].handle_select_all_extend(update, context)
             elif callback_data == 'clear_extend_selection':
                 await self.handlers['dashboard'].handle_clear_extend_selection(update, context)
-            elif callback_data.startswith('export_format_'):
-                await self.handlers['dashboard'].handle_bulk_export(update, context)
+            
+            # === Bulk Export Operations ===
             elif callback_data == 'bulk_export':
                 await self.handlers['dashboard'].handle_bulk_export(update, context)
+            elif callback_data.startswith('export_format_'):
+                await self.handlers['dashboard'].handle_export_format_selection(update, context)
+            elif callback_data.startswith('export_all_'):
+                await self.handlers['dashboard'].handle_export_all_tokens(update, context)
+            elif callback_data.startswith('export_select_manual_'):
+                await self.handlers['dashboard'].handle_export_manual_selection(update, context)
+            elif callback_data.startswith('toggle_export_'):
+                await self.handlers['dashboard'].handle_toggle_export_token(update, context)
+            elif callback_data == 'select_all_export':
+                await self.handlers['dashboard'].handle_select_all_export(update, context)
+            elif callback_data == 'clear_export_selection':
+                await self.handlers['dashboard'].handle_clear_export_selection(update, context)
+            elif callback_data == 'confirm_export':
+                await self.handlers['dashboard'].handle_confirm_export(update, context)
+            
+            # === Token Edit/Delete ===
             elif callback_data.startswith('edit_token_'):
                 await self.handlers['dashboard'].handle_token_edit_action(update, context)
             elif callback_data.startswith('delete_'):

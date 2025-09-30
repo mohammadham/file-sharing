@@ -42,13 +42,13 @@ class TokenDashboardHandler(BaseHandler):
             
             if stats.get('success'):
                 data = stats.get('data', {})
-                text += f"📊 **آمار خلاصه:**\n"
+                text += "📊 **آمار خلاصه:**\n"
                 text += f"• توکن‌های فعال: {data.get('active_tokens', 0)}\n"
                 text += f"• توکن‌های منقضی: {data.get('expired_tokens', 0)}\n"
                 text += f"• کل توکن‌ها: {data.get('total_tokens', 0)}\n"
                 text += f"• استفاده امروز: {data.get('daily_usage', 0)} درخواست\n\n"
                 
-                text += f"🔑 **انواع توکن‌ها:**\n"
+                text += "🔑 **انواع توکن‌ها:**\n"
                 text += f"• مدیر: {data.get('admin_tokens', 0)}\n"
                 text += f"• محدود: {data.get('limited_tokens', 0)}\n"
                 text += f"• کاربر: {data.get('user_tokens', 0)}\n\n"
@@ -181,7 +181,7 @@ class TokenDashboardHandler(BaseHandler):
             if result.get('success'):
                 token_data = result.get('data', {})
                 
-                text = f"✅ **توکن جدید تولید شد**\n\n"
+                text = "✅ **توکن جدید تولید شد**\n\n"
                 text += f"🔐 **نوع:** {self._get_token_type_name(token_type)}\n"
                 text += f"🆔 **شناسه:** `{token_data.get('token_id', 'N/A')}`\n"
                 text += f"📝 **نام:** {token_data.get('name', 'بدون نام')}\n"
@@ -190,7 +190,7 @@ class TokenDashboardHandler(BaseHandler):
                 if token_data.get('expires_at'):
                     text += f"⏰ **انقضا:** {token_data.get('expires_at')[:16]}\n"
                 else:
-                    text += f"♾ **انقضا:** بدون محدودیت\n"
+                    text += "♾ **انقضا:** بدون محدودیت\n"
                 
                 text += f"\n🔑 **توکن:**\n`{token_data.get('token', '')}`\n\n"
                 
@@ -200,7 +200,7 @@ class TokenDashboardHandler(BaseHandler):
                 text += "• در صورت فراموشی قابل بازیابی نیست\n"
                 text += "• می‌توانید هر زمان آن را غیرفعال کنید\n\n"
                 
-                text += f"📊 **دسترسی‌های این توکن:**\n"
+                text += "📊 **دسترسی‌های این توکن:**\n"
                 permissions = self._get_token_permissions(token_type)
                 for perm in permissions:
                     text += f"• {perm}\n"
@@ -220,7 +220,7 @@ class TokenDashboardHandler(BaseHandler):
                 ])
                 
             else:
-                text = f"❌ **خطا در تولید توکن**\n\n"
+                text = "❌ **خطا در تولید توکن**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}\n\n"
                 text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
                 
@@ -266,7 +266,7 @@ class TokenDashboardHandler(BaseHandler):
                         if token.get('expires_at'):
                             text += f"   ⏰ انقضا: {token.get('expires_at')[:16]}\n"
                         else:
-                            text += f"   ♾ انقضا: بدون محدودیت\n"
+                            text += "   ♾ انقضا: بدون محدودیت\n"
                         
                         text += f"   📊 استفاده: {token.get('usage_count', 0)} بار\n\n"
                         
@@ -278,7 +278,7 @@ class TokenDashboardHandler(BaseHandler):
                     text += "❌ هیچ توکن فعالی یافت نشد!\n\n"
                     text += "💡 برای شروع، یک توکن جدید ایجاد کنید."
             else:
-                text += f"❌ خطا در دریافت لیست توکن‌ها\n\n"
+                text += "❌ خطا در دریافت لیست توکن‌ها\n\n"
                 text += f"علت: {tokens_result.get('error', 'نامشخص')}"
             
             keyboard = InlineKeyboardMarkup([
@@ -848,7 +848,7 @@ class TokenDashboardHandler(BaseHandler):
             
             token_id = query.data.split('_')[2]
             
-            text = f"📋 **کپی توکن**\n\n"
+            text = "📋 **کپی توکن**\n\n"
             text += f"🆔 **شناسه:** {token_id}\n\n"
             text += "⚠️ **نکته:** توکن به کلیپ‌برد شما کپی نشده است.\n"
             text += "لطفاً از منوی جزئیات توکن استفاده کنید تا توکن کامل را مشاهده کنید."
@@ -877,7 +877,7 @@ class TokenDashboardHandler(BaseHandler):
             if result.get('success'):
                 token = result.get('token', {})
                 
-                text = f"📊 **جزئیات توکن**\n\n"
+                text = "📊 **جزئیات توکن**\n\n"
                 text += f"🆔 **شناسه:** `{token.get('token_id', token_id)}`\n"
                 text += f"🏷 **نوع:** {self._get_token_type_name(token.get('type', 'user'))}\n"
                 text += f"📝 **نام:** {token.get('name', 'بدون نام')}\n"
@@ -886,7 +886,7 @@ class TokenDashboardHandler(BaseHandler):
                 if token.get('expires_at'):
                     text += f"⏰ **انقضا:** {token.get('expires_at')[:16]}\n"
                 else:
-                    text += f"♾ **انقضا:** بدون محدودیت\n"
+                    text += "♾ **انقضا:** بدون محدودیت\n"
                 
                 text += f"📊 **تعداد استفاده:** {token.get('usage_count', 0)}\n"
                 
@@ -895,10 +895,10 @@ class TokenDashboardHandler(BaseHandler):
                 
                 text += f"🟢 **وضعیت:** {'فعال' if token.get('is_active', True) else 'غیرفعال'}\n\n"
                 
-                text += f"🔑 **توکن کامل:**\n"
+                text += "🔑 **توکن کامل:**\n"
                 text += f"`{token.get('token', 'نامشخص')}`\n\n"
                 
-                text += f"📊 **دسترسی‌ها:**\n"
+                text += "📊 **دسترسی‌ها:**\n"
                 permissions = self._get_token_permissions(token.get('type', 'user'))
                 for perm in permissions:
                     text += f"• {perm}\n"
@@ -917,7 +917,7 @@ class TokenDashboardHandler(BaseHandler):
                     ]
                 ])
             else:
-                text = f"❌ **خطا در دریافت اطلاعات توکن**\n\n"
+                text = "❌ **خطا در دریافت اطلاعات توکن**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}"
                 
                 keyboard = InlineKeyboardMarkup([[
@@ -946,7 +946,7 @@ class TokenDashboardHandler(BaseHandler):
             if result.get('success'):
                 token = result.get('token', {})
                 
-                text = f"✏️ **ویرایش توکن**\n\n"
+                text = "✏️ **ویرایش توکن**\n\n"
                 text += f"🆔 **شناسه:** `{token_id}`\n"
                 text += f"📝 **نام فعلی:** {token.get('name', 'بدون نام')}\n"
                 text += f"🏷 **نوع فعلی:** {self._get_token_type_name(token.get('type', 'user'))}\n"
@@ -990,7 +990,7 @@ class TokenDashboardHandler(BaseHandler):
             
             token_id = query.data.split('_')[2]
             
-            text = f"📝 **ویرایش نام توکن**\n\n"
+            text = "📝 **ویرایش نام توکن**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
             text += "لطفاً نام جدید توکن را انتخاب کنید یا نام سفارشی وارد نمایید:\n\n"
             text += "💡 **نکات:**\n"
@@ -1034,7 +1034,7 @@ class TokenDashboardHandler(BaseHandler):
             
             token_id = query.data.split('_')[2]
             
-            text = f"⏰ **ویرایش انقضای توکن**\n\n"
+            text = "⏰ **ویرایش انقضای توکن**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
             text += "لطفاً زمان انقضای جدید را انتخاب کنید:\n\n"
             text += "⚠️ **نکات مهم:**\n"
@@ -1077,7 +1077,7 @@ class TokenDashboardHandler(BaseHandler):
             result = await self.token_manager.get_token_details(token_id)
             current_type = result.get('token', {}).get('type', 'user') if result.get('success') else 'user'
             
-            text = f"🏷 **تغییر نوع توکن**\n\n"
+            text = "🏷 **تغییر نوع توکن**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n"
             text += f"🔹 **نوع فعلی:** {self._get_token_type_name(current_type)}\n\n"
             text += "لطفاً نوع جدید توکن را انتخاب کنید:\n\n"
@@ -1132,7 +1132,7 @@ class TokenDashboardHandler(BaseHandler):
             current_quota = result.get('token', {}).get('usage_quota', 0) if result.get('success') else 0
             quota_text = f"{current_quota:,}" if current_quota > 0 else "نامحدود"
             
-            text = f"📊 **تنظیم کوتای استفاده توکن**\n\n"
+            text = "📊 **تنظیم کوتای استفاده توکن**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n"
             text += f"📈 **کوتای فعلی:** {quota_text}\n\n"
             text += "لطفاً کوتای جدید (حد مجاز استفاده روزانه) را انتخاب کنید:\n\n"
@@ -1193,9 +1193,9 @@ class TokenDashboardHandler(BaseHandler):
                 result = await self.token_manager.update_token_settings(token_id, user_data)
                 
                 if result.get('success'):
-                    text = f"✅ **تغییرات با موفقیت اعمال شد**\n\n"
+                    text = "✅ **تغییرات با موفقیت اعمال شد**\n\n"
                     text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
-                    text += f"📝 **تغییرات اعمال شده:**\n"
+                    text += "📝 **تغییرات اعمال شده:**\n"
                     
                     for field, value in user_data.items():
                         if field == 'name':
@@ -1223,7 +1223,7 @@ class TokenDashboardHandler(BaseHandler):
                         ]
                     ])
                 else:
-                    text = f"❌ **خطا در اعمال تغییرات**\n\n"
+                    text = "❌ **خطا در اعمال تغییرات**\n\n"
                     text += f"علت: {result.get('error', 'نامشخص')}\n\n"
                     text += "لطفاً دوباره تلاش کنید یا با مدیر سیستم تماس بگیرید."
                     
@@ -1259,7 +1259,7 @@ class TokenDashboardHandler(BaseHandler):
             if result.get('success'):
                 token = result.get('token', {})
                 
-                text = f"🔒 **غیرفعال‌سازی توکن**\n\n"
+                text = "🔒 **غیرفعال‌سازی توکن**\n\n"
                 text += f"🆔 **شناسه:** `{token_id}`\n"
                 text += f"📝 **نام:** {token.get('name', 'بدون نام')}\n"
                 text += f"🏷 **نوع:** {self._get_token_type_name(token.get('type', 'user'))}\n"
@@ -1302,7 +1302,7 @@ class TokenDashboardHandler(BaseHandler):
             result = await self.token_manager.deactivate_token(token_id)
             
             if result.get('success'):
-                text = f"✅ **توکن غیرفعال شد**\n\n"
+                text = "✅ **توکن غیرفعال شد**\n\n"
                 text += f"🆔 **شناسه توکن:** `{token_id}`\n"
                 text += f"📅 **زمان غیرفعال‌سازی:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                 text += "این توکن دیگر قابل استفاده نیست.\n"
@@ -1319,7 +1319,7 @@ class TokenDashboardHandler(BaseHandler):
                     ]
                 ])
             else:
-                text = f"❌ **خطا در غیرفعال‌سازی توکن**\n\n"
+                text = "❌ **خطا در غیرفعال‌سازی توکن**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}\n\n"
                 text += "لطفاً دوباره تلاش کنید."
                 
@@ -1354,23 +1354,23 @@ class TokenDashboardHandler(BaseHandler):
                 token_info = stats.get('token_info', {})
                 usage_stats = stats.get('usage_stats', {})
                 
-                text = f"📊 **آمار کامل توکن**\n\n"
+                text = "📊 **آمار کامل توکن**\n\n"
                 text += f"🆔 **شناسه:** `{token_id}`\n"
                 text += f"📝 **نام:** {token_info.get('name', 'بدون نام')}\n"
                 text += f"🏷 **نوع:** {self._get_token_type_name(token_info.get('type', 'user'))}\n\n"
                 
-                text += f"📈 **آمار استفاده:**\n"
+                text += "📈 **آمار استفاده:**\n"
                 text += f"• کل استفاده‌ها: {usage_stats.get('total_requests', 0):,}\n"
                 text += f"• استفاده امروز: {usage_stats.get('today_requests', 0):,}\n"
                 text += f"• استفاده این هفته: {usage_stats.get('week_requests', 0):,}\n"
                 text += f"• استفاده این ماه: {usage_stats.get('month_requests', 0):,}\n\n"
                 
-                text += f"🕐 **آمار زمانی:**\n"
+                text += "🕐 **آمار زمانی:**\n"
                 text += f"• آخرین استفاده: {usage_stats.get('last_used_at', 'هرگز')[:16] if usage_stats.get('last_used_at') else 'هرگز'}\n"
                 text += f"• میانگین استفاده روزانه: {usage_stats.get('daily_average', 0):.1f}\n"
                 text += f"• روزهای فعالیت: {usage_stats.get('active_days', 0)}\n\n"
                 
-                text += f"🌐 **آمار شبکه:**\n"
+                text += "🌐 **آمار شبکه:**\n"
                 text += f"• IP های مختلف: {usage_stats.get('unique_ips', 0)}\n"
                 text += f"• کشورهای مختلف: {usage_stats.get('unique_countries', 0)}\n"
                 text += f"• پربازدیدترین IP: {usage_stats.get('top_ip', 'نامشخص')}\n\n"
@@ -1379,7 +1379,7 @@ class TokenDashboardHandler(BaseHandler):
                     quota_used = usage_stats.get('quota_used', 0)
                     quota_limit = usage_stats.get('quota_limit', 0)
                     quota_percent = (quota_used / quota_limit) * 100 if quota_limit > 0 else 0
-                    text += f"📊 **وضعیت کوتا:**\n"
+                    text += "📊 **وضعیت کوتا:**\n"
                     text += f"• استفاده شده: {quota_used:,} از {quota_limit:,} ({quota_percent:.1f}%)\n"
                     text += f"• باقی‌مانده: {quota_limit - quota_used:,}\n\n"
                 
@@ -1426,7 +1426,7 @@ class TokenDashboardHandler(BaseHandler):
             if result.get('success'):
                 logs = result.get('data', [])
                 
-                text = f"📋 **لاگ دسترسی‌های توکن**\n\n"
+                text = "📋 **لاگ دسترسی‌های توکن**\n\n"
                 text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
                 
                 if logs:
@@ -1485,7 +1485,7 @@ class TokenDashboardHandler(BaseHandler):
                 anomalies = analysis.get('anomalies', [])
                 score = analysis.get('risk_score', 0)
                 
-                text = f"⚠️ **تحلیل ناهنجاری توکن**\n\n"
+                text = "⚠️ **تحلیل ناهنجاری توکن**\n\n"
                 text += f"🆔 **شناسه توکن:** `{token_id}`\n"
                 text += f"📊 **امتیاز ریسک:** {score}/100\n\n"
                 
@@ -1502,7 +1502,7 @@ class TokenDashboardHandler(BaseHandler):
                 text += f"🎯 **سطح ریسک:** {risk_level}\n\n"
                 
                 if anomalies:
-                    text += f"🚨 **ناهنجاری‌های شناسایی شده:**\n\n"
+                    text += "🚨 **ناهنجاری‌های شناسایی شده:**\n\n"
                     for i, anomaly in enumerate(anomalies, 1):
                         severity_icon = {"high": "🔴", "medium": "🟠", "low": "🟡"}.get(anomaly.get('severity', 'low'), "🟡")
                         text += f"{i}. {severity_icon} **{anomaly.get('type', 'نامشخص')}**\n"
@@ -1565,13 +1565,13 @@ class TokenDashboardHandler(BaseHandler):
             result = await self.token_manager.generate_token_report(token_id, report_format)
             
             if result.get('success'):
-                text = f"✅ **گزارش توکن تولید شد**\n\n"
+                text = "✅ **گزارش توکن تولید شد**\n\n"
                 text += f"🆔 **شناسه توکن:** `{token_id}`\n"
                 text += f"📄 **فرمت گزارش:** {report_format.upper()}\n"
                 text += f"📅 **تاریخ تولید:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                 
                 report_info = result.get('data', {})
-                text += f"📊 **مشخصات گزارش:**\n"
+                text += "📊 **مشخصات گزارش:**\n"
                 text += f"• حجم فایل: {report_info.get('file_size', 'نامشخص')}\n"
                 text += f"• تعداد صفحات: {report_info.get('pages', 'نامشخص')}\n"
                 text += f"• شامل: {report_info.get('includes', 'آمار کامل')}\n\n"
@@ -1594,7 +1594,7 @@ class TokenDashboardHandler(BaseHandler):
                     ]
                 ])
             else:
-                text = f"❌ **خطا در تولید گزارش**\n\n"
+                text = "❌ **خطا در تولید گزارش**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}\n\n"
                 text += "لطفاً دوباره تلاش کنید یا فرمت دیگری انتخاب نمایید."
                 
@@ -1643,7 +1643,7 @@ class TokenDashboardHandler(BaseHandler):
             
             context.user_data[f'token_changes_{token_id}']['name'] = new_name
             
-            text = f"✅ **نام جدید تنظیم شد**\n\n"
+            text = "✅ **نام جدید تنظیم شد**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n"
             text += f"📝 **نام جدید:** {new_name}\n\n"
             text += "⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
@@ -1693,12 +1693,12 @@ class TokenDashboardHandler(BaseHandler):
             
             context.user_data[f'token_changes_{token_id}']['expires_at'] = expiry_text
             
-            text = f"⏰ **انقضای جدید تنظیم شد**\n\n"
+            text = "⏰ **انقضای جدید تنظیم شد**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n"
             text += f"📅 **انقضای جدید:** {expiry_persian}\n"
             if expiry_text:
                 text += f"🕐 **تاریخ دقیق:** {expiry_text}\n"
-            text += f"\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
+            text += "\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -1733,16 +1733,16 @@ class TokenDashboardHandler(BaseHandler):
             
             context.user_data[f'token_changes_{token_id}']['type'] = new_type
             
-            text = f"🏷 **نوع جدید تنظیم شد**\n\n"
+            text = "🏷 **نوع جدید تنظیم شد**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n"
             text += f"🔹 **نوع جدید:** {self._get_token_type_name(new_type)}\n\n"
             
-            text += f"📊 **دسترسی‌های جدید:**\n"
+            text += "📊 **دسترسی‌های جدید:**\n"
             permissions = self._get_token_permissions(new_type)
             for perm in permissions:
                 text += f"• {perm}\n"
             
-            text += f"\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
+            text += "\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -1779,19 +1779,19 @@ class TokenDashboardHandler(BaseHandler):
             
             quota_text = f"{quota_amount:,} درخواست در روز" if quota_amount > 0 else "نامحدود"
             
-            text = f"📊 **کوتای جدید تنظیم شد**\n\n"
+            text = "📊 **کوتای جدید تنظیم شد**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n"
             text += f"📈 **کوتای جدید:** {quota_text}\n\n"
             
             if quota_amount > 0:
-                text += f"💡 **توضیحات:**\n"
+                text += "💡 **توضیحات:**\n"
                 text += f"• حداکثر {quota_amount:,} درخواست در هر 24 ساعت\n"
-                text += f"• پس از رسیدن به کوتا، توکن موقتاً غیرفعال می‌شود\n"
-                text += f"• کوتا هر روز در ساعت 00:00 بازنشانی می‌شود\n"
+                text += "• پس از رسیدن به کوتا، توکن موقتاً غیرفعال می‌شود\n"
+                text += "• کوتا هر روز در ساعت 00:00 بازنشانی می‌شود\n"
             else:
-                text += f"♾ **بدون محدودیت** - توکن می‌تواند نامحدود استفاده شود"
+                text += "♾ **بدون محدودیت** - توکن می‌تواند نامحدود استفاده شود"
             
-            text += f"\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
+            text += "\n⚠️ **توجه:** برای اعمال تغییرات روی دکمه \"💾 اعمال تغییرات\" کلیک کنید."
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -1819,7 +1819,7 @@ class TokenDashboardHandler(BaseHandler):
             
             token_id = query.data.split('_')[2]
             
-            text = f"ℹ️ **مقایسه انواع توکن‌ها**\n\n"
+            text = "ℹ️ **مقایسه انواع توکن‌ها**\n\n"
             text += f"🆔 **برای توکن:** `{token_id}`\n\n"
             
             # مقایسه انواع مختلف
@@ -1868,7 +1868,7 @@ class TokenDashboardHandler(BaseHandler):
             for type_key, info in types_info.items():
                 text += f"{info['name']}\n"
                 text += f"📋 {info['level']}\n"
-                text += f"🔹 ویژگی‌ها:\n"
+                text += "🔹 ویژگی‌ها:\n"
                 for feature in info['features']:
                     text += f"  • {feature}\n"
                 text += "\n"
@@ -1901,7 +1901,7 @@ class TokenDashboardHandler(BaseHandler):
             
             token_id = query.data.split('_')[2]
             
-            text = f"✏️ **نام سفارشی توکن**\n\n"
+            text = "✏️ **نام سفارشی توکن**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
             text += "لطفاً نام جدید توکن را در پیام بعدی ارسال کنید:\n\n"
             text += "📋 **شرایط نام:**\n"
@@ -1933,7 +1933,7 @@ class TokenDashboardHandler(BaseHandler):
             
             token_id = query.data.split('_')[2]
             
-            text = f"📅 **تاریخ انقضای سفارشی**\n\n"
+            text = "📅 **تاریخ انقضای سفارشی**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
             text += "لطفاً تاریخ انقضا را در یکی از فرمت‌های زیر ارسال کنید:\n\n"
             text += "📅 **فرمت‌های مجاز:**\n"
@@ -1966,7 +1966,7 @@ class TokenDashboardHandler(BaseHandler):
             
             token_id = query.data.split('_')[2]
             
-            text = f"📊 **کوتای سفارشی**\n\n"
+            text = "📊 **کوتای سفارشی**\n\n"
             text += f"🆔 **شناسه توکن:** `{token_id}`\n\n"
             text += "لطفاً تعداد درخواست مجاز در روز را ارسال کنید:\n\n"
             text += "🔢 **فرمت‌های مجاز:**\n"
@@ -2003,7 +2003,7 @@ class TokenDashboardHandler(BaseHandler):
             result = await self.token_manager.reactivate_token(token_id)
             
             if result.get('success'):
-                text = f"✅ **توکن مجدداً فعال شد**\n\n"
+                text = "✅ **توکن مجدداً فعال شد**\n\n"
                 text += f"🆔 **شناسه توکن:** `{token_id}`\n"
                 text += f"📅 **زمان فعال‌سازی:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                 text += "این توکن اکنون دوباره قابل استفاده است."
@@ -2018,7 +2018,7 @@ class TokenDashboardHandler(BaseHandler):
                     ]
                 ])
             else:
-                text = f"❌ **خطا در فعال‌سازی مجدد توکن**\n\n"
+                text = "❌ **خطا در فعال‌سازی مجدد توکن**\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}\n\n"
                 text += "لطفاً دوباره تلاش کنید."
                 
@@ -2146,12 +2146,12 @@ class TokenDashboardHandler(BaseHandler):
                     InlineKeyboardButton("🔙 بازگشت", callback_data="select_from_list_deactivate")
                 ]])
             else:
-                text = f"🔒 **تأیید غیرفعال‌سازی دسته‌ای**\n\n"
+                text = "🔒 **تأیید غیرفعال‌سازی دسته‌ای**\n\n"
                 text += f"تعداد توکن‌های انتخاب شده: {len(selected_tokens)}\n\n"
-                text += f"⚠️ **هشدار:**\n"
-                text += f"• تمام توکن‌های انتخاب شده غیرفعال خواهند شد\n"
-                text += f"• درخواست‌های آن‌ها رد خواهد شد\n"
-                text += f"• امکان فعال‌سازی مجدد وجود دارد\n\n"
+                text += "⚠️ **هشدار:**\n"
+                text += "• تمام توکن‌های انتخاب شده غیرفعال خواهند شد\n"
+                text += "• درخواست‌های آن‌ها رد خواهد شد\n"
+                text += "• امکان فعال‌سازی مجدد وجود دارد\n\n"
                 text += f"آیا از غیرفعال‌سازی {len(selected_tokens)} توکن اطمینان دارید؟"
                 
                 keyboard = InlineKeyboardMarkup([
@@ -2189,14 +2189,14 @@ class TokenDashboardHandler(BaseHandler):
                     failed_count = result.get('failed_count', 0)
                     failed_tokens = result.get('failed_tokens', [])
                     
-                    text = f"✅ **غیرفعال‌سازی دسته‌ای تکمیل شد**\n\n"
-                    text += f"📊 **نتایج:**\n"
+                    text = "✅ **غیرفعال‌سازی دسته‌ای تکمیل شد**\n\n"
+                    text += "📊 **نتایج:**\n"
                     text += f"• موفق: {successful_count} توکن\n"
                     text += f"• ناموفق: {failed_count} توکن\n"
                     text += f"• زمان اجرا: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                     
                     if failed_tokens:
-                        text += f"❌ **توکن‌های ناموفق:**\n"
+                        text += "❌ **توکن‌های ناموفق:**\n"
                         for token_id, error in failed_tokens.items():
                             text += f"• {token_id}: {error}\n"
                     
@@ -2215,7 +2215,7 @@ class TokenDashboardHandler(BaseHandler):
                         ]
                     ])
                 else:
-                    text = f"❌ **خطا در غیرفعال‌سازی دسته‌ای**\n\n"
+                    text = "❌ **خطا در غیرفعال‌سازی دسته‌ای**\n\n"
                     text += f"علت: {result.get('error', 'نامشخص')}\n\n"
                     text += "لطفاً دوباره تلاش کنید یا تک تک توکن‌ها را غیرفعال کنید."
                     
@@ -2327,7 +2327,7 @@ class TokenDashboardHandler(BaseHandler):
             if result.get('success'):
                 tokens = result.get('data', [])
                 
-                text = f"⏰ **تمدید دسته‌ای 7 روزه**\n\n"
+                text = "⏰ **تمدید دسته‌ای 7 روزه**\n\n"
                 text += f"تعداد توکن‌های قابل تمدید: {len(tokens)}\n\n"
                 text += "روش انتخاب توکن‌ها را انتخاب کنید:\n\n"
                 text += "💡 **گزینه‌ها:**\n"
@@ -2475,7 +2475,7 @@ class TokenDashboardHandler(BaseHandler):
                     InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
                 ]])
             else:
-                text = f"⏰ **تأیید تمدید دسته‌ای**\n\n"
+                text = "⏰ **تأیید تمدید دسته‌ای**\n\n"
                 text += f"تعداد توکن‌های انتخاب شده: {len(selected_tokens)}\n"
                 text += f"مدت تمدید: {extend_days} روز\n\n"
                 text += f"آیا از تمدید {len(selected_tokens)} توکن اطمینان دارید؟"
@@ -2515,8 +2515,8 @@ class TokenDashboardHandler(BaseHandler):
                     successful_count = result.get('successful_count', 0)
                     failed_count = result.get('failed_count', 0)
                     
-                    text = f"✅ **تمدید دسته‌ای تکمیل شد**\n\n"
-                    text += f"📊 **نتایج:**\n"
+                    text = "✅ **تمدید دسته‌ای تکمیل شد**\n\n"
+                    text += "📊 **نتایج:**\n"
                     text += f"• موفق: {successful_count} توکن\n"
                     text += f"• ناموفق: {failed_count} توکن\n"
                     text += f"• مدت تمدید: {extend_days} روز\n"
@@ -2597,6 +2597,210 @@ class TokenDashboardHandler(BaseHandler):
             logger.error(f"Error in handle_clear_extend_selection: {e}")
             await self.handle_error(update, context, e)
     
+    # === EXTEND HANDLERS FOR DIFFERENT DURATIONS ===
+    
+    async def handle_bulk_extend_30d(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تمدید دسته‌ای 30 روزه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            context.user_data['extend_days'] = 30
+            await self._show_extend_selection_menu(update, context, 30)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_extend_30d: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_extend_90d(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تمدید دسته‌ای 90 روزه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            context.user_data['extend_days'] = 90
+            await self._show_extend_selection_menu(update, context, 90)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_extend_90d: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_extend_365d(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تمدید دسته‌ای 365 روزه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            context.user_data['extend_days'] = 365
+            await self._show_extend_selection_menu(update, context, 365)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_extend_365d: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_extend_unlimited(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تمدید دسته‌ای نامحدود"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            context.user_data['extend_days'] = 0  # 0 = unlimited
+            await self._show_extend_selection_menu(update, context, 0)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_extend_unlimited: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_bulk_extend_custom(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تمدید دسته‌ای با مدت سفارشی"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🎯 **تمدید سفارشی**\n\n"
+            text += "لطفاً تعداد روزهای دلخواه برای تمدید را وارد کنید:\n\n"
+            text += "💡 **نکات:**\n"
+            text += "• عدد باید بین 1 تا 3650 باشد (10 سال)\n"
+            text += "• برای نامحدود، عدد 0 را وارد کنید\n"
+            text += "• فقط عدد وارد کنید (بدون کلمه یا علامت)\n\n"
+            text += "📝 **مثال:** برای تمدید 45 روزه، عدد `45` را بنویسید"
+            
+            # Set flag for awaiting custom days input
+            context.user_data['awaiting_custom_extend_days'] = True
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("❌ انصراف", callback_data="bulk_extend_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_extend_custom: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def _show_extend_selection_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE, days: int):
+        """نمایش منوی انتخاب توکن‌ها برای تمدید"""
+        try:
+            query = update.callback_query
+            
+            result = await self.token_manager.get_extendable_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                
+                days_text = "نامحدود" if days == 0 else f"{days} روز"
+                
+                text = f"⏰ **تمدید دسته‌ای {days_text}**\n\n"
+                text += f"تعداد توکن‌های قابل تمدید: {len(tokens)}\n\n"
+                text += "روش انتخاب توکن‌ها را انتخاب کنید:\n\n"
+                text += "💡 **گزینه‌ها:**\n"
+                text += "• **انتخاب دستی:** خودتان توکن‌ها را انتخاب کنید\n"
+                text += "• **همه:** تمام توکن‌های قابل تمدید\n"
+                text += "• **منقضی شدنی:** توکن‌هایی که تا 7 روز دیگر منقضی می‌شوند"
+                
+                callback_suffix = f"_{days}d" if days > 0 else "_unlimited"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 انتخاب دستی", callback_data=f"select_tokens_extend{callback_suffix}"),
+                        InlineKeyboardButton("🔄 همه توکن‌ها", callback_data=f"extend_all{callback_suffix}")
+                    ],
+                    [
+                        InlineKeyboardButton("⚠️ منقضی شدنی", callback_data=f"extend_expiring{callback_suffix}"),
+                        InlineKeyboardButton("🎯 بر اساس نوع", callback_data=f"extend_by_type{callback_suffix}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in _show_extend_selection_menu: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_custom_extend_days_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش ورودی تعداد روزهای سفارشی"""
+        try:
+            if not context.user_data.get('awaiting_custom_extend_days'):
+                return False
+            
+            user_input = update.message.text.strip()
+            
+            # Validate input
+            try:
+                days = int(user_input)
+                if days < 0 or days > 3650:
+                    await update.message.reply_text(
+                        "❌ **عدد نامعتبر!**\n\n"
+                        "لطفاً عددی بین 0 تا 3650 وارد کنید.\n"
+                        "0 = نامحدود، 1-3650 = تعداد روز",
+                        parse_mode='Markdown'
+                    )
+                    return True
+                
+                # Valid input
+                context.user_data['extend_days'] = days
+                context.user_data['awaiting_custom_extend_days'] = False
+                
+                # Show selection menu
+                days_text = "نامحدود" if days == 0 else f"{days} روز"
+                
+                result = await self.token_manager.get_extendable_tokens()
+                
+                if result.get('success'):
+                    tokens = result.get('data', [])
+                    
+                    text = f"⏰ **تمدید سفارشی {days_text}**\n\n"
+                    text += f"تعداد توکن‌های قابل تمدید: {len(tokens)}\n\n"
+                    text += "روش انتخاب توکن‌ها را انتخاب کنید:"
+                    
+                    callback_suffix = f"_{days}d" if days > 0 else "_unlimited"
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📋 انتخاب دستی", callback_data=f"select_tokens_extend{callback_suffix}"),
+                            InlineKeyboardButton("🔄 همه توکن‌ها", callback_data=f"extend_all{callback_suffix}")
+                        ],
+                        [
+                            InlineKeyboardButton("⚠️ منقضی شدنی", callback_data=f"extend_expiring{callback_suffix}"),
+                            InlineKeyboardButton("🎯 بر اساس نوع", callback_data=f"extend_by_type{callback_suffix}")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                        ]
+                    ])
+                    
+                    await update.message.reply_text(text, reply_markup=keyboard, parse_mode='Markdown')
+                else:
+                    await update.message.reply_text(
+                        f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}",
+                        parse_mode='Markdown'
+                    )
+                
+                return True
+                
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ **ورودی نامعتبر!**\n\n"
+                    "لطفاً فقط عدد وارد کنید (مثال: 45)",
+                    parse_mode='Markdown'
+                )
+                return True
+            
+        except Exception as e:
+            logger.error(f"Error in handle_custom_extend_days_input: {e}")
+            await update.message.reply_text("❌ خطایی رخ داد! لطفاً دوباره تلاش کنید.")
+            return True
+    
     # === BULK EXPORT OPERATIONS ===
     
     async def handle_bulk_export(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2640,6 +2844,330 @@ class TokenDashboardHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Error in handle_bulk_export: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_export_format_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب فرمت صادرات"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # Extract format from callback_data
+            format_type = query.data.replace('export_format_', '')
+            context.user_data['export_format'] = format_type
+            
+            # Show token selection menu
+            result = await self.token_manager.get_active_tokens_list()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                
+                format_names = {
+                    'json': 'JSON',
+                    'csv': 'CSV',
+                    'pdf': 'PDF',
+                    'excel': 'Excel'
+                }
+                
+                text = f"📤 **صادرات {format_names.get(format_type, format_type.upper())}**\n\n"
+                text += f"تعداد کل توکن‌ها: {len(tokens)}\n\n"
+                text += "روش انتخاب توکن‌ها را مشخص کنید:\n\n"
+                text += "💡 **گزینه‌ها:**\n"
+                text += "• **انتخاب دستی:** خودتان توکن‌ها را انتخاب کنید\n"
+                text += "• **همه توکن‌ها:** صادرات تمام توکن‌ها\n"
+                text += "• **بر اساس نوع:** فیلتر بر اساس نوع توکن\n"
+                text += "• **بر اساس وضعیت:** فعال/غیرفعال/منقضی"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 انتخاب دستی", callback_data=f"export_select_manual_{format_type}"),
+                        InlineKeyboardButton("🔄 همه توکن‌ها", callback_data=f"export_all_{format_type}")
+                    ],
+                    [
+                        InlineKeyboardButton("🏷 بر اساس نوع", callback_data=f"export_by_type_{format_type}"),
+                        InlineKeyboardButton("📊 بر اساس وضعیت", callback_data=f"export_by_status_{format_type}")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_format_selection: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_export_all_tokens(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """صادرات همه توکن‌ها"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال آماده‌سازی فایل...")
+            
+            # Extract format from callback_data
+            format_type = query.data.split('_')[-1]
+            
+            # Get all tokens
+            result = await self.token_manager.get_all_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                token_ids = [token.get('id') for token in tokens]
+                
+                # Request export
+                export_result = await self.token_manager.bulk_export_tokens(
+                    token_ids=token_ids,
+                    format_type=format_type,
+                    include_stats=True
+                )
+                
+                if export_result.get('success'):
+                    text = "✅ **صادرات موفق**\n\n"
+                    text += "📊 **جزئیات:**\n"
+                    text += f"• تعداد توکن‌ها: {len(token_ids)}\n"
+                    text += f"• فرمت: {format_type.upper()}\n"
+                    text += f"• حجم فایل: {export_result.get('file_size', 'نامشخص')}\n"
+                    text += f"• تاریخ انقضا: {export_result.get('expires_at', '24 ساعت')}\n\n"
+                    text += f"🔗 **لینک دانلود:**\n{export_result.get('download_url', 'در حال تولید...')}\n\n"
+                    text += "⚠️ لینک دانلود پس از 24 ساعت منقضی می‌شود."
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📤 صادرات جدید", callback_data="bulk_export"),
+                            InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 منوی اصلی", callback_data="bulk_actions")
+                        ]
+                    ])
+                else:
+                    text = f"❌ **خطا در صادرات**\n\nعلت: {export_result.get('error', 'نامشخص')}"
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data=f"export_all_{format_type}"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                    ]])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_all_tokens: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_export_manual_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب دستی توکن‌ها برای صادرات"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # Extract format from callback_data
+            format_type = query.data.split('_')[-1]
+            context.user_data['export_format'] = format_type
+            
+            # Get all tokens
+            result = await self.token_manager.get_all_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                
+                if not tokens:
+                    text = "ℹ️ **هیچ توکنی یافت نشد**"
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                    ]])
+                else:
+                    text = "📋 **انتخاب توکن‌ها برای صادرات**\n\n"
+                    text += f"تعداد کل توکن‌ها: {len(tokens)}\n"
+                    text += f"فرمت: {format_type.upper()}\n\n"
+                    text += "روی توکن‌هایی که می‌خواهید صادر کنید کلیک کنید:\n\n"
+                    
+                    # Show checkbox list
+                    selected_tokens = context.user_data.get('bulk_export_selected', [])
+                    
+                    keyboard_rows = []
+                    for i, token in enumerate(tokens[:20]):  # Show first 20
+                        token_id = token.get('id')
+                        token_name = token.get('name', f'توکن {token_id[:8]}')
+                        is_selected = token_id in selected_tokens
+                        
+                        checkbox = "☑️" if is_selected else "☐"
+                        keyboard_rows.append([
+                            InlineKeyboardButton(
+                                f"{checkbox} {token_name}",
+                                callback_data=f"toggle_export_{token_id}"
+                            )
+                        ])
+                    
+                    # Control buttons
+                    control_row = []
+                    if selected_tokens:
+                        control_row.extend([
+                            InlineKeyboardButton(f"✅ صادرات ({len(selected_tokens)})", callback_data="confirm_export"),
+                            InlineKeyboardButton("❌ پاک کردن", callback_data="clear_export_selection")
+                        ])
+                    
+                    keyboard_rows.extend([
+                        control_row,
+                        [
+                            InlineKeyboardButton("🔄 انتخاب همه", callback_data="select_all_export"),
+                            InlineKeyboardButton("🔙 بازگشت", callback_data=f"export_format_{format_type}")
+                        ]
+                    ])
+                    
+                    keyboard = InlineKeyboardMarkup([row for row in keyboard_rows if row])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_export_manual_selection: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_toggle_export_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تغییر وضعیت انتخاب توکن برای صادرات"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.replace('toggle_export_', '')
+            
+            # Manage selection list
+            if 'bulk_export_selected' not in context.user_data:
+                context.user_data['bulk_export_selected'] = []
+            
+            selected = context.user_data['bulk_export_selected']
+            if token_id in selected:
+                selected.remove(token_id)
+            else:
+                selected.append(token_id)
+            
+            # Refresh page
+            format_type = context.user_data.get('export_format', 'json')
+            query.data = f"export_select_manual_{format_type}"
+            await self.handle_export_manual_selection(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_toggle_export_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_select_all_export(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب همه توکن‌ها برای صادرات"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال انتخاب همه توکن‌ها...")
+            
+            result = await self.token_manager.get_all_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                token_ids = [token.get('id') for token in tokens]
+                
+                context.user_data['bulk_export_selected'] = token_ids
+                
+                # Refresh page
+                format_type = context.user_data.get('export_format', 'json')
+                query.data = f"export_select_manual_{format_type}"
+                await self.handle_export_manual_selection(update, context)
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                ]])
+                await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_select_all_export: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_clear_export_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پاک کردن انتخاب‌های صادرات"""
+        try:
+            query = update.callback_query
+            await query.answer("انتخاب‌ها پاک شد")
+            
+            if 'bulk_export_selected' in context.user_data:
+                context.user_data['bulk_export_selected'] = []
+            
+            # Refresh page
+            format_type = context.user_data.get('export_format', 'json')
+            query.data = f"export_select_manual_{format_type}"
+            await self.handle_export_manual_selection(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_clear_export_selection: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_export(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید و اجرای صادرات"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال آماده‌سازی فایل...")
+            
+            selected_tokens = context.user_data.get('bulk_export_selected', [])
+            format_type = context.user_data.get('export_format', 'json')
+            
+            if not selected_tokens:
+                text = "⚠️ **هیچ توکنی انتخاب نشده**"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                ]])
+            else:
+                # Request export
+                export_result = await self.token_manager.bulk_export_tokens(
+                    token_ids=selected_tokens,
+                    format_type=format_type,
+                    include_stats=True
+                )
+                
+                if export_result.get('success'):
+                    text = "✅ **صادرات موفق**\n\n"
+                    text += "📊 **جزئیات:**\n"
+                    text += f"• تعداد توکن‌ها: {len(selected_tokens)}\n"
+                    text += f"• فرمت: {format_type.upper()}\n"
+                    text += f"• حجم فایل: {export_result.get('file_size', 'نامشخص')}\n"
+                    text += f"• تاریخ انقضا: {export_result.get('expires_at', '24 ساعت')}\n\n"
+                    text += f"🔗 **لینک دانلود:**\n{export_result.get('download_url', 'در حال تولید...')}\n\n"
+                    text += "⚠️ لینک دانلود پس از 24 ساعت منقضی می‌شود."
+                    
+                    # Clear selections
+                    if 'bulk_export_selected' in context.user_data:
+                        del context.user_data['bulk_export_selected']
+                    if 'export_format' in context.user_data:
+                        del context.user_data['export_format']
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📤 صادرات جدید", callback_data="bulk_export"),
+                            InlineKeyboardButton("📋 لیست توکن‌ها", callback_data="list_all_tokens")
+                        ],
+                        [
+                            InlineKeyboardButton("🔙 منوی اصلی", callback_data="bulk_actions")
+                        ]
+                    ])
+                else:
+                    text = f"❌ **خطا در صادرات**\n\nعلت: {export_result.get('error', 'نامشخص')}"
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔄 تلاش مجدد", callback_data="confirm_export"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_export")
+                    ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_export: {e}")
             await self.handle_error(update, context, e)
 
     # === HELPER METHOD UPDATE ===

@@ -12,8 +12,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 from collections import defaultdict, Counter
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from telegram.constants import ParseMode
 
 logger = logging.getLogger(__name__)
 
