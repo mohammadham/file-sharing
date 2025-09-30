@@ -2035,6 +2035,330 @@ class TokenDashboardHandler(BaseHandler):
             logger.error(f"Error in handle_reactivate_token: {e}")
             await self.handle_error(update, context, e)
     
+    # === BULK DEACTIVATE OPERATIONS ===
+    
+    async def handle_select_from_list_deactivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """انتخاب دستی توکن‌ها برای غیرفعال‌سازی"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # دریافت لیست تمام توکن‌های فعال
+            result = await self.token_manager.get_active_tokens_list()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                
+                if not tokens:
+                    text = "ℹ️ **هیچ توکن فعالی یافت نشد**\n\n"
+                    text += "در حال حاضر توکن فعالی برای غیرفعال‌سازی وجود ندارد."
+                    
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_actions")
+                    ]])
+                else:
+                    text = "📋 **انتخاب توکن‌ها برای غیرفعال‌سازی**\n\n"
+                    text += f"تعداد کل توکن‌های فعال: {len(tokens)}\n\n"
+                    text += "روی توکن‌هایی که می‌خواهید غیرفعال کنید کلیک کنید:\n\n"
+                    
+                    # نمایش لیست توکن‌ها با checkbox
+                    selected_tokens = context.user_data.get('bulk_deactivate_selected', [])
+                    
+                    keyboard_rows = []
+                    for i, token in enumerate(tokens[:20]):  # حداکثر 20 توکن در هر صفحه
+                        token_id = token.get('id')
+                        token_name = token.get('name', f'توکن {token_id}')
+                        is_selected = token_id in selected_tokens
+                        
+                        checkbox = "☑️" if is_selected else "☐"
+                        keyboard_rows.append([
+                            InlineKeyboardButton(
+                                f"{checkbox} {token_name} ({token_id})",
+                                callback_data=f"toggle_deactivate_{token_id}"
+                            )
+                        ])
+                    
+                    # دکمه‌های کنترل
+                    control_row = []
+                    if selected_tokens:
+                        control_row.extend([
+                            InlineKeyboardButton(f"✅ غیرفعال‌سازی ({len(selected_tokens)})", callback_data="confirm_bulk_deactivate"),
+                            InlineKeyboardButton("❌ پاک کردن انتخاب‌ها", callback_data="clear_deactivate_selection")
+                        ])
+                    
+                    keyboard_rows.extend([
+                        control_row,
+                        [
+                            InlineKeyboardButton("🔄 انتخاب همه", callback_data="select_all_deactivate"),
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_deactivate_tokens")
+                        ]
+                    ])
+                    
+                    keyboard = InlineKeyboardMarkup([row for row in keyboard_rows if row])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_deactivate_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_select_from_list_deactivate: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_toggle_deactivate_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تغییر وضعیت انتخاب توکن برای غیرفعال‌سازی"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            token_id = query.data.replace('toggle_deactivate_', '')
+            
+            # مدیریت لیست انتخاب شده
+            if 'bulk_deactivate_selected' not in context.user_data:
+                context.user_data['bulk_deactivate_selected'] = []
+            
+            selected = context.user_data['bulk_deactivate_selected']
+            if token_id in selected:
+                selected.remove(token_id)
+            else:
+                selected.append(token_id)
+            
+            # بازنمایی صفحه با وضعیت جدید
+            await self.handle_select_from_list_deactivate(update, context)
+            
+        except Exception as e:
+            logger.error(f"Error in handle_toggle_deactivate_token: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_bulk_deactivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تأیید غیرفعال‌سازی دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            selected_tokens = context.user_data.get('bulk_deactivate_selected', [])
+            
+            if not selected_tokens:
+                text = "⚠️ **هیچ توکنی انتخاب نشده**\n\nلطفاً ابتدا توکن‌هایی را برای غیرفعال‌سازی انتخاب کنید."
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="select_from_list_deactivate")
+                ]])
+            else:
+                text = f"🔒 **تأیید غیرفعال‌سازی دسته‌ای**\n\n"
+                text += f"تعداد توکن‌های انتخاب شده: {len(selected_tokens)}\n\n"
+                text += f"⚠️ **هشدار:**\n"
+                text += f"• تمام توکن‌های انتخاب شده غیرفعال خواهند شد\n"
+                text += f"• درخواست‌های آن‌ها رد خواهد شد\n"
+                text += f"• امکان فعال‌سازی مجدد وجود دارد\n\n"
+                text += f"آیا از غیرفعال‌سازی {len(selected_tokens)} توکن اطمینان دارید؟"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("✅ بله، غیرفعال کن", callback_data="execute_bulk_deactivate"),
+                        InlineKeyboardButton("❌ خیر، انصراف", callback_data="select_from_list_deactivate")
+                    ]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_bulk_deactivate: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_execute_bulk_deactivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """اجرای عملیات غیرفعال‌سازی دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال غیرفعال‌سازی توکن‌ها...")
+            
+            selected_tokens = context.user_data.get('bulk_deactivate_selected', [])
+            
+            if not selected_tokens:
+                text = "⚠️ **خطا: هیچ توکنی انتخاب نشده**"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_actions")
+                ]])
+            else:
+                # اجرای غیرفعال‌سازی دسته‌ای
+                result = await self.token_manager.bulk_deactivate_tokens(selected_tokens)
+                
+                if result.get('success'):
+                    successful_count = result.get('successful_count', 0)
+                    failed_count = result.get('failed_count', 0)
+                    failed_tokens = result.get('failed_tokens', [])
+                    
+                    text = f"✅ **غیرفعال‌سازی دسته‌ای تکمیل شد**\n\n"
+                    text += f"📊 **نتایج:**\n"
+                    text += f"• موفق: {successful_count} توکن\n"
+                    text += f"• ناموفق: {failed_count} توکن\n"
+                    text += f"• زمان اجرا: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    
+                    if failed_tokens:
+                        text += f"❌ **توکن‌های ناموفق:**\n"
+                        for token_id, error in failed_tokens.items():
+                            text += f"• {token_id}: {error}\n"
+                    
+                    # پاک کردن انتخاب‌ها
+                    if 'bulk_deactivate_selected' in context.user_data:
+                        del context.user_data['bulk_deactivate_selected']
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📋 مشاهده توکن‌ها", callback_data="list_all_tokens"),
+                            InlineKeyboardButton("🔄 غیرفعال‌سازی بیشتر", callback_data="bulk_deactivate_tokens")
+                        ],
+                        [
+                            InlineKeyboardButton("📊 آمار کلی", callback_data="token_dashboard"),
+                            InlineKeyboardButton("🔙 منوی اصلی", callback_data="bulk_actions")
+                        ]
+                    ])
+                else:
+                    text = f"❌ **خطا در غیرفعال‌سازی دسته‌ای**\n\n"
+                    text += f"علت: {result.get('error', 'نامشخص')}\n\n"
+                    text += "لطفاً دوباره تلاش کنید یا تک تک توکن‌ها را غیرفعال کنید."
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔄 تلاش مجدد", callback_data="execute_bulk_deactivate"),
+                            InlineKeyboardButton("🔙 بازگشت", callback_data="select_from_list_deactivate")
+                        ]
+                    ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_execute_bulk_deactivate: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_criteria_based_deactivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """غیرفعال‌سازی بر اساس معیار"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "🎯 **غیرفعال‌سازی بر اساس معیار**\n\n"
+            text += "معیار مورد نظر برای انتخاب خودکار توکن‌ها را انتخاب کنید:\n\n"
+            text += "💡 **انواع معیارها:**\n"
+            text += "• **منقضی شده:** توکن‌هایی که انقضا گذشته‌اند\n"
+            text += "• **غیرفعال طولانی:** توکن‌هایی که 30+ روز استفاده نشده‌اند\n"
+            text += "• **استفاده کم:** توکن‌هایی با کمتر از 10 استفاده\n"
+            text += "• **تکراری:** توکن‌های یک کاربر که بیش از 5 توکن دارد"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📅 منقضی شده", callback_data="criteria_deactivate_expired"),
+                    InlineKeyboardButton("💤 غیرفعال طولانی", callback_data="criteria_deactivate_inactive")
+                ],
+                [
+                    InlineKeyboardButton("📉 استفاده کم", callback_data="criteria_deactivate_lowusage"),
+                    InlineKeyboardButton("👥 تکراری", callback_data="criteria_deactivate_duplicate")
+                ],
+                [
+                    InlineKeyboardButton("🔧 معیار سفارشی", callback_data="criteria_deactivate_custom"),
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_deactivate_tokens")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_criteria_based_deactivate: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === BULK EXTEND OPERATIONS ===
+    
+    async def handle_bulk_extend_7d(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """تمدید دسته‌ای 7 روزه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # نمایش مرحله انتخاب توکن‌ها برای تمدید
+            result = await self.token_manager.get_extendable_tokens()
+            
+            if result.get('success'):
+                tokens = result.get('data', [])
+                
+                text = f"⏰ **تمدید دسته‌ای 7 روزه**\n\n"
+                text += f"تعداد توکن‌های قابل تمدید: {len(tokens)}\n\n"
+                text += "روش انتخاب توکن‌ها را انتخاب کنید:\n\n"
+                text += "💡 **گزینه‌ها:**\n"
+                text += "• **انتخاب دستی:** خودتان توکن‌ها را انتخاب کنید\n"
+                text += "• **همه:** تمام توکن‌های قابل تمدید\n"
+                text += "• **منقضی شدنی:** توکن‌هایی که تا 3 روز دیگر منقضی می‌شوند"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📋 انتخاب دستی", callback_data="select_tokens_extend_7d"),
+                        InlineKeyboardButton("🔄 همه توکن‌ها", callback_data="extend_all_7d")
+                    ],
+                    [
+                        InlineKeyboardButton("⚠️ منقضی شدنی", callback_data="extend_expiring_7d"),
+                        InlineKeyboardButton("🎯 بر اساس نوع", callback_data="extend_by_type_7d")
+                    ],
+                    [
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                    ]
+                ])
+            else:
+                text = f"❌ **خطا در دریافت توکن‌ها**\n\nعلت: {result.get('error', 'نامشخص')}"
+                keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_extend_tokens")
+                ]])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_extend_7d: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === BULK EXPORT OPERATIONS ===
+    
+    async def handle_bulk_export(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """منوی صادرات دسته‌ای"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            text = "📤 **صادرات دسته‌ای توکن‌ها**\n\n"
+            text += "فرمت مورد نظر برای صادرات را انتخاب کنید:\n\n"
+            text += "📋 **فرمت‌های موجود:**\n"
+            text += "• **JSON:** مناسب برای استفاده برنامه‌نویسی\n"
+            text += "• **CSV:** مناسب برای Excel و تحلیل داده\n"
+            text += "• **PDF:** مناسب برای ارائه و چاپ\n"
+            text += "• **Excel:** مناسب برای گزارش‌گیری پیشرفته\n\n"
+            text += "⚙️ **قابلیت‌ها:**\n"
+            text += "• انتخاب ستون‌های مورد نظر\n"
+            text += "• فیلتر بر اساس معیار\n"
+            text += "• آمار و نمودار (PDF/Excel)\n"
+            text += "• رمزگذاری فایل (اختیاری)"
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📄 JSON", callback_data="export_format_json"),
+                    InlineKeyboardButton("📊 CSV", callback_data="export_format_csv")
+                ],
+                [
+                    InlineKeyboardButton("📋 PDF", callback_data="export_format_pdf"),
+                    InlineKeyboardButton("📈 Excel", callback_data="export_format_excel")
+                ],
+                [
+                    InlineKeyboardButton("⚙️ تنظیمات پیشرفته", callback_data="export_advanced_settings"),
+                    InlineKeyboardButton("📅 زمان‌بندی صادرات", callback_data="schedule_export")
+                ],
+                [
+                    InlineKeyboardButton("🔙 بازگشت", callback_data="bulk_actions")
+                ]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_bulk_export: {e}")
+            await self.handle_error(update, context, e)
+
     # === HELPER METHOD UPDATE ===
     
     async def handle_confirm_new_token(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

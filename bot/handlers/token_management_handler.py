@@ -2503,3 +2503,118 @@ class TokenManagementHandler(BaseHandler):
         except Exception as e:
             logger.error(f"Error exporting search results: {e}")
             return {'success': False, 'error': str(e)}
+    
+    # === BULK OPERATIONS ===
+    
+    async def get_active_tokens_list(self) -> Dict[str, Any]:
+        """دریافت لیست توکن‌های فعال"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/active",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'data': data.get('tokens', [])}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting active tokens list: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def bulk_deactivate_tokens(self, token_ids: List[str]) -> Dict[str, Any]:
+        """غیرفعال‌سازی دسته‌ای توکن‌ها"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {'token_ids': token_ids}
+                async with session.post(
+                    f"{self.api_url}/api/admin/tokens/bulk-deactivate",
+                    headers=self.headers,
+                    json=payload
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {
+                            'success': True,
+                            'successful_count': data.get('successful_count', 0),
+                            'failed_count': data.get('failed_count', 0),
+                            'failed_tokens': data.get('failed_tokens', {})
+                        }
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error bulk deactivating tokens: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def get_extendable_tokens(self) -> Dict[str, Any]:
+        """دریافت توکن‌های قابل تمدید"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/admin/tokens/extendable",
+                    headers=self.headers
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {'success': True, 'data': data.get('tokens', [])}
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error getting extendable tokens: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def bulk_extend_expiry(self, token_ids: List[str], days: int) -> Dict[str, Any]:
+        """تمدید دسته‌ای توکن‌ها"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    'token_ids': token_ids,
+                    'extend_days': days
+                }
+                async with session.post(
+                    f"{self.api_url}/api/admin/tokens/bulk-extend",
+                    headers=self.headers,
+                    json=payload
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {
+                            'success': True,
+                            'successful_count': data.get('successful_count', 0),
+                            'failed_count': data.get('failed_count', 0),
+                            'failed_tokens': data.get('failed_tokens', {})
+                        }
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error bulk extending tokens: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def bulk_export_tokens(self, token_ids: List[str], format_type: str, include_stats: bool = False) -> Dict[str, Any]:
+        """صادرات دسته‌ای توکن‌ها"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    'token_ids': token_ids,
+                    'format': format_type,
+                    'include_statistics': include_stats
+                }
+                async with session.post(
+                    f"{self.api_url}/api/admin/tokens/bulk-export",
+                    headers=self.headers,
+                    json=payload
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return {
+                            'success': True,
+                            'download_url': data.get('download_url'),
+                            'file_size': data.get('file_size'),
+                            'expires_at': data.get('expires_at')
+                        }
+                    else:
+                        return {'success': False, 'error': f'HTTP {response.status}'}
+        except Exception as e:
+            logger.error(f"Error bulk exporting tokens: {e}")
+            return {'success': False, 'error': str(e)}
