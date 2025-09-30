@@ -195,28 +195,30 @@ class TokenSecurityAdvancedHandler(BaseHandler):
             query = update.callback_query
             await query.answer()
             
-            # دریافت لیست IP های سفید فعلی
-            result = await self.token_manager.get_whitelist_ips()
-            
             text = "📝 **مدیریت لیست سفید IP**\n\n"
             
-            if result.get('success'):
-                ips = result.get('ips', [])
+            # Get whitelist from security manager
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                ips = await security_manager.get_whitelist(active_only=True)
+                
                 text += f"📊 **تعداد IP های مجاز:** {len(ips)}\n\n"
                 
                 if ips:
                     text += "🟢 **IP های مجاز:**\n"
                     for i, ip_info in enumerate(ips[:5], 1):
-                        text += f"{i}. `{ip_info.get('ip', 'نامشخص')}`\n"
-                        text += f"   📅 اضافه شده: {ip_info.get('added_at', 'نامشخص')[:16]}\n"
-                        text += f"   📝 توضیح: {ip_info.get('description', 'بدون توضیح')}\n\n"
+                        text += f"{i}. `{ip_info.get('ip_address', 'نامشخص')}`\n"
+                        text += f"   📅 اضافه شده: {ip_info.get('created_at', 'نامشخص')[:16]}\n"
+                        if ip_info.get('description'):
+                            text += f"   📝 توضیح: {ip_info.get('description')}\n"
+                        text += "\n"
                     
                     if len(ips) > 5:
                         text += f"... و {len(ips) - 5} IP دیگر\n\n"
                 else:
                     text += "❌ هیچ IP مجازی تعریف نشده است!\n\n"
             else:
-                text += "❌ خطا در دریافت لیست IP ها\n\n"
+                text += "❌ خطا: سیستم امنیتی مقداردهی نشده است\n\n"
             
             text += "⚙️ **عملیات مدیریتی:**"
             
@@ -745,4 +747,385 @@ class TokenSecurityAdvancedHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Error in show_suspicious_analysis_menu: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === CALLBACK HANDLERS FOR PHASE 1 ===
+    
+    async def handle_set_default_expiry_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle callback for setting default expiry (set_def_expiry_1, set_def_expiry_7, etc.)"""
+        try:
+            query = update.callback_query
+            callback_data = query.data
+            
+            # Extract days from callback data
+            if callback_data == "set_def_expiry_custom":
+                # TODO: Implement custom expiry input via conversation handler
+                await query.answer("🚧 ورود سفارشی - در حال توسعه")
+                return
+            
+            # Parse days from callback: set_def_expiry_1 -> 1, set_def_expiry_0 -> 0 (unlimited)
+            try:
+                days = int(callback_data.split('_')[-1])
+            except (IndexError, ValueError):
+                await query.answer("❌ خطا در پردازش درخواست!")
+                return
+            
+            await query.answer("در حال ذخیره تنظیمات...")
+            
+            # Get security manager from database
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                success = await security_manager.set_default_expiry(days)
+                
+                if success:
+                    if days == 0:
+                        expiry_text = "نامحدود"
+                    else:
+                        expiry_text = f"{days} روز"
+                    
+                    text = f"✅ **تنظیم انقضای پیش‌فرض**\n\n"
+                    text += f"⏰ **مدت زمان انقضا:** {expiry_text}\n"
+                    text += f"📅 **زمان اعمال:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    text += "این تنظیم برای همه توکن‌های آینده اعمال خواهد شد."
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔄 تغییر مجدد", callback_data="set_default_expiry"),
+                            InlineKeyboardButton("✅ تایید", callback_data="security_menu")
+                        ]
+                    ])
+                else:
+                    text = "❌ **خطا در ذخیره تنظیمات**\n\nلطفاً دوباره تلاش کنید."
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 بازگشت", callback_data="set_default_expiry")]
+                    ])
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="security_menu")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_default_expiry_callback: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_set_usage_limit_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle callback for setting usage limit (limit_100, limit_1k, etc.)"""
+        try:
+            query = update.callback_query
+            callback_data = query.data
+            
+            # Handle custom limit
+            if callback_data == "limit_custom":
+                # TODO: Implement custom limit input via conversation handler
+                await query.answer("🚧 ورود سفارشی - در حال توسعه")
+                return
+            
+            # Parse limit from callback
+            limit_map = {
+                'limit_100': 100,
+                'limit_500': 500,
+                'limit_1k': 1000,
+                'limit_5k': 5000,
+                'limit_10k': 10000,
+                'limit_unlimited': 0
+            }
+            
+            limit = limit_map.get(callback_data)
+            if limit is None:
+                await query.answer("❌ خطا در پردازش درخواست!")
+                return
+            
+            await query.answer("در حال ذخیره تنظیمات...")
+            
+            # Get security manager from database
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                success = await security_manager.set_usage_limit(limit)
+                
+                if success:
+                    if limit == 0:
+                        limit_text = "نامحدود"
+                    elif limit >= 1000:
+                        limit_text = f"{limit // 1000}K"
+                    else:
+                        limit_text = str(limit)
+                    
+                    text = f"✅ **تنظیم حد استفاده**\n\n"
+                    text += f"🔢 **حد استفاده روزانه:** {limit_text}\n"
+                    text += f"📅 **زمان اعمال:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    text += "این محدودیت برای همه توکن‌ها اعمال خواهد شد."
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔄 تغییر مجدد", callback_data="set_usage_limit"),
+                            InlineKeyboardButton("✅ تایید", callback_data="security_menu")
+                        ]
+                    ])
+                else:
+                    text = "❌ **خطا در ذخیره تنظیمات**\n\nلطفاً دوباره تلاش کنید."
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 بازگشت", callback_data="set_usage_limit")]
+                    ])
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="security_menu")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_set_usage_limit_callback: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === IP WHITELIST CRUD HANDLERS ===
+    
+    async def handle_add_single_ip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Add single IP to whitelist - requires text input from user"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # Store state for conversation handler
+            context.user_data['awaiting_ip_input'] = 'single'
+            
+            text = "📝 **اضافه کردن IP به لیست سفید**\n\n"
+            text += "لطفاً IP address یا IP range (CIDR) را وارد کنید:\n\n"
+            text += "**مثال‌ها:**\n"
+            text += "• `192.168.1.100` (تک IP)\n"
+            text += "• `192.168.1.0/24` (محدوده IP)\n"
+            text += "• `10.0.0.0/8` (محدوده بزرگ)\n\n"
+            text += "برای انصراف، /cancel را ارسال کنید."
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ انصراف", callback_data="manage_whitelist_ip")]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_add_single_ip: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_remove_whitelist_ip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show list of whitelisted IPs for removal"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            # Get whitelist
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                whitelist = await security_manager.get_whitelist(active_only=True)
+                
+                if not whitelist:
+                    text = "📝 **لیست سفید IP خالی است**\n\n"
+                    text += "هیچ IP ای در لیست سفید وجود ندارد."
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("➕ اضافه کردن IP", callback_data="add_ip_to_whitelist")],
+                        [InlineKeyboardButton("🔙 بازگشت", callback_data="manage_whitelist_ip")]
+                    ])
+                else:
+                    text = f"📝 **لیست سفید IP ({len(whitelist)} مورد)**\n\n"
+                    text += "برای حذف، روی IP مورد نظر کلیک کنید:\n\n"
+                    
+                    keyboard_buttons = []
+                    for i, entry in enumerate(whitelist[:20]):  # Limit to 20 entries
+                        ip_display = entry['ip_address']
+                        if entry['description']:
+                            ip_display += f" - {entry['description'][:20]}"
+                        keyboard_buttons.append([
+                            InlineKeyboardButton(
+                                f"❌ {ip_display}", 
+                                callback_data=f"remove_wl_{entry['id']}"
+                            )
+                        ])
+                    
+                    keyboard_buttons.append([
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="manage_whitelist_ip")
+                    ])
+                    
+                    keyboard = InlineKeyboardMarkup(keyboard_buttons)
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="manage_whitelist_ip")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_remove_whitelist_ip: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_confirm_remove_whitelist_ip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Confirm and remove IP from whitelist"""
+        try:
+            query = update.callback_query
+            callback_data = query.data
+            
+            # Extract IP ID: remove_wl_<id>
+            whitelist_id = callback_data.replace('remove_wl_', '')
+            
+            await query.answer("در حال حذف IP...")
+            
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                success = await security_manager.remove_from_whitelist(whitelist_id)
+                
+                if success:
+                    text = "✅ **IP از لیست سفید حذف شد**\n\n"
+                    text += f"📅 **زمان حذف:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📝 مشاهده لیست", callback_data="remove_ip_from_whitelist"),
+                            InlineKeyboardButton("✅ تایید", callback_data="manage_whitelist_ip")
+                        ]
+                    ])
+                else:
+                    text = "❌ **خطا در حذف IP**\n\nلطفاً دوباره تلاش کنید."
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 بازگشت", callback_data="remove_ip_from_whitelist")]
+                    ])
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="manage_whitelist_ip")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_remove_whitelist_ip: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_view_whitelist(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """View all whitelisted IPs"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                whitelist = await security_manager.get_whitelist(active_only=True)
+                
+                if not whitelist:
+                    text = "📝 **لیست سفید IP خالی است**\n\n"
+                    text += "هیچ IP ای در لیست سفید وجود ندارد."
+                else:
+                    text = f"📝 **لیست سفید IP ({len(whitelist)} مورد)**\n\n"
+                    
+                    for i, entry in enumerate(whitelist[:15], 1):
+                        text += f"{i}. **IP:** `{entry['ip_address']}`\n"
+                        if entry['description']:
+                            text += f"   📝 {entry['description']}\n"
+                        text += f"   📅 {entry['created_at'][:16]}\n\n"
+                    
+                    if len(whitelist) > 15:
+                        text += f"\n... و {len(whitelist) - 15} مورد دیگر"
+                
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("➕ افزودن", callback_data="add_ip_to_whitelist"),
+                        InlineKeyboardButton("❌ حذف", callback_data="remove_ip_from_whitelist")
+                    ],
+                    [
+                        InlineKeyboardButton("🔄 تازه‌سازی", callback_data="view_whitelist"),
+                        InlineKeyboardButton("🔙 بازگشت", callback_data="manage_whitelist_ip")
+                    ]
+                ])
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="manage_whitelist_ip")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_view_whitelist: {e}")
+            await self.handle_error(update, context, e)
+    
+    # === IP RESTRICTION TOGGLE HANDLERS ===
+    
+    async def handle_enable_ip_restrictions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Enable IP restrictions"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال فعال‌سازی...")
+            
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                success = await security_manager.enable_ip_restrictions()
+                
+                if success:
+                    text = "✅ **محدودیت‌های IP فعال شد**\n\n"
+                    text += "🔒 از این پس، تنها IP های موجود در لیست سفید می‌توانند دسترسی داشته باشند.\n\n"
+                    text += f"📅 **زمان فعال‌سازی:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("📝 مدیریت لیست سفید", callback_data="manage_whitelist_ip"),
+                            InlineKeyboardButton("✅ تایید", callback_data="ip_restrictions")
+                        ]
+                    ])
+                else:
+                    text = "❌ **خطا در فعال‌سازی**\n\nلطفاً دوباره تلاش کنید."
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 بازگشت", callback_data="ip_restrictions")]
+                    ])
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="ip_restrictions")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_enable_ip_restrictions: {e}")
+            await self.handle_error(update, context, e)
+    
+    async def handle_disable_ip_restrictions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Disable IP restrictions"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال غیرفعال‌سازی...")
+            
+            if hasattr(self.db, 'security_manager'):
+                security_manager = self.db.security_manager
+                success = await security_manager.disable_ip_restrictions()
+                
+                if success:
+                    text = "❌ **محدودیت‌های IP غیرفعال شد**\n\n"
+                    text += "🔓 همه IP ها می‌توانند دسترسی داشته باشند (به جز IP های blacklist).\n\n"
+                    text += f"📅 **زمان غیرفعال‌سازی:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🟢 فعال‌سازی مجدد", callback_data="enable_ip_restrictions"),
+                            InlineKeyboardButton("✅ تایید", callback_data="ip_restrictions")
+                        ]
+                    ])
+                else:
+                    text = "❌ **خطا در غیرفعال‌سازی**\n\nلطفاً دوباره تلاش کنید."
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 بازگشت", callback_data="ip_restrictions")]
+                    ])
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="ip_restrictions")]
+                ])
+            
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error in handle_disable_ip_restrictions: {e}")
+            await self.handle_error(update, context, e)
             await self.handle_error(update, context, e)

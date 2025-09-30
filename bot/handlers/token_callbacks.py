@@ -447,7 +447,14 @@ class TokenCallbacks:
             elif callback_data == 'usage_limit_settings':
                 await self.handlers['security'].show_usage_limit_settings(update, context)
             elif callback_data.startswith('set_def_expiry_'):
-                await self.handlers['security_advanced'].show_set_default_expiry_menu(update, context) if callback_data == 'set_default_expiry' else await self.handlers['security'].handle_set_expiry_action(update, context)
+                # New Phase 1 handlers
+                if callback_data == 'set_default_expiry':
+                    await self.handlers['security_advanced'].show_set_default_expiry_menu(update, context)
+                else:
+                    await self.handlers['security_advanced'].handle_set_default_expiry_callback(update, context)
+            elif callback_data.startswith('limit_'):
+                # New Phase 1 handlers for usage limits
+                await self.handlers['security_advanced'].handle_set_usage_limit_callback(update, context)
             elif callback_data.startswith('set_usage_'):
                 await self.handlers['security_advanced'].show_set_usage_limit_menu(update, context) if callback_data == 'set_usage_limit' else await self.handlers['security'].handle_set_expiry_action(update, context)
             
@@ -458,8 +465,18 @@ class TokenCallbacks:
                 await self.handlers['security_advanced'].show_manage_blacklist_ip_menu(update, context)
             elif callback_data == 'add_ip_to_whitelist':
                 await self.handlers['security_advanced'].show_add_ip_to_whitelist_menu(update, context)
+            elif callback_data == 'add_single_ip':
+                await self.handlers['security_advanced'].handle_add_single_ip(update, context)
             elif callback_data == 'remove_ip_from_whitelist':
-                await self.handlers['security_advanced'].show_remove_ip_from_whitelist_menu(update, context)
+                await self.handlers['security_advanced'].handle_remove_whitelist_ip(update, context)
+            elif callback_data.startswith('remove_wl_'):
+                await self.handlers['security_advanced'].handle_confirm_remove_whitelist_ip(update, context)
+            elif callback_data == 'view_whitelist':
+                await self.handlers['security_advanced'].handle_view_whitelist(update, context)
+            elif callback_data == 'enable_ip_restrictions':
+                await self.handlers['security_advanced'].handle_enable_ip_restrictions(update, context)
+            elif callback_data == 'disable_ip_restrictions':
+                await self.handlers['security_advanced'].handle_disable_ip_restrictions(update, context)
             elif callback_data == 'import_whitelist_csv':
                 await self.handlers['security_advanced'].show_import_whitelist_csv_menu(update, context)
             elif callback_data == 'alert_settings':

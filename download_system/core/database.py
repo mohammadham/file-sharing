@@ -17,6 +17,7 @@ from pathlib import Path
 # Add bot directory to path
 sys.path.append(str(Path(__file__).parent))
 from core.models import Token, DownloadLink, DownloadSession, CacheEntry
+from core.security_manager import SecurityManager
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class DatabaseManager:
     def __init__(self, db_path: str = None):
         self.db_path = db_path or settings.DATABASE_URL.replace("sqlite+aiosqlite:///", "")
         self.db_path = Path(self.db_path)
+        self.security_manager = SecurityManager(self.db_path)
         
     async def init_database(self):
         """Initialize database with all necessary tables"""
@@ -116,6 +118,10 @@ class DatabaseManager:
             
             await db.commit()
             logger.info("Download system database initialized successfully")
+        
+        # Initialize security tables
+        await self.security_manager.init_security_tables()
+        logger.info("Security tables initialized successfully")
     
     # Token Management
     
