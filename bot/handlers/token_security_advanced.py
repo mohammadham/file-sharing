@@ -6,6 +6,13 @@ Token Security Advanced Handler - پیاده‌سازی کامل شاخه امن
 """
 
 import logging
+import json
+import csv
+from io import BytesIO
+from io import StringIO
+
+
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from datetime import datetime, timedelta
@@ -176,17 +183,54 @@ class TokenSecurityAdvancedHandler(BaseHandler):
                     InlineKeyboardButton("🌍 محدودیت جغرافیایی", callback_data="geo_restrictions"),
                     InlineKeyboardButton("📊 آمار IP", callback_data="ip_statistics")
                 ],
-                [
-                    InlineKeyboardButton("🔙 بازگشت", callback_data="security_menu")
-                ]
             ])
-            
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"Error in show_ip_restrictions_menu: {e}")
             await self.handle_error(update, context, e)
-    
+
+    async def show_ip_statistics_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش آمار IP (top_ips و suspicious_ips)"""
+        try:
+            query = update.callback_query
+            await query.answer()
+
+            if not hasattr(self.db, 'security_manager'):
+                await query.edit_message_text("❌ سیستم امنیتی مقداردهی نشده است", parse_mode='Markdown')
+                return
+            sm = self.db.security_manager
+            stats = await sm.get_ip_statistics(limit=10)
+
+            text = "📊 **آمار IP ها (7 روز اخیر)**\n\n"
+            top_ips = stats.get('top_ips', [])
+            suspicious = stats.get('suspicious_ips', [])
+
+            if top_ips:
+                text += "🔥 **IP های پرترافیک:**\n"
+                for i, item in enumerate(top_ips, 1):
+                    text += f"{i}. `{item['ip_address']}` — {item['count']} دانلود موفق\n"
+                text += "\n"
+            else:
+                text += "هیچ IP پرترافیکی یافت نشد.\n\n"
+
+            if suspicious:
+                text += "⚠️ **IP های مشکوک (24 ساعت):**\n"
+                for i, item in enumerate(suspicious, 1):
+                    text += f"{i}. `{item['ip_address']}` — شکست: {item['failures']}, لینک‌های متمایز: {item['distinct_links']}\n"
+                text += "\n"
+            else:
+                text += "هیچ IP مشکوکی یافت نشد.\n\n"
+
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 بروزرسانی", callback_data="ip_statistics")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="ip_restrictions")]
+            ])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in show_ip_statistics_menu: {e}")
+            await self.handle_error(update, context, e)
+
     # === MANAGE WHITELIST IP - Level 3 ===
     
     async def show_manage_whitelist_ip_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -337,7 +381,7 @@ class TokenSecurityAdvancedHandler(BaseHandler):
                         InlineKeyboardButton("🔙 بازگشت", callback_data="manage_whitelist_ip")
                     ]])
             else:
-                text += f"❌ خطا در دریافت لیست IP ها\n\n"
+                text += "❌ خطا در دریافت لیست IP ها\n\n"
                 text += f"علت: {result.get('error', 'نامشخص')}"
                 
                 keyboard = InlineKeyboardMarkup([[
@@ -397,6 +441,66 @@ class TokenSecurityAdvancedHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Error in show_import_whitelist_csv_menu: {e}")
+    async def handle_add_ip_range(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ورود محدوده IP برای whitelist"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            context.user_data['awaiting_ip_input'] = 'range'
+            text = (
+                "📊 **افزودن محدوده IP به لیست سفید**\n\n"
+                "لطفاً محدوده را با فرمت CIDR ارسال کنید (مثال: 192.168.1.0/24).\n\n"
+                "برای انصراف، /cancel را ارسال کنید."
+            )
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="add_ip_to_whitelist")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_add_ip_range: {e}")
+            await self.handle_error(update, context, e)
+
+    async def process_whitelist_ip_text_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """دریافت متن IP/Range و افزودن به whitelist"""
+        try:
+            user_text = update.message.text.strip()
+            reason = None
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                wl_id = await sm.add_to_whitelist(user_text, description=reason, created_by=update.effective_user.id if update.effective_user else None)
+                if wl_id:
+                    await update.message.reply_text("✅ IP به لیست سفید اضافه شد")
+                else:
+                    await update.message.reply_text("❌ IP نامعتبر است یا افزودن با خطا مواجه شد")
+            else:
+                await update.message.reply_text("❌ سیستم امنیتی مقداردهی نشده است")
+            # پاک‌کردن حالت انتظار
+            if 'awaiting_ip_input' in context.user_data:
+                del context.user_data['awaiting_ip_input']
+        except Exception as e:
+            logger.error(f"Error in process_whitelist_ip_text_input: {e}")
+            await update.message.reply_text("❌ خطا در پردازش ورودی")
+
+    async def process_blacklist_ip_text_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """دریافت متن IP/Range و افزودن به blacklist"""
+        try:
+            user_text = update.message.text.strip()
+            reason = context.user_data.get('blacklist_reason')
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                bl_id = await sm.add_to_blacklist(user_text, reason=reason, blocked_by=update.effective_user.id if update.effective_user else None)
+                if bl_id:
+                    await update.message.reply_text("✅ IP به لیست سیاه اضافه شد")
+                else:
+                    await update.message.reply_text("❌ IP نامعتبر است یا افزودن با خطا مواجه شد")
+            else:
+                await update.message.reply_text("❌ سیستم امنیتی مقداردهی نشده است")
+            if 'awaiting_blacklist_ip_input' in context.user_data:
+                del context.user_data['awaiting_blacklist_ip_input']
+            if 'blacklist_reason' in context.user_data:
+                del context.user_data['blacklist_reason']
+        except Exception as e:
+            logger.error(f"Error in process_blacklist_ip_text_input: {e}")
+            await update.message.reply_text("❌ خطا در پردازش ورودی")
+
             await self.handle_error(update, context, e)
     
     # === SECURITY ALERTS - Level 2 ===
@@ -697,7 +801,7 @@ class TokenSecurityAdvancedHandler(BaseHandler):
             if result.get('success'):
                 data = result.get('data', {})
                 
-                text += f"📊 **خلاصه امروز:**\n"
+                text += "📊 **خلاصه امروز:**\n"
                 text += f"• توکن‌های مشکوک: {data.get('suspicious_tokens', 0)}\n"
                 text += f"• IP های مشکوک: {data.get('suspicious_ips', 0)}\n"
                 text += f"• تلاش‌های ناموفق: {data.get('failed_attempts', 0)}\n"
@@ -713,7 +817,7 @@ class TokenSecurityAdvancedHandler(BaseHandler):
                 # اقدامات پیشنهادی
                 recommendations = data.get('recommendations', [])
                 if recommendations:
-                    text += f"💡 **اقدامات پیشنهادی:**\n"
+                    text += "💡 **اقدامات پیشنهادی:**\n"
                     for rec in recommendations[:3]:
                         text += f"• {rec}\n"
             else:
@@ -783,7 +887,7 @@ class TokenSecurityAdvancedHandler(BaseHandler):
                     else:
                         expiry_text = f"{days} روز"
                     
-                    text = f"✅ **تنظیم انقضای پیش‌فرض**\n\n"
+                    text = "✅ **تنظیم انقضای پیش‌فرض**\n\n"
                     text += f"⏰ **مدت زمان انقضا:** {expiry_text}\n"
                     text += f"📅 **زمان اعمال:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                     text += "این تنظیم برای همه توکن‌های آینده اعمال خواهد شد."
@@ -853,7 +957,7 @@ class TokenSecurityAdvancedHandler(BaseHandler):
                     else:
                         limit_text = str(limit)
                     
-                    text = f"✅ **تنظیم حد استفاده**\n\n"
+                    text = "✅ **تنظیم حد استفاده**\n\n"
                     text += f"🔢 **حد استفاده روزانه:** {limit_text}\n"
                     text += f"📅 **زمان اعمال:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                     text += "این محدودیت برای همه توکن‌ها اعمال خواهد شد."
@@ -1127,5 +1231,522 @@ class TokenSecurityAdvancedHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Error in handle_disable_ip_restrictions: {e}")
+
+    # === BLACKLIST MANAGEMENT ===
+    async def show_manage_blacklist_ip_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """مدیریت لیست سیاه IP - manage_blacklist_ip"""
+        try:
+            query = update.callback_query
+            await query.answer()
+
+            text = "❌ **مدیریت لیست سیاه IP**\n\n"
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                bl = await sm.get_blacklist(active_only=True)
+                count = len(bl)
+                text += f"📊 **تعداد IP های مسدود:** {count}\n\n"
+                if bl:
+                    text += "🚫 **IP های مسدود اخیر:**\n"
+                    for i, ip in enumerate(bl[:5], 1):
+                        ip_disp = ip.get('ip_address', 'نامشخص')
+                        reason = ip.get('reason') or 'بدون دلیل'
+                        text += f"{i}. `{ip_disp}` - {reason}\n"
+                    if count > 5:
+                        text += f"... و {count-5} مورد دیگر\n\n"
+                else:
+                    text += "✅ در حال حاضر هیچ IP ای در لیست سیاه وجود ندارد.\n\n"
+            else:
+                text += "❌ خطا: سیستم امنیتی مقداردهی نشده است\n\n"
+
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("➕ افزودن IP تکی", callback_data="add_single_ip_blacklist"),
+                    InlineKeyboardButton("📊 افزودن محدوده", callback_data="add_ip_range_blacklist")
+                ],
+                [
+                    InlineKeyboardButton("📋 مشاهده لیست", callback_data="view_blacklist"),
+                    InlineKeyboardButton("🗑 حذف IP", callback_data="remove_blacklist_ip")
+                ],
+                [
+                    InlineKeyboardButton("📥 واردات CSV", callback_data="import_blacklist_csv"),
+                    InlineKeyboardButton("📤 صادرات لیست", callback_data="export_blacklist")
+                ],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="ip_restrictions")]
+            ])
+
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in show_manage_blacklist_ip_menu: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_add_single_ip_blacklist(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """درخواست ورودی برای اضافه کردن IP تکی به لیست سیاه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+
+            context.user_data['awaiting_blacklist_ip_input'] = 'single'
+
+            text = (
+                "➕ **افزودن IP به لیست سیاه**\n\n"
+                "لطفاً IP یا محدوده (CIDR) را ارسال کنید.\n\n"
+                "مثال‌ها:\n"
+                "• 203.0.113.25\n"
+                "• 203.0.113.0/24\n\n"
+                "برای انصراف، /cancel را ارسال کنید."
+            )
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_add_single_ip_blacklist: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_add_ip_range_blacklist(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """راهنمای افزودن محدوده IP به لیست سیاه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+
+            context.user_data['awaiting_blacklist_ip_input'] = 'range'
+
+            text = (
+                "📊 **افزودن محدوده IP به لیست سیاه**\n\n"
+                "لطفاً محدوده را با فرمت CIDR ارسال کنید (مانند 203.0.113.0/24).\n\n"
+                "برای انصراف، /cancel را ارسال کنید."
+            )
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_add_ip_range_blacklist: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_view_blacklist(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش لیست سیاه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                bl = await sm.get_blacklist(active_only=True)
+                if not bl:
+                    text = "❌ **لیست سیاه خالی است**\n\nابتدا IP اضافه کنید."
+                    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("➕ افزودن IP", callback_data="add_single_ip_blacklist"), InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+                else:
+                    text = f"❌ **لیست سیاه IP ({len(bl)} مورد)**\n\n"
+                    buttons = []
+                    for i, entry in enumerate(bl[:15], 1):
+                        ip_disp = entry.get('ip_address', 'نامشخص')
+                        reason = entry.get('reason') or 'بدون دلیل'
+                        text += f"{i}. `{ip_disp}` - {reason}\n"
+                        buttons.append([InlineKeyboardButton(f"🗑 حذف {ip_disp}", callback_data=f"remove_bl_{entry['id']}")])
+                    buttons.append([InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")])
+                    keyboard = InlineKeyboardMarkup(buttons)
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_view_blacklist: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_remove_blacklist_ip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش لیست برای حذف از لیست سیاه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                bl = await sm.get_blacklist(active_only=True)
+                if not bl:
+                    text = "✅ هیچ IP مسدودی وجود ندارد."
+                    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+                else:
+                    text = "🗑 **حذف از لیست سیاه**\n\nروی مورد دلخواه کلیک کنید:\n"
+                    buttons = []
+                    for entry in bl[:20]:
+                        ip_disp = entry.get('ip_address', 'نامشخص')
+                        buttons.append([InlineKeyboardButton(f"🗑 حذف {ip_disp}", callback_data=f"remove_bl_{entry['id']}")])
+                    buttons.append([InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")])
+                    keyboard = InlineKeyboardMarkup(buttons)
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_remove_blacklist_ip: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_confirm_remove_blacklist_ip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """حذف نهایی IP از لیست سیاه"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال حذف IP...")
+            blacklist_id = query.data.replace('remove_bl_', '')
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                ok = await sm.remove_from_blacklist(blacklist_id)
+                if ok:
+                    text = "✅ IP از لیست سیاه حذف شد"
+                    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+                else:
+                    text = "❌ خطا در حذف IP"
+                    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="remove_blacklist_ip")]])
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_confirm_remove_blacklist_ip: {e}")
+            await self.handle_error(update, context, e)
+
+    async def show_import_blacklist_csv_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش راهنمای واردات CSV لیست سیاه"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            text = (
+                "📥 **واردات لیست سیاه از CSV**\n\n"
+                "فرمت نمونه:\n"
+                "`````\n"
+                "ip,reason,active\n"
+                "203.0.113.25,اسکن پورت,false\n"
+                "203.0.113.0/24,سوءاستفاده از API,true\n"
+                "`````\n\n"
+                "حداکثر 1000 ردیف، اندازه فایل < 1MB."
+            )
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📁 آپلود فایل CSV", callback_data="select_blacklist_csv"), InlineKeyboardButton("📝 نمونه CSV", callback_data="download_blacklist_csv_template")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]
+            ])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in show_import_blacklist_csv_menu: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_export_blacklist(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """صادرات لیست سیاه (نمایش JSON کوتاه)"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                bl = await sm.get_blacklist(active_only=True)
+                export_data = [{
+                    'ip': e.get('ip_address'),
+                    'range': e.get('ip_range'),
+                    'reason': e.get('reason'),
+                    'blocked_at': e.get('blocked_at')
+                } for e in bl]
+                text = "📤 **صادرات لیست سیاه (JSON پیش‌نمایش)**\n\n"
+                preview = json.dumps(export_data[:10], ensure_ascii=False, indent=2)
+                if len(export_data) > 10:
+                    text += f"نمایش 10 مورد از {len(export_data)} رکورد:\n"
+                text += f"````\n{preview}\n````"
+            else:
+                text = "❌ **خطا:** سیستم امنیتی مقداردهی نشده است."
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="manage_blacklist_ip")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_export_blacklist: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_import_blacklist_csv_file(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """پردازش فایل CSV ارسالی و درج دسته‌ای در blacklist (مینیمال)"""
+        try:
+            message = update.message or (update.edited_message if hasattr(update, 'edited_message') else None)
+            if not message or not message.document:
+                return False
+            file = await message.document.get_file()
+            content = await file.download_as_bytearray()
+            text_data = content.decode('utf-8', errors='ignore')
+            f = StringIO(text_data)
+            reader = csv.DictReader(f)
+            added, failed = 0, 0
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                for row in reader:
+                    ip = (row.get('ip') or row.get('ip_address') or '').strip()
+                    reason = (row.get('reason') or '').strip() or None
+                    active_str = (row.get('active') or 'true').strip().lower()
+                    is_active = active_str in ['1','true','yes','y']
+                    if not ip:
+                        failed += 1
+                        continue
+                    bl_id = await sm.add_to_blacklist(ip, reason=reason, blocked_by=update.effective_user.id if update.effective_user else None)
+                    if bl_id:
+                        if not is_active:
+                            # اگر نیاز به غیرفعال‌سازی داریم، می‌توانیم یک فیلد is_active را با متد جداگانه آپدیت کنیم؛ فعلاً نادیده گرفته می‌شود
+                            pass
+                        added += 1
+                    else:
+                        failed += 1
+            await message.reply_text(f"📥 واردات CSV پایان یافت. موفق: {added} | ناموفق: {failed}")
+            return True
+        except Exception as e:
+            logger.error(f"Error in handle_import_blacklist_csv_file: {e}")
+            if update.message:
+                await update.message.reply_text("❌ خطا در پردازش CSV")
+            return False
+
+    # === SECURITY ALERT CHANNEL TOGGLES ===
+    async def handle_email_alerts_toggle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._toggle_alert_channel(update, context, key='alert_email_enabled', label='ایمیل')
+
+    async def handle_telegram_alerts_toggle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._toggle_alert_channel(update, context, key='alert_telegram_enabled', label='تلگرام')
+
+    async def handle_webhook_alerts_toggle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._toggle_alert_channel(update, context, key='alert_webhook_enabled', label='Webhook')
+
+    async def handle_sms_alerts_toggle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._toggle_alert_channel(update, context, key='alert_sms_enabled', label='SMS')
+
+    async def _toggle_alert_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE, key: str, label: str):
+        try:
+            query = update.callback_query
+            await query.answer()
+            if not hasattr(self.db, 'security_manager'):
+                await query.edit_message_text("❌ سیستم امنیتی مقداردهی نشده است", parse_mode='Markdown')
+                return
+            sm = self.db.security_manager
+            cur = await sm.get_setting(key)
+            new_val = 'false' if (cur == 'true') else 'true'
+            ok = await sm.set_setting(key, new_val, f'{label} alerts toggle')
+            # نمایش وضعیت به صورت toast و بازگشت به منو
+            try:
+                await query.answer("✅ تغییرات اعمال شد" if ok else "❌ خطا در تغییر وضعیت", show_alert=False)
+            except Exception:
+                pass
+            await self.show_security_alerts_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error toggling alert channel {label}: {e}")
+            await self.handle_error(update, context, e)
+
+    # === ALERT HISTORY ===
+    async def show_alert_history_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """نمایش تاریخچه هشدارها"""
+        try:
+            query = update.callback_query
+            await query.answer()
+            page = int(query.data.split('_')[-1]) if query.data.startswith('alert_history_page_') else 1
+            per_page = 10
+            if not hasattr(self.db, 'security_manager'):
+                await query.edit_message_text("❌ سیستم امنیتی مقداردهی نشده است", parse_mode='Markdown')
+                return
+            sm = self.db.security_manager
+            alerts = await sm.get_alerts(unread_only=False, limit=100)
+            total = len(alerts)
+            start = (page - 1) * per_page
+            end = start + per_page
+            page_items = alerts[start:end]
+
+            text = "📜 **تاریخچه هشدارها**\n\n"
+            if not page_items:
+                text += "هیچ هشداری یافت نشد.\n"
+            else:
+                for a in page_items:
+                    status = '🟡 جدید' if a.get('is_read') == 0 else '⚪️ خوانده شده'
+                    text += f"• {status} [{a.get('severity','medium')}] {a.get('alert_type','alert')} - {a.get('message','')}\n"
+                    text += f"  🕐 {a.get('created_at','')[:16]}  |  ID: `{a.get('id')}`\n"
+            # Pagination & actions
+            buttons = []
+            nav = []
+            if page > 1:
+                nav.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"alert_history_page_{page-1}"))
+            if end < total:
+                nav.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"alert_history_page_{page+1}"))
+            if nav:
+                buttons.append(nav)
+            buttons.extend([
+                [InlineKeyboardButton("✅ علامت خوانده شد (همه)", callback_data="mark_all_as_read"), InlineKeyboardButton("🗑 پاکسازی قدیمی‌ها", callback_data="clear_history")],
+                [InlineKeyboardButton("📄 خروجی JSON", callback_data="export_alerts_json"), InlineKeyboardButton("📊 خروجی CSV", callback_data="export_alerts_csv")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="security_alerts")]
+            ])
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in show_alert_history_menu: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_mark_alert_as_read(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """علامت خوانده شده برای یک هشدار"""
+        try:
+            query = update.callback_query
+            await query.answer("در حال بروز رسانی...")
+            alert_id = query.data.replace('mark_as_read_', '')
+            if hasattr(self.db, 'security_manager'):
+                await self.db.security_manager.mark_alert_as_read(alert_id)
+            await self.show_alert_history_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_mark_alert_as_read: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_mark_all_alerts_as_read(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer("علامت‌گذاری همه ...")
+            if hasattr(self.db, 'security_manager'):
+                alerts = await self.db.security_manager.get_alerts(unread_only=True, limit=200)
+                for a in alerts:
+                    await self.db.security_manager.mark_alert_as_read(a['id'])
+            await self.show_alert_history_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_mark_all_alerts_as_read: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_clear_alert_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer("در حال پاکسازی...")
+            if hasattr(self.db, 'security_manager'):
+                await self.db.security_manager.clear_old_alerts(days=0)
+            await self.show_alert_history_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_clear_alert_history: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_export_alerts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            fmt = 'json' if query.data.endswith('_json') else 'csv'
+            await query.answer()
+            if not hasattr(self.db, 'security_manager'):
+                await query.edit_message_text("❌ سیستم امنیتی مقداردهی نشده است", parse_mode='Markdown')
+                return
+            alerts = await self.db.security_manager.get_alerts(unread_only=False, limit=200)
+            if fmt == 'json':
+                payload = json.dumps(alerts, ensure_ascii=False, indent=2)
+                text = f"📄 **خروجی JSON هشدارها (پیش‌نمایش)**\n\n````\n{payload[:3500]}\n````"
+            else:
+                # CSV simple string
+                rows = ["id,alert_type,severity,message,created_at,is_read"]
+                for a in alerts:
+                    line = f"{a.get('id')},{a.get('alert_type')},{a.get('severity')},\"{(a.get('message') or '').replace(',', ' ')}\",{a.get('created_at')},{a.get('is_read')}"
+                    rows.append(line)
+                csv_text = "\n".join(rows)
+                text = f"📊 **خروجی CSV هشدارها (پیش‌نمایش)**\n\n````\n{csv_text[:3500]}\n````"
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="alert_history")]])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in handle_export_alerts: {e}")
+            await self.handle_error(update, context, e)
+
+    # === THRESHOLDS ===
+    async def show_threshold_quota_limit_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer()
+            text = (
+                "📊 **آستانه هشدار سهمیه (Quota)**\n\n"
+                "حد هشدار را انتخاب کنید:"
+            )
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("80%", callback_data="set_quota_threshold_80"), InlineKeyboardButton("90%", callback_data="set_quota_threshold_90")],
+                [InlineKeyboardButton("95%", callback_data="set_quota_threshold_95"), InlineKeyboardButton("🎯 سفارشی", callback_data="set_quota_threshold_custom")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="alert_settings")]
+            ])
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f"Error in show_threshold_quota_limit_menu: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_set_login_threshold(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer("در حال ذخیره...")
+            mapping = {
+                'set_login_threshold_3_5': '3/5',
+                'set_login_threshold_5_10': '5/10',
+                'set_login_threshold_10_15': '10/15',
+                'set_login_threshold_20_30': '20/30',
+                'disable_login_threshold': 'disabled'
+            }
+            val = mapping.get(query.data)
+            if not val and query.data == 'custom_login_threshold':
+                # Not implemented conversation yet
+                await query.answer("🚧 سفارشی - در حال توسعه")
+                return
+            if not hasattr(self.db, 'security_manager'):
+                await query.edit_message_text("❌ سیستم امنیتی مقداردهی نشده است", parse_mode='Markdown')
+                return
+            await self.db.security_manager.set_setting('threshold_failed_login', val or '5/10', 'Failed login alert threshold')
+            await self.show_alert_settings_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_set_login_threshold: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_set_quota_threshold(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer("در حال ذخیره...")
+            mapping = {
+                'set_quota_threshold_80': '80',
+                'set_quota_threshold_90': '90',
+                'set_quota_threshold_95': '95'
+            }
+            if query.data == 'set_quota_threshold_custom':
+                await query.answer("🚧 سفارشی - در حال توسعه")
+                return
+            val = mapping.get(query.data, '90')
+            if hasattr(self.db, 'security_manager'):
+                await self.db.security_manager.set_setting('threshold_quota_limit', val, 'Quota usage alert threshold')
+            await self.show_alert_settings_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_set_quota_threshold: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_disable_all_alerts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer()
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                for k in ['alert_email_enabled','alert_telegram_enabled','alert_webhook_enabled','alert_sms_enabled']:
+                    await sm.set_setting(k, 'false', 'Disable all alerts')
+            await self.show_security_alerts_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_disable_all_alerts: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_enable_all_alerts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer()
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                for k in ['alert_email_enabled','alert_telegram_enabled','alert_webhook_enabled','alert_sms_enabled']:
+                    await sm.set_setting(k, 'true', 'Enable all alerts')
+            await self.show_security_alerts_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_enable_all_alerts: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_toggle_geo_anomaly(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer()
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                cur = await sm.get_setting('threshold_geo_anomaly')
+                new_val = 'false' if (cur == 'true') else 'true'
+                await sm.set_setting('threshold_geo_anomaly', new_val, 'Geo anomaly alerts')
+            await self.show_alert_settings_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_toggle_geo_anomaly: {e}")
+            await self.handle_error(update, context, e)
+
+    async def handle_toggle_time_anomaly(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            query = update.callback_query
+            await query.answer()
+            if hasattr(self.db, 'security_manager'):
+                sm = self.db.security_manager
+                cur = await sm.get_setting('threshold_time_anomaly')
+                new_val = 'false' if (cur == 'true') else 'true'
+                await sm.set_setting('threshold_time_anomaly', new_val, 'Time anomaly alerts')
+            await self.show_alert_settings_menu(update, context)
+        except Exception as e:
+            logger.error(f"Error in handle_toggle_time_anomaly: {e}")
+            await self.handle_error(update, context, e)
+
             await self.handle_error(update, context, e)
             await self.handle_error(update, context, e)

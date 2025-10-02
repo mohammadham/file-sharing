@@ -60,13 +60,13 @@ class TokenCallbacks:
             elif callback_data == 'token_security_settings':
                 await self.handlers['security'].show_security_settings(update, context)
             elif callback_data == 'set_default_expiry':
-                await self.handlers['security'].handle_set_default_expiry(update, context)
+                await self.handlers['security_advanced'].show_set_default_expiry_menu(update, context)
             elif callback_data == 'set_usage_limit':
-                await self.handlers['security'].handle_set_usage_limit(update, context)
+                await self.handlers['security_advanced'].show_set_usage_limit_menu(update, context)
             elif callback_data == 'ip_restrictions':
-                await self.handlers['security'].handle_ip_restrictions(update, context)
+                await self.handlers['security_advanced'].show_ip_restrictions_menu(update, context)
             elif callback_data == 'security_alerts':
-                await self.handlers['security'].handle_security_alerts(update, context)
+                await self.handlers['security_advanced'].show_security_alerts_menu(update, context)
             elif callback_data.startswith('set_expiry_'):
                 await self.handlers['security'].handle_set_expiry_action(update, context)
             
@@ -479,16 +479,92 @@ class TokenCallbacks:
                 await self.handlers['security_advanced'].handle_disable_ip_restrictions(update, context)
             elif callback_data == 'import_whitelist_csv':
                 await self.handlers['security_advanced'].show_import_whitelist_csv_menu(update, context)
+            elif callback_data == 'ip_statistics':
+                await self.handlers['security_advanced'].show_ip_statistics_menu(update, context)
+
             elif callback_data == 'alert_settings':
                 await self.handlers['security_advanced'].show_alert_settings_menu(update, context)
             elif callback_data == 'threshold_failed_login':
                 await self.handlers['security_advanced'].show_threshold_failed_login_menu(update, context)
+            elif callback_data == 'threshold_quota_limit':
+                await self.handlers['security_advanced'].show_threshold_quota_limit_menu(update, context)
+            elif callback_data in ['set_login_threshold_3_5','set_login_threshold_5_10','set_login_threshold_10_15','set_login_threshold_20_30','disable_login_threshold','custom_login_threshold']:
+                await self.handlers['security_advanced'].handle_set_login_threshold(update, context)
+            elif callback_data in ['set_quota_threshold_80','set_quota_threshold_90','set_quota_threshold_95','set_quota_threshold_custom']:
+                await self.handlers['security_advanced'].handle_set_quota_threshold(update, context)
+            elif callback_data in ['threshold_geo_anomaly','threshold_time_anomaly']:
+                if callback_data == 'threshold_geo_anomaly':
+                    await self.handlers['security_advanced'].handle_toggle_geo_anomaly(update, context)
+                else:
+                    await self.handlers['security_advanced'].handle_toggle_time_anomaly(update, context)
             elif callback_data == '2fa_settings':
                 await self.handlers['security_advanced'].show_2fa_settings_menu(update, context)
             elif callback_data == 'session_settings':
                 await self.handlers['security_advanced'].show_session_settings_menu(update, context)
             elif callback_data == 'suspicious_analysis':
                 await self.handlers['security_advanced'].show_suspicious_analysis_menu(update, context)
+            
+            # === Advanced Security: Blacklist & Alerts ===
+            elif callback_data == 'add_single_ip_blacklist':
+                await self.handlers['security_advanced'].handle_add_single_ip_blacklist(update, context)
+            elif callback_data == 'add_ip_range_blacklist':
+                await self.handlers['security_advanced'].handle_add_ip_range_blacklist(update, context)
+            elif callback_data == 'view_blacklist':
+                await self.handlers['security_advanced'].handle_view_blacklist(update, context)
+            elif callback_data == 'remove_blacklist_ip':
+                await self.handlers['security_advanced'].handle_remove_blacklist_ip(update, context)
+            elif callback_data.startswith('remove_bl_'):
+                await self.handlers['security_advanced'].handle_confirm_remove_blacklist_ip(update, context)
+            elif callback_data == 'import_blacklist_csv':
+                await self.handlers['security_advanced'].show_import_blacklist_csv_menu(update, context)
+            elif callback_data == 'export_blacklist':
+                await self.handlers['security_advanced'].handle_export_blacklist(update, context)
+            elif callback_data in ['select_blacklist_csv','download_blacklist_csv_template']:
+            elif callback_data == 'import_blacklist_csv':
+                # هنگام ورود به صفحه راهنما، امکان آپلود فایل فراهم می‌شود
+                context.user_data['awaiting_blacklist_csv_upload'] = True
+                await self.handlers['security_advanced'].show_import_blacklist_csv_menu(update, context)
+
+                # برای این نسخه: هر دو فقط راهنما را نشان می‌دهند
+                await self.handlers['security_advanced'].show_import_blacklist_csv_menu(update, context)
+
+            elif callback_data == 'security_alerts':
+                await self.handlers['security_advanced'].show_security_alerts_menu(update, context)
+            elif callback_data == 'disable_all_alerts':
+                await self.handlers['security_advanced'].handle_disable_all_alerts(update, context)
+            elif callback_data == 'enable_all_alerts':
+                await self.handlers['security_advanced'].handle_enable_all_alerts(update, context)
+
+            elif callback_data == 'email_alerts_toggle':
+                await self.handlers['security_advanced'].handle_email_alerts_toggle(update, context)
+            elif callback_data == 'telegram_alerts_toggle':
+                await self.handlers['security_advanced'].handle_telegram_alerts_toggle(update, context)
+            elif callback_data == 'webhook_alerts_toggle':
+                await self.handlers['security_advanced'].handle_webhook_alerts_toggle(update, context)
+            elif callback_data == 'sms_alerts_toggle':
+                await self.handlers['security_advanced'].handle_sms_alerts_toggle(update, context)
+            elif callback_data == 'alert_history':
+                await self.handlers['security_advanced'].show_alert_history_menu(update, context)
+            elif callback_data.startswith('alert_history_page_'):
+                await self.handlers['security_advanced'].show_alert_history_menu(update, context)
+            elif callback_data.startswith('mark_as_read_'):
+                await self.handlers['security_advanced'].handle_mark_alert_as_read(update, context)
+            elif callback_data == 'mark_all_as_read':
+                await self.handlers['security_advanced'].handle_mark_all_alerts_as_read(update, context)
+            elif callback_data == 'clear_history':
+                await self.handlers['security_advanced'].handle_clear_alert_history(update, context)
+            elif callback_data in ['export_alerts_json', 'export_alerts_csv']:
+                await self.handlers['security_advanced'].handle_export_alerts(update, context)
+            elif callback_data in ['set_login_threshold_3_5', 'set_login_threshold_5_10', 'set_login_threshold_10_15', 'set_login_threshold_20_30', 'custom_login_threshold', 'disable_login_threshold']:
+                await self.handlers['security_advanced'].handle_set_login_threshold(update, context)
+            elif callback_data in ['set_quota_threshold_80','set_quota_threshold_90','set_quota_threshold_95','set_quota_threshold_custom']:
+                await self.handlers['security_advanced'].handle_set_quota_threshold(update, context)
+            elif callback_data in ['threshold_geo_anomaly','threshold_time_anomaly']:
+                if callback_data == 'threshold_geo_anomaly':
+                    await self.handlers['security_advanced'].handle_toggle_geo_anomaly(update, context)
+                else:
+                    await self.handlers['security_advanced'].handle_toggle_time_anomaly(update, context)
+
             
             # === System Management Menu ===
             elif callback_data == 'system_menu':

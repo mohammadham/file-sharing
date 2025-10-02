@@ -94,6 +94,55 @@ class SecurityManager:
             ''')
             
             await db.commit()
+    # === IP STATISTICS ===
+    async def get_ip_statistics(self, limit: int = 10) -> Dict[str, Any]:
+        """Return top IPs and suspicious IPs from download_sessions"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                # Top IPs by completed sessions in last 7 days
+                cursor = await db.execute('''
+                    SELECT ip_address, COUNT(*) as cnt
+                    FROM download_sessions
+                    WHERE started_at >= datetime('now', '-7 days') AND status = 'completed'
+                    GROUP BY ip_address
+                    ORDER BY cnt DESC
+                    LIMIT ?
+                ''', (limit,))
+                top_rows = await cursor.fetchall()
+                top_ips = [{'ip_address': r[0], 'count': r[1]} for r in top_rows]
+
+                # Suspicious criterion: IPs with failures > 5 in last 24h or > 3 different link_code
+                cursor = await db.execute('''
+                    SELECT ip_address,
+                           SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failures,
+                           COUNT(DISTINCT link_code) as distinct_links,
+                           COUNT(*) as total
+                    FROM download_sessions
+                    WHERE started_at >= datetime('now', '-1 day')
+                    GROUP BY ip_address
+                    HAVING failures >= 5 OR distinct_links >= 3
+                    ORDER BY failures DESC, distinct_links DESC
+                    LIMIT ?
+                ''', (limit,))
+                susp_rows = await cursor.fetchall()
+                suspicious_ips = [
+                    {
+                        'ip_address': r[0],
+                        'failures': r[1],
+                        'distinct_links': r[2],
+                        'total': r[3]
+                    } for r in susp_rows
+                ]
+
+                return {
+                    'top_ips': top_ips,
+                    'suspicious_ips': suspicious_ips,
+                    'generated_at': datetime.now().isoformat()
+                }
+        except Exception as e:
+            logger.error(f"Error getting IP statistics: {e}")
+            return {'top_ips': [], 'suspicious_ips': [], 'error': str(e)}
+
             logger.info("Security tables initialized successfully")
     
     # === SECURITY SETTINGS ===

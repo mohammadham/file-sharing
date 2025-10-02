@@ -176,8 +176,6 @@ class TelegramFileBot:
                     await self.share_link_handler.legacy_file_link(update, context, arg[5:])  # Remove 'file_' prefix
                     return
             
-            session = await self.db.get_user_session(user_id)
-            
             # Reset user state
             await self.db.update_user_session(
                 user_id,
@@ -232,8 +230,16 @@ class TelegramFileBot:
                 await self.token_search.handle_search_input(update, context)
                 # Prevent further processing
                 raise ApplicationHandlerStop
+
+            # Security settings text inputs (whitelist/blacklist IP capture)
+            if (user_data.get('awaiting_ip_input') or user_data.get('awaiting_blacklist_ip_input')):
+                if user_data.get('awaiting_blacklist_ip_input'):
+                    await self.token_security_advanced.process_blacklist_ip_text_input(update, context)
+                else:
+                    await self.token_security_advanced.process_whitelist_ip_text_input(update, context)
+                raise ApplicationHandlerStop
             
-            # Not a token search input - let other handlers process it
+            # Not a token search or security input - let other handlers process it
             # Continue to next handler in the chain
             
         except ApplicationHandlerStop:
@@ -648,7 +654,7 @@ class TelegramFileBot:
             
             try:
                 await update.callback_query.answer("❌ خطایی رخ داد!")
-            except:
+            except Exception:
                 pass
     
     
@@ -711,10 +717,33 @@ class TelegramFileBot:
             self.message_handler.handle_text_message
         ), group=1)
         
+    async def _security_csv_capture(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Capture CSV uploads for security blacklist import when user is in that flow"""
+        try:
+            user_data = context.user_data
+            # شرط: اگر کاربر در منوی import_blacklist_csv است یا explicitly درخواست داده
+            # ما از فلگ ساده استفاده می‌کنیم تا پردازش شود
+            if user_data.get('awaiting_blacklist_csv_upload'):
+                handled = await self.token_security_advanced.handle_import_blacklist_csv_file(update, context)
+                if handled:
+                    user_data['awaiting_blacklist_csv_upload'] = False
+                    return
+            # اگر فلگ نبود، به هندلر عمومی منتقل شود
+            await self.message_handler.handle_file_message(update, context)
+        except Exception as e:
+            logger.error(f"Error in _security_csv_capture: {e}")
+            await self.handle_error_safe(update, context)
+
+        # CSV import for blacklist: capture document when awaiting flag
+        self.application.add_handler(TelegramMessageHandler(
+            filters.Document.FileExtension("csv"),
+            self._security_csv_capture
+        ), group=1)
+        
         self.application.add_handler(TelegramMessageHandler(
             filters.Document.ALL | filters.PHOTO | filters.VIDEO | filters.AUDIO,
             self.message_handler.handle_file_message
-        ), group=1)
+        ), group=2)
         
         logger.info("All handlers registered successfully")
     
